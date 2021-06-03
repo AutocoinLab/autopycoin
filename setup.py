@@ -7,7 +7,7 @@ import os
 from setuptools import find_packages, setup
 
 # get __version__ from _version.py
-ver_file = os.path.join('skltemplate', '_version.py')
+ver_file = os.path.join('autopycoin', '_version.py')
 with open(ver_file) as f:
     exec(f.read())
 
@@ -16,10 +16,10 @@ DESCRIPTION = 'A template for scikit-learn compatible packages.'
 with codecs.open('README.rst', encoding='utf-8-sig') as f:
     LONG_DESCRIPTION = f.read()
 MAINTAINER = 'G. Dubuc'
-MAINTAINER_EMAIL = 'vighneshbirodkar@nyu.edu, g.lemaitre58@gmail.com'
-URL = 'https://github.com/scikit-learn-contrib/project-template'
+MAINTAINER_EMAIL = 'gaet.dub1@gmail.com'
+URL = 'https://github.com/GaetanDu/autopycoin'
 LICENSE = 'new BSD'
-DOWNLOAD_URL = 'https://github.com/scikit-learn-contrib/project-template'
+DOWNLOAD_URL = 'https://github.com/GaetanDu/autopycoin'
 VERSION = __version__
 INSTALL_REQUIRES = ['numpy', 'scipy', 'scikit-learn']
 CLASSIFIERS = ['Intended Audience :: Science/Research',
@@ -45,7 +45,8 @@ EXTRAS_REQUIRE = {
         'sphinx-gallery',
         'sphinx_rtd_theme',
         'numpydoc',
-        'matplotlib'
+        'matplotlib',
+        'pydata_sphinx_theme'
     ]
 }
 
