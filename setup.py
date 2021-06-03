@@ -21,7 +21,7 @@ URL = 'https://github.com/GaetanDu/autopycoin'
 LICENSE = 'new BSD'
 DOWNLOAD_URL = 'https://github.com/GaetanDu/autopycoin'
 VERSION = __version__
-INSTALL_REQUIRES = ['numpy', 'scipy', 'scikit-learn']
+INSTALL_REQUIRES = ['numpy', 'scipy', 'scikit-learn', 'tensorflow', 'matplotlib', 'plotly']
 CLASSIFIERS = ['Intended Audience :: Science/Research',
                'Intended Audience :: Developers',
                'License :: OSI Approved',

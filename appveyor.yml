@@ -8,6 +8,9 @@ environment:
       NUMPY_VERSION: "*"
       SCIPY_VERSION: "*"
       SKLEARN_VERSION: "*"
+      TENSORFLOW_VERSION: "*"
+      MATPLOTLIB_VERSION: "*"
+      PLOTLY_VERSION: "*"
 
     - PYTHON: "C:\\Miniconda3-x64"
       PYTHON_VERSION: "3.9.x"
@@ -15,6 +18,9 @@ environment:
       NUMPY_VERSION: "*"
       SCIPY_VERSION: "*"
       SKLEARN_VERSION: "*"
+      TENSORFLOW_VERSION: "*"
+      MATPLOTLIB_VERSION: "*"
+      PLOTLY_VERSION: "*"
 
 install:
   # Prepend miniconda installed Python to the PATH of this buil
@@ -23,6 +29,7 @@ install:
   - "SET PATH=%PYTHON%;%PYTHON%\\Scripts;%PYTHON%\\Library\\bin;%PATH%"
   # install the dependencies
   - "conda install --yes -c conda-forge pip numpy==%NUMPY_VERSION% scipy==%SCIPY_VERSION% scikit-learn==%SKLEARN_VERSION%"
+  - "conda install --yes -c conda-forge pip tensorflow==%TENSORFLOW_VERSION% matplotlib==%MATPLOTLIB_VERSION% plotly==%PLOTLY_VERSION%"
   - pip install codecov nose pytest pytest-cov
   - pip install .
 
