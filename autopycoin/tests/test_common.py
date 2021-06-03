@@ -11,4 +11,5 @@ from autopycoin import TemplateTransformer
     "Estimator", [TemplateEstimator, TemplateTransformer, TemplateClassifier]
 )
 def test_all_estimators(Estimator):
-    return check_estimator(Estimator)
+    estimator = Estimator()
+    return check_estimator(estimator)
