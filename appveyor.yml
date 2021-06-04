@@ -42,4 +42,5 @@ test_script:
 after_test:
   - cp .coverage %APPVEYOR_BUILD_FOLDER%
   - cd %APPVEYOR_BUILD_FOLDER%
+  - bash <(curl -s https://codecov.io/bash)
   - codecov
