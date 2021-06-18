@@ -16,7 +16,6 @@ import sys
 import os
 
 import sphinx_gallery
-import sphinx_rtd_theme
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
@@ -76,7 +75,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'autopycoin'
-copyright = u'2016, Vighnesh Birodkar'
+copyright = u'2021, gaétan Dubuc'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -218,8 +217,8 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-  ('index', 'project-template.tex', u'project-template Documentation',
-   u'Vighnesh Birodkar', 'manual'),
+  ('index', 'autopycoin.tex', u'autopycoin Documentation',
+   u'Gaétan Dubuc', 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
@@ -248,8 +247,8 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ('index', 'project-template', u'project-template Documentation',
-     [u'Vighnesh Birodkar'], 1)
+    ('index', 'autopycoin', u'autopycoin Documentation',
+     [u'Gaétan Dubuc'], 1)
 ]
 
 # If true, show URL addresses after external links.
@@ -262,8 +261,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-  ('index', 'project-template', u'project-template Documentation',
-   u'Vighnesh Birodkar', 'project-template', 'One line description of project.',
+  ('index', 'autopycoin', u'autopycoin Documentation',
+   u'Gaétan Dubuc', 'autopycoin', 'One line description of project.',
    'Miscellaneous'),
 ]
 
@@ -288,7 +287,8 @@ intersphinx_mapping = {
     'numpy': ('https://docs.scipy.org/doc/numpy/', None),
     'scipy': ('https://docs.scipy.org/doc/scipy/reference', None),
     'matplotlib': ('https://matplotlib.org/', None),
-    'sklearn': ('http://scikit-learn.org/stable', None)
+    'sklearn': ('http://scikit-learn.org/stable', None),
+    'tensorflow': ('https://www.tensorflow.org/api_docs/python/tf', None)
 }
 
 # sphinx-gallery configuration
