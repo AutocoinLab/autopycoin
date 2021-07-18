@@ -181,14 +181,13 @@ def quantile_loss(y_true, y_pred, quantiles):
 
     y_true = tf.cast(y_true, 'float')
     y_pred = tf.cast(y_pred, 'float')
-    quantiles = tf.constant(quantiles)
+    quantiles = tf.constant(quantiles, shape=(len(quantiles), 1, 1))
+    quantile_loss = (quantiles * tf.clip_by_value(y_true-y_pred, 0., np.inf) + 
+                     (1 - quantiles) * tf.clip_by_value(y_pred-y_true, 0., np.inf))
     
-    quantile_loss = (quantiles * tf.expand_dims(tf.clip_by_value(y_true-y_pred, 0., np.inf), -1) + 
-                     (1 - quantiles) * tf.expand_dims(tf.clip_by_value(y_pred-y_true, 0., np.inf), -1) )
-
     M = y_pred.shape[0]
     result = quantile_loss / tf.cast(M, 'float')
-    return tf.squeeze(tf.reduce_sum(result, tf.range(1, y_pred.shape[-1])))
+    return tf.squeeze(tf.reduce_sum(result, tf.range(1, tf.rank(y_pred))))
 
 
 class MeanAbsoluteScaledError(LossFunctionWrapper):
@@ -410,8 +409,6 @@ class QuantileLossError(LossFunctionWrapper):
   Standalone usage:
   >>> y_true = [[0., 1.], [0., 0.]]
   >>> y_pred = [[1., 1.], [1., 0.]]
-  >>> y_train = [[0., 1.], [0., 0.]]
-  >>> seasonality = 1
   >>> # Using 'auto'/'sum_over_batch_size' reduction type.
   >>> ql = QuantileLossError(quantiles=[0.5])
   >>> ql(y_true, y_pred).numpy()
