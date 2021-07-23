@@ -13,9 +13,11 @@ __ALL__ = [
     "smape",
     "mase",
     "owa",
+    "quantile_loss",
     "MeanAbsoluteScaledError",
     "SymetricMeanAbsolutePercentageError",
-    "OverallWeightedAverageError"
+    "OverallWeightedAverageError",
+    "QuantileLossError"
 ]
 
 
