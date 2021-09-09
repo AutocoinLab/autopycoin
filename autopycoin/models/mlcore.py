@@ -2,19 +2,15 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import copy
 from functools import partial  # pylint: disable=g-importing-member
-import inspect
 import os
-import tempfile
 from typing import Optional, List, Dict, Any, Union, Text, Tuple, NamedTuple, Set
-import uuid
 
 from ..utils.data_adapter import unpack_timeseries
 from absl import logging
 import tensorflow as tf
 from tensorflow.python.data.ops.dataset_ops import MapDataset
-from tensorflow.python.keras.engine import data_adapter
+import tensorflow.python.keras.engine.data_adapter as data_adapter
 
 layers = tf.keras.layers
 models = tf.keras.models
