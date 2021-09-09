@@ -29,26 +29,25 @@ class TrendBlock(tf.keras.layers.Layer):
                  back_horizon,
                  p_degree,   
                  n_neurons, 
-                 quantiles, 
+                 n_quantiles, 
                  **kwargs):
 
-        super(TrendBlock).__init__(self, **kwargs)
-
-        self._p_degree = tf.cast(tf.reshape(p_degree, shape=(-1, 1)), dtype='float32')   
+        super().__init__(**kwargs)
+        self._p_degree = tf.reshape(tf.range(p_degree, dtype='float32'), shape=(-1, 1)) # Shape (-1, 1) in order to broadcast horizon to all p degrees
         self._horizon = tf.cast(horizon, dtype='float32') 
         self._back_horizon = tf.cast(back_horizon, dtype='float32')
         self._n_neurons = n_neurons 
-        self._quantiles = quantiles
+        self._n_quantiles = n_quantiles
 
         self.FC_stack = [tf.keras.layers.Dense(n_neurons, 
                                             activation='relu', 
                                             kernel_initializer="glorot_uniform") for _ in range(4)]
         
-        self.dropout = [MCDropout(0.1) for _ in range(4)]
+        self.dropout = tf.keras.layers.Dropout(0.1)
         
         self.FC_backcast = self.add_weight(shape=(n_neurons, p_degree), 
                                            initializer="glorot_uniform")
-        self.FC_forecast = self.add_weight(shape=(quantiles, n_neurons, p_degree),
+        self.FC_forecast = self.add_weight(shape=(n_quantiles, n_neurons, p_degree),
                                            initializer="glorot_uniform")
 
         self.forecast_coef = (tf.range(self._horizon) / self._horizon) ** self._p_degree
@@ -56,14 +55,15 @@ class TrendBlock(tf.keras.layers.Layer):
         
     def call(self, inputs):
 
-        for dense_layer, dropout in zip(self.FC_stack, self.dropout):
-            x = dense_layer(inputs) # shape: (Batch_size, n_neurons)
-            x = dropout(x) # We bind first layers by a dropout 
+        for dense in self.FC_stack:
+            x = dense(inputs) # shape: (Batch_size, n_neurons)
+            x = self.dropout(x) # We bind first layers by a dropout 
             
         theta_backcast = x @ self.FC_backcast # shape: (Batch_size, p_degree)
-        theta_forecast = x @ self.FC_forecast # shape: (quantiles, Batch_size, p_degree)
-        y_backcast = theta_backcast @ self.forecast_coef # shape: (Batch_size, backcast)
-        y_forecast = theta_forecast @ self.backcast_coef # shape: (quantiles, Batch_size, forecast)
+        theta_forecast = x @ self.FC_forecast # shape: (n_quantiles, Batch_size, p_degree)
+
+        y_backcast = theta_backcast @ self.backcast_coef # shape: (Batch_size, backcast)
+        y_forecast = theta_forecast @ self.forecast_coef # shape: (n_quantiles, Batch_size, forecast)
         
         return y_forecast, y_backcast
     
@@ -75,8 +75,8 @@ class SeasonalityBlock(tf.keras.layers.Layer):
     stack outputs are sum up, we decided to introduce fourier order and multiple seasonality periods.
     Therefore it is possible to get explanation from this block.
     
-    Parameter
-    ---------
+    Parameters
+    ----------
     p_degree: integer
         Degree of the polynomial function.
     horizon: integer
@@ -114,7 +114,7 @@ class SeasonalityBlock(tf.keras.layers.Layer):
                                                activation='relu', 
                                                kernel_initializer="glorot_uniform") for _ in range(4)]
         
-        self.dropout = [MCDropout(0.1) for _ in range(4)]   
+        self.dropout = tf.keras.layers.Dropout(0.1)
         
         self.FC_backcast = self.add_weight(shape=(n_neurons, self._backcast_neurons), 
                                            initializer="glorot_uniform")
@@ -143,12 +143,13 @@ class SeasonalityBlock(tf.keras.layers.Layer):
         
     def call(self, inputs):
 
-        for dense_layer, dropout in zip(self.FC_stack, self.dropout):
-            X = dense_layer(inputs) # shape: (Batch_size, nb_neurons)
-            X = dropout(X) # We bind first layers by a dropout 
+        for dense in self.FC_stack:
+            x = dense(inputs) # shape: (Batch_size, n_neurons)
+            x = self.dropout(x, training=True) # We bind first layers by a dropout 
 
-        theta_backcast = X @ self.FC_backcast # shape: (Batch_size, 2 * fourier order)
-        theta_forecast = X @ self.FC_forecast # shape: (quantiles, Batch_size, 2 * fourier order)
+        theta_backcast = x @ self.FC_backcast # shape: (Batch_size, 2 * fourier order)
+        theta_forecast = x @ self.FC_forecast # shape: (quantiles, Batch_size, 2 * fourier order)
+
         y_backcast = theta_backcast @ self.forecast_coef # shape: (Batch_size, backcast)
         y_forecast = theta_forecast @ self.backcast_coef # shape: (quantiles, Batch_size, forecast)
     
@@ -197,8 +198,8 @@ class N_BEATS(tf.keras.Model):
         url={https://openreview.net/forum?id=r1ecqn4YwB}
         }`
     
-    Parameter
-    ---------
+    Parameters
+    ----------
     stacks: keras Layer.
         stacks layers.
     """
