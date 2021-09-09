@@ -3,8 +3,7 @@ build: false
 environment:
   CODECOV_TOKEN: "3bc90f4f-d2b8-41a7-8a61-6b3048329776" 
   matrix:
-    - PYTHON: "C:\\Miniconda3-x64"
-      PYTHON_VERSION: "3.8.x"
+    - PYTHON: "C:\\Python38-x64"
       PYTHON_ARCH: "64"
       NUMPY_VERSION: "*"
       SCIPY_VERSION: "*"
@@ -13,8 +12,7 @@ environment:
       MATPLOTLIB_VERSION: "*"
       PLOTLY_VERSION: "*"
 
-    - PYTHON: "C:\\Miniconda3-x64"
-      PYTHON_VERSION: "3.9.x"
+    - PYTHON: "C:\\Python39-x64"
       PYTHON_ARCH: "64"
       NUMPY_VERSION: "*"
       SCIPY_VERSION: "*"
