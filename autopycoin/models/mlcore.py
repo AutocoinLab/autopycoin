@@ -4,7 +4,7 @@ from __future__ import print_function
 
 from functools import partial  # pylint: disable=g-importing-member
 import os
-from typing import Optional, List, Dict, Any, Union, Text, Tuple, NamedTuple, Set
+from typing import Optional, Dict, Union, Text, Set
 
 from ..utils.data_adapter import unpack_timeseries
 from absl import logging
