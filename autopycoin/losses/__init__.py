@@ -8,7 +8,6 @@ from .losses import QuantileLossError
 
 __all__ = [
     "smape",
-
     "quantile_loss",
     "SymetricMeanAbsolutePercentageError",
     "QuantileLossError"
