@@ -5,8 +5,20 @@ Created on Fri Mar 12 22:59:02 2021
 @author: gaetd
 """
 
-import tensorflow as tf
-from tensorflow.keras.layers import Dense, Dropout, Layer
+from tensorflow import (
+    reshape,
+    cast,
+    range,
+    reduce_sum,
+    sin,
+    cos,
+    concat,
+    float32,
+    constant,
+    TensorArray,
+)
+from tensorflow.keras.layers import Dense, Dropout, Layer, Subtract, Add
+from tensorflow.keras import Model
 import numpy as np
 
 
@@ -32,11 +44,11 @@ class TrendBlock(Layer):
     ):
 
         super().__init__(**kwargs)
-        self._p_degree = tf.reshape(
-            tf.range(p_degree, dtype="float32"), shape=(-1, 1)
+        self._p_degree = reshape(
+            range(p_degree, dtype="float32"), shape=(-1, 1)
         )  # Shape (-1, 1) in order to broadcast horizon to all p degrees
-        self._horizon = tf.cast(horizon, dtype="float32")
-        self._back_horizon = tf.cast(back_horizon, dtype="float32")
+        self._horizon = cast(horizon, dtype="float32")
+        self._back_horizon = cast(back_horizon, dtype="float32")
         self._n_neurons = n_neurons
         self._n_quantiles = n_quantiles
 
@@ -50,10 +62,10 @@ class TrendBlock(Layer):
         shape_FC_forecast = (n_quantiles, n_neurons, p_degree)
         self.FC_forecast = self.add_weight(shape=shape_FC_forecast)
 
-        self.forecast_coef = tf.range(self._horizon) / self._horizon
+        self.forecast_coef = range(self._horizon) / self._horizon
         self.forecast_coef = self.forecast_coef ** self._p_degree
         self.backcast_coef = (
-            tf.range(self._back_horizon) / self._back_horizon
+            range(self._back_horizon) / self._back_horizon
         ) ** self._p_degree
 
     def call(self, inputs):
@@ -117,21 +129,21 @@ class SeasonalityBlock(Layer):
         self._back_horizon = back_horizon
 
         shape = (1, -1, 1)
-        self._periods = tf.cast(tf.reshape(periods, shape), "float32")
-        self._back_periods = tf.cast(tf.reshape(back_periods, shape), "float32")
+        self._periods = cast(reshape(periods, shape), "float32")
+        self._back_periods = cast(reshape(back_periods, shape), "float32")
 
         shape = (-1, 1, 1)
-        self._forecast_fourier_order = tf.reshape(
-            tf.range(forecast_fourier_order, dtype="float32"), shape
+        self._forecast_fourier_order = reshape(
+            range(forecast_fourier_order, dtype="float32"), shape
         )
-        self._backcast_fourier_order = tf.reshape(
-            tf.range(backcast_fourier_order, dtype="float32"), shape
+        self._backcast_fourier_order = reshape(
+            range(backcast_fourier_order, dtype="float32"), shape
         )
 
         # Workout the number of neurons needed to compute seasonality
         # coefficients
-        self._forecast_neurons = tf.reduce_sum(2 * periods)
-        self._backcast_neurons = tf.reduce_sum(2 * back_periods)
+        self._forecast_neurons = reduce_sum(2 * periods)
+        self._backcast_neurons = reduce_sum(2 * back_periods)
 
         self.FC_stack = [Dense(n_neurons, activation="relu") for _ in range(4)]
 
@@ -146,31 +158,29 @@ class SeasonalityBlock(Layer):
         )
 
         # Workout cos and sin seasonality coefficents
-        time_forecast = tf.range(self._horizon, dtype="float32") / self._periods
+        time_forecast = range(self._horizon, dtype="float32") / self._periods
         time_forecast = 2 * np.pi * time_forecast
         forecast_seasonality = time_forecast * self._forecast_fourier_order
-        forecast_seasonality = tf.concat(
-            (tf.cos(forecast_seasonality), tf.sin(forecast_seasonality)), axis=0
+        forecast_seasonality = concat(
+            (cos(forecast_seasonality), sin(forecast_seasonality)), axis=0
         )
 
-        time_backcast = (
-            tf.range(self._back_horizon, dtype="float32") / self._back_periods
-        )
+        time_backcast = range(self._back_horizon, dtype="float32") / self._back_periods
         time_backcast = 2 * np.pi * time_backcast
         backcast_seasonality = time_backcast * self._backcast_fourier_order
-        backcast_seasonality = tf.concat(
-            (tf.cos(backcast_seasonality), tf.sin(backcast_seasonality)), axis=0
+        backcast_seasonality = concat(
+            (cos(backcast_seasonality), sin(backcast_seasonality)), axis=0
         )
 
         shape_forecast_coef = (self._forecast_neurons, self._horizon)
-        self.forecast_coef = tf.constant(
+        self.forecast_coef = constant(
             forecast_seasonality,
             shape=shape_forecast_coef,
             dtype="float32",
         )
 
         shape_backcast_coef = (self._backcast_neurons, self._back_horizon)
-        self.backcast_coef = tf.constant(
+        self.backcast_coef = constant(
             backcast_seasonality,
             shape=shape_backcast_coef,
             dtype="float32",
@@ -218,20 +228,20 @@ class Stack(Layer):
 
     def call(self, inputs):
 
-        y_forecast = tf.constant([0.0])
+        y_forecast = constant([0.0])
         for block in self._blocks:
 
             # shape: (n_quantiles, Batch_size, forecast), (Batch_size, backcast)
             residual_y, y_backcast = block(inputs)
-            inputs = tf.keras.layers.Subtract()([inputs, y_backcast])
+            inputs = Subtract()([inputs, y_backcast])
 
             # shape: (n_quantiles, Batch_size, forecast)
-            y_forecast = tf.keras.layers.Add()([y_forecast, residual_y])
+            y_forecast = Add()([y_forecast, residual_y])
 
         return y_forecast, inputs
 
 
-class N_BEATS(tf.keras.Model):
+class N_BEATS(Model):
     """This class compute the N-BEATS model. This is a univariate model which
      can be interpretable or generic. Its strong advantage resides in its
      structure which allows us to extract the trend and the seasonality of
@@ -264,13 +274,13 @@ class N_BEATS(tf.keras.Model):
     def call(self, inputs):
 
         # Stock trend and seasonality curves during inference
-        self._residuals_y = tf.TensorArray(tf.float32, size=len(self._stacks))
-        y_forecast = tf.constant([0.0])
+        self._residuals_y = TensorArray(float32, size=len(self._stacks))
+        y_forecast = constant([0.0])
 
         for idx, stack in enumerate(self._stacks):
             residual_y, inputs = stack(inputs)
             self._residuals_y.write(idx, residual_y)
-            y_forecast = tf.keras.layers.Add()([y_forecast, residual_y])
+            y_forecast = Add()([y_forecast, residual_y])
 
         return y_forecast
 
