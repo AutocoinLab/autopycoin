@@ -10,5 +10,5 @@ __all__ = [
     "smape",
     "quantile_loss",
     "SymetricMeanAbsolutePercentageError",
-    "QuantileLossError"
-    ]
+    "QuantileLossError",
+]

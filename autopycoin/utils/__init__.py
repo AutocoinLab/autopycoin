@@ -3,6 +3,4 @@
 
 from .check_data import check_infinity
 
-__all__ = [
-    "check_infinity"
-    ]
+__all__ = ["check_infinity"]
