@@ -62,7 +62,8 @@ def smape(y_true, y_pred, mask=False):
 @dispatch.add_dispatch_support
 def quantile_loss(y_true, y_pred, quantiles):
 
-    """Calculate the quantile loss function, summed across all quantile outputs.
+    """Calculate the quantile loss function, summed across all quantile
+    outputs.
 
     Parameters
     ----------
@@ -152,10 +153,10 @@ class SymetricMeanAbsolutePercentageError(LossFunctionWrapper):
         reduction : Type of `tf.keras.losses.Reduction`, Optional
             Type of `tf.keras.losses.Reduction`to apply to
             loss. Default value is `AUTO`. `AUTO` indicates that the reduction
-            option will be determined by the usage context. For almost all cases
-            this defaults to `SUM_OVER_BATCH_SIZE`. When used with
-            `tf.distribute.Strategy`, outside of built-in training loops such as
-            `tf.keras` `compile` and `fit`, using `AUTO` or
+            option will be determined by the usage context. For almost all
+            cases this defaults to `SUM_OVER_BATCH_SIZE`. When used with
+            `tf.distribute.Strategy`, outside of built-in training loops such
+            as `tf.keras` `compile` and `fit`, using `AUTO` or
              `SUM_OVER_BATCH_SIZE`
             will raise an error. Please see this custom training [tutorial](
               https://www.tensorflow.org/tutorials/distribute/custom_training)
@@ -224,10 +225,10 @@ class QuantileLossError(LossFunctionWrapper):
         reduction : Type of `tf.keras.losses.Reduction`, Optional
             Type of `tf.keras.losses.Reduction`to apply to
             loss. Default value is `AUTO`. `AUTO` indicates that the reduction
-            option will be determined by the usage context. For almost all cases
-            this defaults to `SUM_OVER_BATCH_SIZE`. When used with
-            `tf.distribute.Strategy`, outside of built-in training loops such as
-            `tf.keras` `compile` and `fit`, using `AUTO` or
+            option will be determined by the usage context. For almost all
+            cases this defaults to `SUM_OVER_BATCH_SIZE`. When used with
+            `tf.distribute.Strategy`, outside of built-in training loops such
+            as `tf.keras` `compile` and `fit`, using `AUTO` or
             `SUM_OVER_BATCH_SIZE`
             will raise an error. Please see this custom training [tutorial](
               https://www.tensorflow.org/tutorials/distribute/custom_training)

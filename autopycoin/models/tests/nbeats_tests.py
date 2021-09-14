@@ -2,16 +2,17 @@
 
 Protocol for testing N_BEATS model:
 
-We decided to split up the model in multiple part as it can be easier to debug and test each part.
-We will test each composant known as TrendBlock, SeasonalityBlock, Stack and finally the wrapper N_BEATS.
-Each of them will be compare to expected values then we will perform some classical checks
-that can be found in tensorflow.
+We decided to split up the model in multiple part as it can be easier to debug
+and test each part.
+We will test each composant as TrendBlock, SeasonalityBlock, Stack and
+finally the wrapper N_BEATS.
+Each of them will be compare to expected values then we will perform some
+classical checks that can be found in tensorflow.
 
 TrendBlock : 
 - It is important to perform check with constant dense weights.
-FC_backcast, FC_forecast, FC_stack will be constrained. dropout will be set to 0.
-
-forecast_coef and backcast_coef will be test and n_quantiles will be test.
+FC_backcast, FC_forecast, FC_stack will be constrained. dropout will be set
+to 0.
 """
 
 from autopycoin import keras

@@ -262,7 +262,7 @@ texinfo_documents = [
         u"autopycoin Documentation",
         u"Gaétan Dubuc",
         "autopycoin",
-        "One line description of project.",
+        "Deep learning models for forecasting",
         "Miscellaneous",
     ),
 ]
@@ -288,7 +288,7 @@ intersphinx_mapping = {
     "scipy": ("https://docs.scipy.org/doc/scipy/reference", None),
     "matplotlib": ("https://matplotlib.org/", None),
     "sklearn": ("http://scikit-learn.org/stable", None),
-    "tensorflow": ("https://www.tensorflow.org/api_docs/python/tf", None),
+    "tensorflow": ("https://www.tensorflow.org", None),
 }
 
 # sphinx-gallery configuration
