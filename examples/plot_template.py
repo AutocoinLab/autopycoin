@@ -1,17 +1,21 @@
 """
-===========================
-Plotting Template Estimator
-===========================
+============================
+Plotting Stack
+============================
 
-An example plot of :class:`autopycoin.template.TemplateEstimator`
+An example plot of :class:`autopycoin.models.Stack`
 """
+
 import numpy as np
 from matplotlib import pyplot as plt
-from autopycoin import TemplateEstimator
 
-X = np.arange(100).reshape(100, 1)
-y = np.zeros((100, ))
-estimator = TemplateEstimator()
-estimator.fit(X, y)
-plt.plot(estimator.predict(X))
+X = [0, 0]
+y = [0, 1]
+
+plt.plot(X, y)
+
+plt.xlabel("Feature 1")
+plt.ylabel("Feature 2")
+plt.xlim([-0.5, 1.5])
+
 plt.show()

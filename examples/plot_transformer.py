@@ -1,26 +1,21 @@
 """
-=============================
-Plotting Template Transformer
-=============================
+============================
+Plotting GenericBlock
+============================
 
-An example plot of :class:`autopycoin.template.TemplateTransformer`
+An example plot of :class:`autopycoin.models.GenericBlock`
 """
+
 import numpy as np
 from matplotlib import pyplot as plt
-from autopycoin import TemplateTransformer
 
-X = np.arange(50, dtype=np.float).reshape(-1, 1)
-X /= 50
-estimator = TemplateTransformer()
-X_transformed = estimator.fit_transform(X)
+X = [0, 0]
+y = [0, 1]
 
-plt.plot(X.flatten(), label='Original Data')
-plt.plot(X_transformed.flatten(), label='Transformed Data')
-plt.title('Plots of original and transformed data')
+plt.plot(X, y)
 
-plt.legend(loc='best')
-plt.grid(True)
-plt.xlabel('Index')
-plt.ylabel('Value of Data')
+plt.xlabel("Feature 1")
+plt.ylabel("Feature 2")
+plt.xlim([-0.5, 1.5])
 
 plt.show()

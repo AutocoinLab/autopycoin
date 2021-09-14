@@ -1,5 +1,5 @@
 ####################
-project-template API
+Autopycoin API
 ####################
 
 This is an example on how to document the API of your own project.
@@ -13,7 +13,7 @@ Estimator
    :toctree: generated/
    :template: class.rst
 
-   TemplateEstimator
+   models.N_BEATS
 
 Transformer
 ===========
@@ -22,7 +22,7 @@ Transformer
    :toctree: generated/
    :template: class.rst
 
-   TemplateTransformer
+   models.Stack
 
 Predictor
 =========
@@ -31,4 +31,4 @@ Predictor
    :toctree: generated/
    :template: class.rst
 
-    TemplateClassifier
+    models.GenericBlock

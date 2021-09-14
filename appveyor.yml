@@ -3,25 +3,9 @@ build: false
 environment:
   CODECOV_TOKEN: "3bc90f4f-d2b8-41a7-8a61-6b3048329776" 
   matrix:
-    - PYTHON: "C:\\Miniconda3-x64"
-      PYTHON_VERSION: "3.8.x"
-      PYTHON_ARCH: "64"
-      NUMPY_VERSION: "*"
-      SCIPY_VERSION: "*"
-      SKLEARN_VERSION: "*"
-      TENSORFLOW_VERSION: "*"
-      MATPLOTLIB_VERSION: "*"
-      PLOTLY_VERSION: "*"
+    - PYTHON: "C:\\Python38-x64"
 
-    - PYTHON: "C:\\Miniconda3-x64"
-      PYTHON_VERSION: "3.9.x"
-      PYTHON_ARCH: "64"
-      NUMPY_VERSION: "*"
-      SCIPY_VERSION: "*"
-      SKLEARN_VERSION: "*"
-      TENSORFLOW_VERSION: "*"
-      MATPLOTLIB_VERSION: "*"
-      PLOTLY_VERSION: "*"
+    - PYTHON: "C:\\Python39-x64"
 
 install:
   # Prepend miniconda installed Python to the PATH of this buil
@@ -29,8 +13,7 @@ install:
   # https://github.com/conda/conda/issues/1753
   - "SET PATH=%PYTHON%;%PYTHON%\\Scripts;%PYTHON%\\Library\\bin;%PATH%"
   # install the dependencies
-  - "conda install --yes -c conda-forge pip numpy==%NUMPY_VERSION% scipy==%SCIPY_VERSION% scikit-learn==%SKLEARN_VERSION%"
-  - "conda install --yes -c conda-forge pip tensorflow==%TENSORFLOW_VERSION% matplotlib==%MATPLOTLIB_VERSION% plotly==%PLOTLY_VERSION%"
+  - pip install -r requirements.txt
   - pip install codecov nose pytest pytest-cov
   - pip install .
 
@@ -42,4 +25,5 @@ test_script:
 after_test:
   - cp .coverage %APPVEYOR_BUILD_FOLDER%
   - cd %APPVEYOR_BUILD_FOLDER%
+  - bash <(curl -s https://codecov.io/bash)
   - codecov
