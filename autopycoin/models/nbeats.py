@@ -1,8 +1,5 @@
-# -*- coding: utf-8 -*-
 """
-Created on Fri Mar 12 22:59:02 2021
-
-@author: gaetd
+N-BEATS implementation
 """
 
 from tensorflow import (
@@ -27,8 +24,8 @@ class TrendBlock(Layer):
     polynomial function of small degree p.
     Therefore it is possible to get explanation from this block.
 
-    Parameter
-    ---------
+    Parameters
+    ----------
     p_degree: integer
         Degree of the polynomial function.
     horizon: integer
@@ -91,8 +88,7 @@ class TrendBlock(Layer):
 
 
 class SeasonalityBlock(Layer):
-    """
-    Seasonality block definition. Output layers are constrained which define
+    """Seasonality block definition. Output layers are constrained which define
     fourier series.
     Each expansion coefficent then become a coefficient of the fourier serie.
     As each block and each
@@ -214,8 +210,8 @@ class GenericBlock(Layer):
     We can't have explanation from this kind of block because g coefficients
     are learnt.
 
-    Parameter
-    ---------
+    Parameters
+    ----------
     horizon: integer
         Horizon time to horizon.
     back_horizon: integer
@@ -285,7 +281,6 @@ class Stack(Layer):
     ----------
     blocks: keras Layer.
         blocks layers. they can be generic, seasonal or trend ones.
-
     """
 
     def __init__(self, blocks, **kwargs):
@@ -310,28 +305,28 @@ class Stack(Layer):
         return y_forecast, inputs
 
 
-class N_BEATS(Model):
-    """This class compute the N-BEATS model. This is a univariate model which
-     can be interpretable or generic. Its strong advantage resides in its
-     structure which allows us to extract the trend and the seasonality of
-     temporal series available from the attributes `seasonality` and `trend`.
-     This is an unofficial implementation.
-
-     `@inproceedings{
-        Oreshkin2020:N-BEATS,
-        title={{N-BEATS}: Neural basis expansion analysis for interpretable
-                          time series forecasting},
-        author={Boris N. Oreshkin and Dmitri Carpov and Nicolas Chapados
-                and Yoshua Bengio},
-        booktitle={International Conference on Learning Representations},
-        year={2020},
-        url={https://openreview.net/forum?id=r1ecqn4YwB}
-        }`
+class NBEATS(Model):
+    """
+    Computes the N-BEATS model. 
+    
+    This is a univariate model which can be interpretable or generic. Its strong advantage 
+    resides in its structure which allows us to extract the trend and the seasonality of
+    temporal series available from the attributes `seasonality` and `trend`.
+    This is an unofficial implementation.
 
     Parameters
     ----------
-    stacks: keras Layer.
-        stacks layers.
+    stacks : list of :class:`autopycoin.models.Stack`
+             Stacks can be created from :class:`autopycoin.models.TrendBlock`, 
+             :class:`autopycoin.models.SeasonalityBlock` or :class:`autopycoin.models.GenericBlock`.
+             See stack documentation for more details.
+
+    Attributes
+    ----------
+    seasonality : Tensor-like
+        Seasonality composent of the output.
+    trend : Tensor-like
+        Trend composent of the output.
     """
 
     def __init__(self, stacks, **kwargs):
@@ -341,6 +336,11 @@ class N_BEATS(Model):
         self._stacks = stacks
 
     def call(self, inputs):
+        """
+        Call method used to override special method __call__.
+
+        It implements the logic of the nbeats model.
+        """
 
         # Stock trend and seasonality curves during inference
         self._residuals_y = TensorArray(float32, size=len(self._stacks))
@@ -378,7 +378,7 @@ def create_interpretable_nbeats(
     **kwargs
 ):
     """Wrapper to create interpretable model. check nbeats documentation
-    to know more about parameters."""
+    to know more about Parameters."""
 
     if share is True:
         trend_block = TrendBlock(
@@ -438,7 +438,7 @@ def create_interpretable_nbeats(
     trendstacks = Stack(trendblocks)
     seasonalitystacks = Stack(seasonalityblocks)
 
-    return N_BEATS([trendstacks, seasonalitystacks])
+    return NBEATS([trendstacks, seasonalitystacks])
 
 
 def create_generic_nbeats(
@@ -453,7 +453,7 @@ def create_generic_nbeats(
     **kwargs
 ):
     """Wrapper to create generic model. check nbeats documentation to know more
-    about parameters."""
+    about Parameters."""
 
     generic_stacks = []
     if share is True:
@@ -486,4 +486,4 @@ def create_generic_nbeats(
 
             generic_stacks.append(Stack(generic_blocks))
 
-    return N_BEATS(generic_stacks)
+    return NBEATS(generic_stacks)

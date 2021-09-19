@@ -3,20 +3,13 @@
 """
 
 import numpy as np
-from autopycoin.utils import check_infinity
 
-from tensorflow.python.framework import ops
-from tensorflow.python.ops import control_flow_ops
-from tensorflow.python.ops import array_ops
-from tensorflow.python.ops import clip_ops
-from tensorflow.python.ops import math_ops
-from tensorflow.python.util import dispatch
+import tensorflow as tf
 from tensorflow.python.keras.losses import LossFunctionWrapper
 from tensorflow.python.keras.utils import losses_utils
-from tensorflow.python.keras import backend
+from autopycoin.utils import check_infinity
 
 
-@dispatch.add_dispatch_support
 def smape(y_true, y_pred, mask=False):
 
     """Calculate the symmetric mean absolute percentage error between
@@ -42,26 +35,24 @@ def smape(y_true, y_pred, mask=False):
         The error in %.
     """
 
-    y_true = math_ops.cast(y_true, dtype=backend.floatx())
-    y_pred = math_ops.cast(y_pred, dtype=backend.floatx())
-    mask = ops.convert_to_tensor_v2_with_dispatch(mask, dtype=backend.floatx())
+    y_true = tf.cast(y_true, dtype=tf.float32)
+    y_pred = tf.cast(y_pred, dtype=tf.float32)
+    mask = tf.convert_to_tensor(mask, dtype=tf.float32)
 
-    diff = math_ops.abs(y_true - y_pred)
-    total = math_ops.abs(y_true) + math_ops.abs(y_pred)
-    error = control_flow_ops.cond(
+    diff = tf.abs(y_true - y_pred)
+    total = tf.abs(y_true) + tf.abs(y_pred)
+    error = tf.cond(
         mask,
         lambda: check_infinity(diff / total),
-        lambda: diff / (total + backend.epsilon()),
+        lambda: diff / (total + tf.epsilon()),
     )
 
-    error = 200 * math_ops.reduce_sum(error, axis=1) / diff.shape[1]
+    error = 200 * tf.reduce_sum(error, axis=1) / diff.shape[1]
 
     return error
 
 
-@dispatch.add_dispatch_support
 def quantile_loss(y_true, y_pred, quantiles):
-
     """Calculate the quantile loss function, summed across all quantile
     outputs.
 
@@ -85,22 +76,29 @@ def quantile_loss(y_true, y_pred, quantiles):
         The error in %.
     """
 
-    y_true = math_ops.cast(y_true, dtype=backend.floatx())
-    y_pred = math_ops.cast(y_pred, dtype=backend.floatx())
-    quantiles = ops.convert_to_tensor_v2_with_dispatch(quantiles)
-    diff = array_ops.transpose(y_true - y_pred)
+    y_true = tf.cast(y_true, dtype=tf.float32)
+    y_pred = tf.cast(y_pred, dtype=tf.float32)
 
-    quantile_loss = quantiles * clip_ops.clip_by_value(diff, 0.0, np.inf) + (
-        1 - quantiles
-    ) * clip_ops.clip_by_value(-diff, 0.0, np.inf)
-
-    M = y_true.shape[0]
-    error = quantile_loss / M
-    sum_quantiles = math_ops.reduce_sum(error, axis=-1)
-
-    return math_ops.reduce_sum(
-        sum_quantiles, axis=math_ops.range(sum_quantiles.shape.rank - 1)
+    quantiles = tf.convert_to_tensor(quantiles)
+    shape_broadcast = tf.concat(
+        ([quantiles.shape[0]], tf.ones(tf.rank(y_pred) - 1, dtype=tf.int32)), axis=0
     )
+    quantiles = tf.reshape(quantiles, shape=shape_broadcast)
+
+    diff = y_true - y_pred
+    quantile_loss = quantiles * tf.clip_by_value(diff, 0.0, np.inf) + (
+        1 - quantiles
+    ) * tf.clip_by_value(-diff, 0.0, np.inf)
+
+    if isinstance(y_true, tf.RaggedTensor):
+        M = tf.cast(y_true.bounding_shape()[1], dtype=y_true.dtype)
+    else:
+        M = y_true.shape[1]
+
+    error = tf.math.divide(quantile_loss, M)
+    sum_quantiles = tf.reduce_sum(error, axis=0)
+
+    return tf.reduce_sum(sum_quantiles, axis=-1)
 
 
 class SymetricMeanAbsolutePercentageError(LossFunctionWrapper):
@@ -133,7 +131,7 @@ class SymetricMeanAbsolutePercentageError(LossFunctionWrapper):
     >>> smape = SymetricMeanAbsolutePercentageError(
     ...     reduction=tf.keras.losses.Reduction.NONE)
     >>> smape(y_true, y_pred).numpy()
-    array([99.999985, 99.999985], dtype=float32)
+    array([99.999985, 99.999985], dtype=float3232)
 
     Usage with the `compile()` API:
     ```python
@@ -155,7 +153,7 @@ class SymetricMeanAbsolutePercentageError(LossFunctionWrapper):
             loss. Default value is `AUTO`. `AUTO` indicates that the reduction
             option will be determined by the usage context. For almost all
             cases this defaults to `SUM_OVER_BATCH_SIZE`. When used with
-            `tf.distribute.Strategy`, outside of built-in training loops such
+            `tf.distribute.Strategy`, outside of built-in training lotf such
             as `tf.keras` `compile` and `fit`, using `AUTO` or
              `SUM_OVER_BATCH_SIZE`
             will raise an error. Please see this custom training [tutorial](
@@ -198,7 +196,7 @@ class QuantileLossError(LossFunctionWrapper):
     >>> ql = QuantileLossError(quantiles=[0.5],
     ...     reduction=tf.keras.losses.Reduction.NONE)
     >>> ql(y_true, y_pred).numpy()
-    array([0.25, 0.25], dtype=float32)
+    array([0.25, 0.25], dtype=float3232)
     >>> # Using multiple quantiles.
     >>> ql = QuantileLossError(quantiles=[0.1, 0.5, 0.9])
     >>> ql(y_true, y_pred).numpy()
@@ -227,7 +225,7 @@ class QuantileLossError(LossFunctionWrapper):
             loss. Default value is `AUTO`. `AUTO` indicates that the reduction
             option will be determined by the usage context. For almost all
             cases this defaults to `SUM_OVER_BATCH_SIZE`. When used with
-            `tf.distribute.Strategy`, outside of built-in training loops such
+            `tf.distribute.Strategy`, outside of built-in training lotf such
             as `tf.keras` `compile` and `fit`, using `AUTO` or
             `SUM_OVER_BATCH_SIZE`
             will raise an error. Please see this custom training [tutorial](
@@ -237,6 +235,6 @@ class QuantileLossError(LossFunctionWrapper):
         name : string, Optional
             name for the op. Defaults to 'quantile_loss'.
         """
-        super(QuantileLossError, self).__init__(
+        super().__init__(
             quantile_loss, quantiles=quantiles, name=name, reduction=reduction
         )

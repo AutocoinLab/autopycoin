@@ -1,3 +1,3 @@
-from .nbeats import N_BEATS, TrendBlock, SeasonalityBlock, Stack, GenericBlock
+from .nbeats import NBEATS, TrendBlock, SeasonalityBlock, Stack, GenericBlock
 
-__ALL__ = ["N_BEATS", "TrendBlock", "SeasonalityBlock", "Stack", "GenericBlock"]
+__ALL__ = ["NBEATS", "TrendBlock", "SeasonalityBlock", "Stack", "GenericBlock"]

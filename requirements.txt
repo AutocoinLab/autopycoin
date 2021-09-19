@@ -4,3 +4,4 @@ scikit-learn
 tensorflow
 matplotlib
 plotly
+pylint
