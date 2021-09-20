@@ -6,12 +6,12 @@ import tensorflow as tf
 def check_infinity(tensor):
     """Defines checks used to verify infinite values and mask them.
 
-    parameters
+    Parameters
     ----------
     tensor : tensor-like.
         Tensor to check.
 
-    returns
+    Returns
     -------
     new_tensor : tensor-like.
         new_tensor masked.

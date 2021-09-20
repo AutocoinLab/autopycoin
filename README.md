@@ -4,3 +4,4 @@
 [![CircleCI](https://circleci.com/gh/GaetanDu/autopycoin.svg?token=XJE4F4R5SE)](https://circleci.com/gh/GaetanDu/autopycoin) 
 [![codecov](https://codecov.io/gh/GaetanDu/autopycoin/branch/main/graph/badge.svg?token=XJE4F4R5SE)](https://codecov.io/gh/GaetanDu/autopycoin) 
 [![Documentation Status](https://readthedocs.org/projects/autopycoin/badge/?version=latest)](https://autopycoin.readthedocs.io/en/latest/?badge=latest)
+
