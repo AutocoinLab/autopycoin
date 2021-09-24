@@ -1,3 +1,4 @@
 name: Autopycoin
 dependencies:
   - numpy
+  - tensorflow
