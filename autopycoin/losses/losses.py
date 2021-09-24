@@ -1,10 +1,10 @@
-# -*- coding: utf-8 -*-
 """Functions to assess loss.
 """
 
 import numpy as np
 
 import tensorflow as tf
+from tensorflow.keras.backend import epsilon
 from tensorflow.python.keras.losses import LossFunctionWrapper
 from tensorflow.python.keras.utils import losses_utils
 from autopycoin.utils import check_infinity
@@ -12,8 +12,8 @@ from autopycoin.utils import check_infinity
 
 def smape(y_true, y_pred, mask=False):
 
-    """Calculate the symmetric mean absolute percentage error between
-    `y_true`and `y_pred`.
+    """
+    Calculate the symmetric mean absolute percentage error between `y_true`and `y_pred`.
 
     Parameters
     ----------
@@ -25,36 +25,41 @@ def smape(y_true, y_pred, mask=False):
              `[batch_size, d0, .. dN]`.
         The predicted values.
 
-    mask : Boolean, Optional
-        Define if infinite values need to be taken into account.
+    mask : boolean, optional
+        set a mask to not take into account infinite values.
         Defaults to False.
 
     Returns
     -------
-    error : Tensor
+    error : scalar Tensor
         The error in %.
     """
 
-    y_true = tf.cast(y_true, dtype=tf.float32)
-    y_pred = tf.cast(y_pred, dtype=tf.float32)
-    mask = tf.convert_to_tensor(mask, dtype=tf.float32)
+    y_true = tf.cast(y_true, dtype=y_pred.dtype)
+    
+    mask = tf.convert_to_tensor(mask)
 
     diff = tf.abs(y_true - y_pred)
     total = tf.abs(y_true) + tf.abs(y_pred)
+
     error = tf.cond(
         mask,
         lambda: check_infinity(diff / total),
-        lambda: diff / (total + tf.epsilon()),
+        lambda: diff / (total + epsilon()),
     )
 
-    error = 200 * tf.reduce_sum(error, axis=1) / diff.shape[1]
+    if isinstance(diff, tf.RaggedTensor):
+        M = tf.cast(error.row_lengths(), dtype=error.dtype)
+    else:
+        M = diff.shape[1]
 
+    error = 200 * tf.reduce_sum(error, axis=-1) / M
     return error
 
 
 def quantile_loss(y_true, y_pred, quantiles):
-    """Calculate the quantile loss function, summed across all quantile
-    outputs.
+    """
+    Calculate the quantile loss function, summed across all quantile outputs.
 
     Parameters
     ----------
@@ -76,8 +81,7 @@ def quantile_loss(y_true, y_pred, quantiles):
         The error in %.
     """
 
-    y_true = tf.cast(y_true, dtype=tf.float32)
-    y_pred = tf.cast(y_pred, dtype=tf.float32)
+    y_true = tf.cast(y_true, dtype=y_pred.dtype)
 
     quantiles = tf.convert_to_tensor(quantiles)
     shape_broadcast = tf.concat(
@@ -96,17 +100,17 @@ def quantile_loss(y_true, y_pred, quantiles):
         M = y_true.shape[1]
 
     error = tf.math.divide(quantile_loss, M)
-    sum_quantiles = tf.reduce_sum(error, axis=0)
 
-    return tf.reduce_sum(sum_quantiles, axis=-1)
+    return tf.reduce_sum(error, axis=[0, -1])
 
 
 class SymetricMeanAbsolutePercentageError(LossFunctionWrapper):
-    """Calculate the symetric mean absolute percentage error between
-    `y_true`and `y_pred`.
-    To avoid infinite error, we add epsilon value to null values.
+    """
+    Calculate the symetric mean absolute percentage error between `y_true`and `y_pred`.
+    
+    To avoid infinite error, we add epsilon value to zeros denominator.
     This behavior can be modified by setting mask to True.
-    then, null instances are not taken into account in calculation.
+    then, infinite instances are not taken into account in calculation.
     Standalone usage:
     >>> import tensorflow as tf
     >>> y_true = [[0., 1.], [0., 0.]]

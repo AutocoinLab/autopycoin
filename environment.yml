@@ -1,5 +1,4 @@
-name: project-template
+name: Autopycoin
 dependencies:
   - numpy
-  - scipy
-  - scikit-learn
+  - tensorflow
