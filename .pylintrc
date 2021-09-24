@@ -1,0 +1,6 @@
+[MASTER]
+
+disable=attribute-defined-outside-init,
+        arguments-differ,
+        no-name-in-module,
+        no-self-use
