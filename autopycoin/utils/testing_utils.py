@@ -2,7 +2,7 @@
 Customized Tools from keras API.
 """
 
-from tensorflow import TensorShape, TensorSpec
+from tensorflow import TensorShape, TensorSpec, dtypes
 from tensorflow.compat.v1 import Dimension
 from tensorflow.keras import layers, models
 from tensorflow.python.eager import context
@@ -12,18 +12,17 @@ from tensorflow.python.keras.utils import tf_inspect
 import numpy as np
 import threading
 
+from .. import losses
+
 
 def dtype(obj):
     return obj.dtype.base_dtype.name
 
-
 def string_test(actual, expected):
     np.testing.assert_array_equal(actual, expected)
 
-
 def numeric_test(actual, expected):
-    np.testing.assert_allclose(actual, expected, rtol=1e-3, atol=1e-6)
-
+    np.testing.assert_allclose(actual, expected, rtol=1e-3, atol=1e-5)
 
 def layer_test(
     layer_cls,
@@ -173,7 +172,7 @@ def layer_test(
         computed_output_signatures,
     ):
 
-        if isinstance(expected_output_dtype, str):
+        if dtypes.as_dtype(expected_output_dtype) == dtypes.string:
             if test_harness:
                 assert_equal = test_harness.assertAllEqual
             else:
@@ -253,13 +252,13 @@ def layer_test(
         if _thread_local_data.run_eagerly is not None:
             model.compile(
                 "rmsprop",
-                "mse",
+                ["mse", losses.QuantileLossError([0.5]), losses.SymetricMeanAbsolutePercentageError],
                 weighted_metrics=["acc"],
                 run_eagerly=should_run_eagerly(),
             )
         else:
-            model.compile("rmsprop", "mse", weighted_metrics=["acc"])
-        model.train_on_batch(input_data, actual_output)
+            model.compile("rmsprop", ["mse", losses.QuantileLossError([0.5]), losses.SymetricMeanAbsolutePercentageError], weighted_metrics=["acc"])
+        model.train_on_batch(input_data, model.predict(input_data))
 
     # test as first layer in Sequential API
     layer_config = layer.get_config()

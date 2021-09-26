@@ -7,86 +7,38 @@ from tensorflow.keras.layers import Add, Dense, Dropout, InputSpec, Layer, Subtr
 from tensorflow.keras import Model
 import numpy as np
 
-
-class TrendBlock(Layer):
-    """
-    Trend block definition.
-
-    This layer represents the smaller part of nbeats model.
-    Final layers are constrained which define a polynomial function of small degree p.
-    Therefore it is possible to get explanation from this block.
-
-    Parameters
-    ----------
-    horizon : integer
-        Horizon time to forecast.
-    back_horizon : integer
-        Past to rebuild. Usually, back_horizon is 1 to 7 times longer than horizon.
-    p_degree : integer
-        Degree of the polynomial function. It needs to be > 0
-    n_neurons : integer
-        Number of neurons in Fully connected layers. It needs to be > 0.
-    quantiles : integer, default to 1.
-        Number of quantiles used in the QuantileLoss function. It needs to be > 1.
-        If quantiles is 1 then the ouput will have a shape of (batch_size, horizon).
-        else, the ouput will have a shape of (quantiles, batch_size, horizon).
-
-    Attributes
-    ----------
-    p_degree : Tensor of shape [p_degree, 1]
-    horizon : float
-    back_horizon : float
-    n_neurons : integer
-    quantiles : integer
-    drop_rate : float
-
-    Notes
-    -----
-    This class has been customized to integrate additional functionalities.
-    Thanks to :class:`autopycoin.loss.QuantileLossError` it is therefore possible
-    to indicate the number of quantiles the output will contain.
-    These quantiles are estimations of prediction intervals.
-
-
-    input shape:
-    N-D tensor with shape: (batch_size, ..., input_dim).
-    The most common situation would be a 2D input with shape (batch_size, input_dim).
-
-    output shape:
-    N-D tensor with shape: (quantiles, batch_size, ..., units).
-    For instance, for a 2D input with shape (batch_size, input_dim) and a quantile parameter to 1,
-    the output would have shape (batch_size, units).
-    With a quantile to 2 or higher the output would have shape (quantiles, batch_size, units).
-    """
-
-    def __init__(
-        self,
+class BaseBlock(Layer):
+    def __init__(self, 
         horizon,
         back_horizon,
-        p_degree,
+        output_last_dim_forecast,
+        output_last_dim_backcast,
         n_neurons,
-        quantiles=1,
-        drop_rate=0.1,
-        **kwargs,
-    ):
+        quantiles,
+        drop_rate,
+        **kwargs):
 
         super().__init__(**kwargs)
-
-        # Shape (-1, 1) in order to broadcast horizon to all p degrees
-        self._p_degree = p_degree
-        self.p_degree = tf.expand_dims(tf.range(p_degree, dtype="float"), axis=-1)
 
         self.horizon = float(horizon)
         self.back_horizon = float(back_horizon)
         self.n_neurons = int(n_neurons)
         self.quantiles = int(quantiles)
         self.drop_rate = float(drop_rate)
+        self._output_last_dim_forecast = output_last_dim_forecast
+        self._output_last_dim_backcast = output_last_dim_backcast
+
+        if self.horizon < 0 or self.back_horizon < 0:
+                raise ValueError(
+                    f"`horizon` and `back_horizon` parameter expected "
+                    f"a positive integer, got {horizon} and {back_horizon}."
+                )
 
         if 0 > self.drop_rate > 1:
-            raise ValueError(
-                f"Received an invalid value for `drop_rate`, expected "
-                f"a float betwwen 0 and 1, got {drop_rate}."
-            )
+                raise ValueError(
+                    f"Received an invalid value for `drop_rate`, expected "
+                    f"a float between 0 and 1, got {drop_rate}."
+                )
         if self.n_neurons < 0:
             raise ValueError(
                 f"Received an invalid value for `n_neurons`, expected "
@@ -97,17 +49,12 @@ class TrendBlock(Layer):
                 f"Received an invalid value for `quantiles`, expected "
                 f"an integer >= 1, got {quantiles}."
             )
-        if all(self.p_degree < 0):
-            raise ValueError(
-                f"Received an invalid value for `p_degree`, expected "
-                f"a positive integer, got {p_degree}."
-            )
 
     def build(self, input_shape):
         dtype = tf.as_dtype(self.dtype or tf.float32())
         if not (dtype.is_floating or dtype.is_complex):
             raise TypeError(
-                "Unable to build `TrendBlock` layer with "
+                f"Unable to build `{self.name}` layer with "
                 "non-floating point dtype %s" % (dtype,)
             )
 
@@ -126,12 +73,12 @@ class TrendBlock(Layer):
             self.fc_stack.append(
                 (
                     self.add_weight(
-                        shape=(last_dim, self.n_neurons), name=f"FC_kernel_{count}"
+                        shape=(last_dim, self.n_neurons), name=f"fc_kernel_{self.name}_{count}"
                     ),
                     self.add_weight(
                         shape=(self.n_neurons,),
                         initializer="zeros",
-                        name=f"FC_bias_{count}",
+                        name=f"fc_bias_{self.name}_{count}",
                     ),
                 )
             )
@@ -139,37 +86,35 @@ class TrendBlock(Layer):
 
         self.dropout = Dropout(self.drop_rate)
 
-        shape_fc_backcast = (self.n_neurons, len(self.p_degree))
-        self.fc_backcast = self.add_weight(
-            shape=shape_fc_backcast, name="fc_backcast_trend"
-        )
-
-        shape_fc_forecast = (self.quantiles, self.n_neurons, len(self.p_degree))
+        shape_fc_forecast = (self.quantiles, self.n_neurons, self._output_last_dim_forecast)
         if self.quantiles == 1:
-            shape_fc_forecast = (self.n_neurons, len(self.p_degree))
+            shape_fc_forecast = (self.n_neurons, self._output_last_dim_forecast)
+
         self.fc_forecast = self.add_weight(
-            shape=shape_fc_forecast, name="fc_forecast_trend"
+            shape=shape_fc_forecast, name="fc_forecast_{self.name}"
         )
 
-        forecast_coef = (tf.range(self.horizon) / self.horizon) ** self.p_degree
-        self.forecast_coef = self.add_weight(
-            shape=forecast_coef.shape,
-            initializer=tf.constant_initializer(forecast_coef.numpy()),
-            trainable=False,
-            name="gf_constained",
+        shape_fc_backcast = (self.n_neurons, self._output_last_dim_backcast)
+        self.fc_backcast = self.add_weight(
+            shape=shape_fc_backcast, name="fc_backcast_{self.name}"
         )
-        backcast_coef = (
-            tf.range(self.back_horizon) / self.back_horizon
-        ) ** self.p_degree
-        self.backcast_coef = self.add_weight(
-            shape=backcast_coef.shape,
-            initializer=tf.constant_initializer(backcast_coef.numpy()),
+
+        self.forecast_coef = self.add_weight(
+            shape=self.forecast_coef.shape,
+            initializer=tf.constant_initializer(self.forecast_coef.numpy()),
             trainable=False,
-            name="gb_constained",
+            name="gf_constrained_{self.name}",
+        )
+
+        self.backcast_coef = self.add_weight(
+            shape=self.backcast_coef.shape,
+            initializer=tf.constant_initializer(self.backcast_coef.numpy()),
+            trainable=False,
+            name="gb_constrained_{self.name}",
         )
 
         self.built = True
- 
+
     def call(self, inputs): # pylint: disable=arguments-differ
 
         for kernel, bias in self.fc_stack:
@@ -212,32 +157,123 @@ class TrendBlock(Layer):
             tf.TensorShape((input_shape[0], int(self.back_horizon))),
         ]
 
-    def compute_output_signature(self, input_signature):
-        def check_type_return_shape(s):
-            if not isinstance(s, tf.TensorSpec):
-                raise TypeError(
-                    "Only TensorSpec signature types are supported, "
-                    "but saw signature entry: {}.".format(s)
-                )
-            return s.shape
+    def coefficient_factory(self, *args, **kwargs):
+        raise NotImplementedError('When subclassing the `BaseBlock` class, you should '
+                              'implement a `coefficient_factory` method.')
 
-        input_shape = tf.nest.map_structure(check_type_return_shape, input_signature)
-        output_shape = self.compute_output_shape(input_shape)
-        dtype = self._compute_dtype
-        if dtype is None:
-            input_dtypes = [s.dtype for s in tf.nest.flatten(input_signature)]
-            # Default behavior when self.dtype is None, is to use the first input's
-            # dtype.
-            dtype = input_dtypes[0]
-        return tf.nest.map_structure(
-            lambda s: tf.TensorSpec(dtype=dtype, shape=s), output_shape
-        )
+
+class TrendBlock(BaseBlock):
+    """
+    Trend block definition.
+
+    This layer represents the smaller part of nbeats model.
+    Final layers are constrained which define a polynomial function of small degree p.
+    Therefore it is possible to get explanation from this block.
+
+    Parameters
+    ----------
+    horizon : integer
+        Horizon time to forecast.
+    back_horizon : integer
+        Past to rebuild. Usually, back_horizon is 1 to 7 times longer than horizon.
+    p_degree : integer
+        Degree of the polynomial function. It needs to be > 0
+    n_neurons : integer
+        Number of neurons in Fully connected layers. It needs to be > 0.
+    quantiles : integer, default to 1.
+        Number of quantiles used in the QuantileLoss function. It needs to be > 1.
+        If quantiles is 1 then the ouput will have a shape of (batch_size, horizon).
+        else, the ouput will have a shape of (quantiles, batch_size, horizon).
+    drop_rate : float, default to 0.1.
+        Rate of the dropout layer. This is used to estimate the epistemic error.
+        Expected a value between 0 and 1.
+
+    Attributes
+    ----------
+    p_degree : integer
+    horizon : float
+    back_horizon : float
+    n_neurons : integer
+    quantiles : integer
+    drop_rate : float
+
+    Notes
+    -----
+    This class has been customized to integrate additional functionalities.
+    Thanks to :class:`autopycoin.loss.QuantileLossError` it is therefore possible
+    to indicate the number of quantiles the output will contain.
+    These quantiles are the estimations of the aleatoric error a.k.a prediction interval.
+    `drop_rate` parameter is used to estimate the epistemic error a.k.a confidence interval.
+
+    input shape:
+    N-D tensor with shape: (batch_size, ..., input_dim).
+    The most common situation would be a 2D input with shape (batch_size, input_dim).
+
+    output shape:
+    N-D tensor with shape: (quantiles, batch_size, ..., units).
+    For instance, for a 2D input with shape (batch_size, input_dim) and a quantile parameter to 1,
+    the output would have shape (batch_size, units).
+    With a quantile to 2 or higher the output would have shape (quantiles, batch_size, units).
+    """
+
+    def __init__(
+        self,
+        horizon,
+        back_horizon,
+        p_degree,
+        n_neurons,
+        quantiles=1,
+        drop_rate=0.1,
+        **kwargs,
+    ):
+
+        super().__init__(horizon,
+                        back_horizon,
+                        p_degree,
+                        p_degree,
+                        n_neurons,
+                        quantiles,
+                        drop_rate,**kwargs)
+
+        # Shape (-1, 1) in order to broadcast horizon to all p degrees
+        self.p_degree = p_degree
+        self._p_degree = tf.expand_dims(tf.range(p_degree, dtype="float32"), axis=-1)
+        self.forecast_coef = self.coefficient_factory(self.horizon)
+        self.backcast_coef = self.coefficient_factory(self.back_horizon)
+
+        if self.p_degree < 0:
+            raise ValueError(
+                f"Received an invalid value for `p_degree`, expected "
+                f"a positive integer, got {p_degree}."
+            )
+
+    def coefficient_factory(self, horizon):
+        """
+        Compute the coefficients used in the last layer a.k.a g constrained layer.
+
+        Parameters
+        ----------
+        horizon : int
+        periods : lis[int]
+        fourier_orders : list[int]
+
+        Returns
+        -------
+        coefficients : tensor with shape ()
+            Coefficients of the g layer.
+        """
+
+        coefficients = (
+            tf.range(horizon) / horizon
+        ) ** self._p_degree
+
+        return coefficients
 
     def get_config(self):
         config = super().get_config()
         config.update(
             {
-                "p_degree": self._p_degree,
+                "p_degree": self.p_degree,
                 "horizon": self.horizon,
                 "back_horizon": self.back_horizon,
                 "n_neurons": self.n_neurons,
@@ -248,7 +284,7 @@ class TrendBlock(Layer):
         return config
 
 
-class SeasonalityBlock(Layer):
+class SeasonalityBlock(BaseBlock):
     """
     Seasonality block definition.
 
@@ -262,14 +298,61 @@ class SeasonalityBlock(Layer):
 
     Parameters
     ----------
-    p_degree: integer
+    p_degree : integer
         Degree of the polynomial function.
-    horizon: integer
+    horizon : integer
         Horizon time to forecast.
-    back_horizon: integer
+    back_horizon : integer
         Past to rebuild.
-    nb_neurons: integer
+    nb_neurons : integer
         Number of neurons in Fully connected layers.
+    periods : list[int]
+        Compute the fourier serie period in the forecasting equation.
+        If it's a list all periods are taken into account in the calculation.
+    back_periods : list[int]
+        Compute the fourier serie period in the backcasting equation.
+        If it's a list all periods are taken into account in the calculation.
+    forecast_fourier_order : list[int]
+        Compute the fourier order. each order element is linked the respective period. 
+    backcast_fourier_order : list[int]
+        Compute the fourier order. each order element is linked the respective back period. 
+    quantiles : integer, default to 1.
+        Number of quantiles used in the QuantileLoss function. It needs to be > 1.
+        If quantiles is 1 then the ouput will have a shape of (batch_size, horizon).
+        else, the ouput will have a shape of (quantiles, batch_size, horizon).
+    drop_rate : float, default to 0.1.
+        Rate of the dropout layer. This is used to estimate the epistemic error.
+        Expected a value between 0 and 1.
+
+    Attributes
+    ----------
+    horizon : float
+    back_horizon : float
+    periods : list[int]
+    back_periods : list[int]
+    forecast_fourier_order : list[int]
+    backcast_fourier_order : list[int]
+    n_neurons : integer
+    quantiles : integer
+    drop_rate : float
+
+    Notes
+    -----
+    This class has been customized to integrate additional functionalities.
+    Thanks to :class:`autopycoin.loss.QuantileLossError` it is therefore possible
+    to indicate the number of quantiles the output will contain.
+    These quantiles are the estimations of the aleatoric error a.k.a prediction interval.
+    `drop_rate` parameter is used to estimate the epistemic error a.k.a confidence interval.
+
+    input shape:
+    N-D tensor with shape: (batch_size, ..., input_dim).
+    The most common situation would be a 2D input with shape (batch_size, input_dim).
+
+    output shape:
+    N-D tensor with shape: (quantiles, batch_size, ..., units).
+    For instance, for a 2D input with shape (batch_size, input_dim) and a quantile parameter to 1,
+    the output would have shape (batch_size, units).
+    With a quantile to 2 or higher the output would have shape (quantiles, batch_size, units).
     """
 
     def __init__(
@@ -286,88 +369,88 @@ class SeasonalityBlock(Layer):
         **kwargs,
     ):
 
-        super().__init__(**kwargs)
-
-        shape = (1, -1, 1)
-        periods = tf.cast(tf.reshape(periods, shape), "tf.float32")
-        back_periods = tf.cast(tf.reshape(back_periods, shape), "tf.float32")
-
-        shape = (-1, 1, 1)
-        forecast_fourier_order = tf.reshape(
-            range(forecast_fourier_order, dtype="tf.float32"), shape
-        )
-        backcast_fourier_order = tf.reshape(
-            range(backcast_fourier_order, dtype="tf.float32"), shape
-        )
-
         # Workout the number of neurons needed to compute seasonality
         # coefficients
         forecast_neurons = tf.reduce_sum(2 * periods)
         backcast_neurons = tf.reduce_sum(2 * back_periods)
 
-        self.fc_stack = [Dense(n_neurons, activation="relu") for _ in range(4)]
+        super().__init__(horizon,
+                        back_horizon,
+                        forecast_neurons,
+                        backcast_neurons,
+                        n_neurons,
+                        quantiles,
+                        drop_rate,**kwargs)
 
-        self.dropout = Dropout(drop_rate)
+        self.periods = periods
+        self.back_periods = back_periods
+        self.forecast_fourier_order = forecast_fourier_order
+        self.backcast_fourier_order = backcast_fourier_order
+        self.forecast_coef = self.coefficient_factory(self.horizon, self.periods, self.forecast_fourier_order)
+        self.backcast_coef = self.coefficient_factory(self.back_horizon, self.back_periods, self.backcast_fourier_order)
 
-        shape_fc_backcast = (n_neurons, backcast_neurons)
-        self.fc_backcast = self.add_weight(
-            shape=shape_fc_backcast, name="fc_backcast_seasonality"
+        if len(periods) != len(forecast_fourier_order):
+            raise ValueError(
+                f"`periods` and `forecast_fourier_order` are expected"
+                f"to have the same length, got"
+                f"{len(periods)} and {len(forecast_fourier_order)} respectively."
+            )
+
+        if len(back_periods) != len(backcast_fourier_order):
+            raise ValueError(
+                f"`back_periods` and `backcast_fourier_order` are expected"
+                f"to have the same length, got {len(back_periods)} and {len(backcast_fourier_order)} respectively."
+            )
+    
+    def coefficient_factory(self, horizon, periods, fourier_orders):
+        """
+        Compute the coefficients used in the last layer a.k.a g constrained layer.
+
+        Parameters
+        ----------
+        horizon : int
+        periods : lis[int]
+        fourier_orders : list[int]
+
+        Returns
+        -------
+        coefficients : tensor with shape ()
+            Coefficients of the g layer.
+        """
+
+        periods = tf.cast(tf.reshape(periods, shape=(-1, 1)), dtype="float32")
+        time_forecast = tf.range(horizon, dtype="float32")
+
+        coefficients = []
+        for fourier_order, period in zip(fourier_orders, periods):
+            time_forecast = 2 * np.pi * time_forecast / period
+            seasonality = time_forecast * tf.expand_dims(tf.range(fourier_order, dtype='float32'), axis=-1)
+            # Workout cos and sin seasonality coefficents
+            seasonality = tf.concat(
+                (tf.cos(seasonality), tf.sin(seasonality)), axis=0
+            )
+
+            coefficients.append(seasonality)
+        coefficients = tf.concat(coefficients, axis=0)
+
+        return coefficients
+
+    def get_config(self):
+        config = super().get_config()
+        config.update(
+            {
+                "horizon" : self.horizon,
+                "back_horizon" : self.back_horizon,
+                "n_neurons" : self.n_neurons,
+                "periods" : self.periods,
+                "back_periods" : self.back_periods,
+                "forecast_fourier_order" : self.forecast_fourier_order,
+                "backcast_fourier_order" : self.backcast_fourier_order,
+                "quantiles" : self.quantiles,
+                "drop_rate" : self.drop_rate
+            }
         )
-
-        shape_fc_forecast = (quantiles, n_neurons, forecast_neurons)
-        self.fc_forecast = self.add_weight(
-            shape=shape_fc_forecast, name="fc_forecast_seasonality"
-        )
-
-        # Workout tf.cos and tf.sin seasonality coefficents
-        time_forecast = range(horizon, dtype="tf.float32")
-        time_forecast = 2 * np.pi * time_forecast / periods
-        forecast_seasonality = time_forecast * forecast_fourier_order
-        forecast_seasonality = tf.concat(
-            (tf.cos(forecast_seasonality), tf.sin(forecast_seasonality)), axis=0
-        )
-
-        time_backcast = range(back_horizon, dtype="tf.float32")
-        time_backcast = 2 * np.pi * time_backcast / back_periods
-        backcast_seasonality = time_backcast * backcast_fourier_order
-        backcast_seasonality = tf.concat(
-            (tf.cos(backcast_seasonality), tf.sin(backcast_seasonality)), axis=0
-        )
-
-        shape_forecast_coef = (forecast_neurons, horizon)
-        self.forecast_coef = tf.constant(
-            forecast_seasonality,
-            shape=shape_forecast_coef,
-            dtype="tf.float32",
-        )
-
-        shape_backcast_coef = (backcast_neurons, back_horizon)
-        self.backcast_coef = tf.constant(
-            backcast_seasonality,
-            shape=shape_backcast_coef,
-            dtype="tf.float32",
-        )
-
-    def call(self, inputs):
-
-        for dense in self.fc_stack:
-            # shape: (Batch_size, n_neurons)
-            x = dense(inputs)
-            x = self.dropout(x, training=True)
-
-        # shape: (Batch_size, 2 * fourier order)
-        theta_backcast = x @ self.fc_backcast
-
-        # shape: (quantiles, Batch_size, 2 * fourier order)
-        theta_forecast = x @ self.fc_forecast
-
-        # shape: (quantiles, Batch_size, 2 * fourier order)
-        y_backcast = theta_backcast @ self.forecast_coef
-
-        # shape: (quantiles, Batch_size, forecast)
-        y_forecast = theta_forecast @ self.backcast_coef
-
-        return y_forecast, y_backcast
+        return config
 
 
 class GenericBlock(Layer):

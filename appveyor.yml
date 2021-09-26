@@ -13,7 +13,6 @@ install:
   # Add Library/bin directory to fix issue
   # https://github.com/conda/conda/issues/1753
   - "SET PATH=%PYTHON%;%PYTHON%\\Scripts;%PYTHON%\\Library\\bin;%PATH%"
-  - pip install --upgrade --user pip
   # install the dependencies
   - pip install -r requirements.txt
   - pip install codecov nose pytest pytest-cov
