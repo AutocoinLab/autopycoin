@@ -17,6 +17,7 @@ class QuantileLossTest(test.TestCase):
             reduction=losses_utils.ReductionV2.SUM,
             name="ql_1",
         )
+        self.assertEqual(ql_obj.quantiles, [0.1, 0.5, 0.9])
         self.assertEqual(ql_obj.name, "ql_1")
         self.assertEqual(ql_obj.reduction, losses_utils.ReductionV2.SUM)
 

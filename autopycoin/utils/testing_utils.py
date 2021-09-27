@@ -1,8 +1,7 @@
 """
 Customized Tools from keras API.
 """
-
-from tensorflow import TensorShape, TensorSpec, dtypes
+import tensorflow as tf
 from tensorflow.compat.v1 import Dimension
 from tensorflow.keras import layers, models
 from tensorflow.python.eager import context
@@ -22,7 +21,7 @@ def string_test(actual, expected):
     np.testing.assert_array_equal(actual, expected)
 
 def numeric_test(actual, expected):
-    np.testing.assert_allclose(actual, expected, rtol=1e-3, atol=1e-5)
+    np.testing.assert_allclose(tf.round(actual, 3), tf.round(expected, 3), rtol=1e-3, atol=1e-5)
 
 def layer_test(
     layer_cls,
@@ -151,9 +150,9 @@ def layer_test(
         if isinstance(expected_output_shape, (tuple, list))
         else list(expected_output_shape)
     )
-    computed_output_shapes = tuple(layer.compute_output_shape(TensorShape(input_shape)))
+    computed_output_shapes = tuple(layer.compute_output_shape(tf.TensorShape(input_shape)))
     computed_output_signatures = layer.compute_output_signature(
-        TensorSpec(shape=input_shape, dtype=input_dtype)
+        tf.TensorSpec(shape=input_shape, dtype=input_dtype)
     )
 
     for (
@@ -172,7 +171,7 @@ def layer_test(
         computed_output_signatures,
     ):
 
-        if dtypes.as_dtype(expected_output_dtype) == dtypes.string:
+        if tf.dtypes.as_dtype(expected_output_dtype) == tf.dtypes.string:
             if test_harness:
                 assert_equal = test_harness.assertAllEqual
             else:
@@ -212,7 +211,7 @@ def layer_test(
                     )
 
         if expected_output_shape is not None:
-            assert_shapes_equal(TensorShape(expected_output_shape), y.shape)
+            assert_shapes_equal(tf.TensorShape(expected_output_shape), y.shape)
 
         # check shape inference
         model = models.Model(x, y)
