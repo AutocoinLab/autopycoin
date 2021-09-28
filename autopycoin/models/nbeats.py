@@ -7,8 +7,10 @@ from tensorflow.keras.layers import Add, Dense, Dropout, InputSpec, Layer, Subtr
 from tensorflow.keras import Model
 import numpy as np
 
+
 class BaseBlock(Layer):
-    def __init__(self, 
+    def __init__(
+        self,
         horizon,
         back_horizon,
         output_last_dim_forecast,
@@ -16,7 +18,8 @@ class BaseBlock(Layer):
         n_neurons,
         quantiles,
         drop_rate,
-        **kwargs):
+        **kwargs,
+    ):
 
         super().__init__(**kwargs)
 
@@ -29,16 +32,16 @@ class BaseBlock(Layer):
         self._output_last_dim_backcast = output_last_dim_backcast
 
         if self.horizon < 0 or self.back_horizon < 0:
-                raise ValueError(
-                    f"`horizon` and `back_horizon` parameter expected "
-                    f"a positive integer, got {self.horizon} and {self.back_horizon}."
-                )
+            raise ValueError(
+                f"`horizon` and `back_horizon` parameter expected "
+                f"a positive integer, got {self.horizon} and {self.back_horizon}."
+            )
 
         if 0 > self.drop_rate > 1:
-                raise ValueError(
-                    f"Received an invalid value for `drop_rate`, expected "
-                    f"a float between 0 and 1, got {self.drop_rate}."
-                )
+            raise ValueError(
+                f"Received an invalid value for `drop_rate`, expected "
+                f"a float between 0 and 1, got {self.drop_rate}."
+            )
         if self.n_neurons < 0:
             raise ValueError(
                 f"Received an invalid value for `n_neurons`, expected "
@@ -73,7 +76,8 @@ class BaseBlock(Layer):
             self.fc_stack.append(
                 (
                     self.add_weight(
-                        shape=(last_dim, self.n_neurons), name=f"fc_kernel_{self.name}_{count}"
+                        shape=(last_dim, self.n_neurons),
+                        name=f"fc_kernel_{self.name}_{count}",
                     ),
                     self.add_weight(
                         shape=(self.n_neurons,),
@@ -86,7 +90,11 @@ class BaseBlock(Layer):
 
         self.dropout = Dropout(self.drop_rate)
 
-        shape_fc_forecast = (self.quantiles, self.n_neurons, self._output_last_dim_forecast)
+        shape_fc_forecast = (
+            self.quantiles,
+            self.n_neurons,
+            self._output_last_dim_forecast,
+        )
         if self.quantiles == 1:
             shape_fc_forecast = (self.n_neurons, self._output_last_dim_forecast)
 
@@ -115,7 +123,7 @@ class BaseBlock(Layer):
 
         self.built = True
 
-    def call(self, inputs): # pylint: disable=arguments-differ
+    def call(self, inputs):  # pylint: disable=arguments-differ
 
         for kernel, bias in self.fc_stack:
             # shape: (Batch_size, n_neurons)
@@ -158,8 +166,10 @@ class BaseBlock(Layer):
         ]
 
     def coefficient_factory(self, *args, **kwargs):
-        raise NotImplementedError('When subclassing the `BaseBlock` class, you should '
-                              'implement a `coefficient_factory` method.')
+        raise NotImplementedError(
+            "When subclassing the `BaseBlock` class, you should "
+            "implement a `coefficient_factory` method."
+        )
 
 
 class TrendBlock(BaseBlock):
@@ -227,17 +237,22 @@ class TrendBlock(BaseBlock):
         **kwargs,
     ):
 
-        super().__init__(horizon,
-                        back_horizon,
-                        p_degree,
-                        p_degree,
-                        n_neurons,
-                        quantiles,
-                        drop_rate,**kwargs)
+        super().__init__(
+            horizon,
+            back_horizon,
+            p_degree,
+            p_degree,
+            n_neurons,
+            quantiles,
+            drop_rate,
+            **kwargs,
+        )
 
         # Shape (-1, 1) in order to broadcast horizon to all p degrees
         self.p_degree = p_degree
-        self._p_degree = tf.expand_dims(tf.range(self.p_degree, dtype="float32"), axis=-1)
+        self._p_degree = tf.expand_dims(
+            tf.range(self.p_degree, dtype="float32"), axis=-1
+        )
         self.forecast_coef = self.coefficient_factory(self.horizon, self._p_degree)
         self.backcast_coef = self.coefficient_factory(self.back_horizon, self._p_degree)
 
@@ -263,9 +278,7 @@ class TrendBlock(BaseBlock):
             Coefficients of the g layer.
         """
 
-        coefficients = (
-            tf.range(horizon) / horizon
-        ) ** p_degree
+        coefficients = (tf.range(horizon) / horizon) ** p_degree
 
         return coefficients
 
@@ -313,9 +326,9 @@ class SeasonalityBlock(BaseBlock):
         Compute the fourier serie period in the backcasting equation.
         If it's a list all periods are taken into account in the calculation.
     forecast_fourier_order : list[int]
-        Compute the fourier order. each order element is linked the respective period. 
+        Compute the fourier order. each order element is linked the respective period.
     backcast_fourier_order : list[int]
-        Compute the fourier order. each order element is linked the respective back period. 
+        Compute the fourier order. each order element is linked the respective back period.
     quantiles : integer, default to 1.
         Number of quantiles used in the QuantileLoss function. It needs to be > 1.
         If quantiles is 1 then the ouput will have a shape of (batch_size, horizon).
@@ -374,20 +387,27 @@ class SeasonalityBlock(BaseBlock):
         forecast_neurons = tf.reduce_sum(2 * periods)
         backcast_neurons = tf.reduce_sum(2 * back_periods)
 
-        super().__init__(horizon,
-                        back_horizon,
-                        forecast_neurons,
-                        backcast_neurons,
-                        n_neurons,
-                        quantiles,
-                        drop_rate,**kwargs)
+        super().__init__(
+            horizon,
+            back_horizon,
+            forecast_neurons,
+            backcast_neurons,
+            n_neurons,
+            quantiles,
+            drop_rate,
+            **kwargs,
+        )
 
         self.periods = periods
         self.back_periods = back_periods
         self.forecast_fourier_order = forecast_fourier_order
         self.backcast_fourier_order = backcast_fourier_order
-        self.forecast_coef = self.coefficient_factory(self.horizon, self.periods, self.forecast_fourier_order)
-        self.backcast_coef = self.coefficient_factory(self.back_horizon, self.back_periods, self.backcast_fourier_order)
+        self.forecast_coef = self.coefficient_factory(
+            self.horizon, self.periods, self.forecast_fourier_order
+        )
+        self.backcast_coef = self.coefficient_factory(
+            self.back_horizon, self.back_periods, self.backcast_fourier_order
+        )
 
         if len(self.periods) != len(self.forecast_fourier_order):
             raise ValueError(
@@ -401,7 +421,7 @@ class SeasonalityBlock(BaseBlock):
                 f"`back_periods` and `backcast_fourier_order` are expected"
                 f"to have the same length, got {len(self.back_periods)} and {len(self.backcast_fourier_order)} respectively."
             )
-    
+
     def coefficient_factory(self, horizon, periods, fourier_orders):
         """
         Compute the coefficients used in the last layer a.k.a g constrained layer.
@@ -424,11 +444,11 @@ class SeasonalityBlock(BaseBlock):
         coefficients = []
         for fourier_order, period in zip(fourier_orders, periods):
             time_forecast = 2 * np.pi * time_forecast / period
-            seasonality = time_forecast * tf.expand_dims(tf.range(fourier_order, dtype='float32'), axis=-1)
-            # Workout cos and sin seasonality coefficents
-            seasonality = tf.concat(
-                (tf.cos(seasonality), tf.sin(seasonality)), axis=0
+            seasonality = time_forecast * tf.expand_dims(
+                tf.range(fourier_order, dtype="float32"), axis=-1
             )
+            # Workout cos and sin seasonality coefficents
+            seasonality = tf.concat((tf.cos(seasonality), tf.sin(seasonality)), axis=0)
 
             coefficients.append(seasonality)
         coefficients = tf.concat(coefficients, axis=0)
@@ -439,15 +459,15 @@ class SeasonalityBlock(BaseBlock):
         config = super().get_config()
         config.update(
             {
-                "horizon" : self.horizon,
-                "back_horizon" : self.back_horizon,
-                "n_neurons" : self.n_neurons,
-                "periods" : self.periods,
-                "back_periods" : self.back_periods,
-                "forecast_fourier_order" : self.forecast_fourier_order,
-                "backcast_fourier_order" : self.backcast_fourier_order,
-                "quantiles" : self.quantiles,
-                "drop_rate" : self.drop_rate
+                "horizon": self.horizon,
+                "back_horizon": self.back_horizon,
+                "n_neurons": self.n_neurons,
+                "periods": self.periods,
+                "back_periods": self.back_periods,
+                "forecast_fourier_order": self.forecast_fourier_order,
+                "backcast_fourier_order": self.backcast_fourier_order,
+                "quantiles": self.quantiles,
+                "drop_rate": self.drop_rate,
             }
         )
         return config
@@ -520,18 +540,23 @@ class GenericBlock(BaseBlock):
         **kwargs,
     ):
 
-        super().__init__(horizon,
-                        back_horizon,
-                        trend_neurons,
-                        seasonality_neurons,
-                        n_neurons,
-                        quantiles,
-                        drop_rate,**kwargs)
+        super().__init__(
+            horizon,
+            back_horizon,
+            trend_neurons,
+            seasonality_neurons,
+            n_neurons,
+            quantiles,
+            drop_rate,
+            **kwargs,
+        )
 
         self.trend_neurons = int(trend_neurons)
         self.seasonality_neurons = int(seasonality_neurons)
         self.forecast_coef = self.coefficient_factory(self.horizon, self.trend_neurons)
-        self.backcast_coef = self.coefficient_factory(self.back_horizon, self.seasonality_neurons)
+        self.backcast_coef = self.coefficient_factory(
+            self.back_horizon, self.seasonality_neurons
+        )
 
     def build(self, input_shape):
 
@@ -568,7 +593,9 @@ class GenericBlock(BaseBlock):
             Coefficients of the g layer.
         """
 
-        coefficients = tf.keras.initializers.GlorotUniform(seed=42)(shape=(neurons, int(horizon)))
+        coefficients = tf.keras.initializers.GlorotUniform(seed=42)(
+            shape=(neurons, int(horizon))
+        )
 
         return coefficients
 
@@ -576,13 +603,13 @@ class GenericBlock(BaseBlock):
         config = super().get_config()
         config.update(
             {
-                "horizon" : self.horizon,
-                "back_horizon" : self.back_horizon,
-                "trend_neurons" : self.trend_neurons,
-                "seasonality_neurons" : self.seasonality_neurons,
-                "n_neurons" : self.n_neurons,
-                "quantiles" : self.quantiles,
-                "drop_rate" : self.drop_rate
+                "horizon": self.horizon,
+                "back_horizon": self.back_horizon,
+                "trend_neurons": self.trend_neurons,
+                "seasonality_neurons": self.seasonality_neurons,
+                "n_neurons": self.n_neurons,
+                "quantiles": self.quantiles,
+                "drop_rate": self.drop_rate,
             }
         )
         return config
@@ -601,7 +628,7 @@ class Stack(Layer):
     blocks: list[BaseBlock layer]
         Blocks layers. they can be generic, seasonal or trend ones.
         You can also define your own block by subclassing `BaseBlock`.
-    
+
     Attributes
     ----------
     blocks : list[BaseBlock layer]
@@ -621,14 +648,14 @@ class Stack(Layer):
 
         for block in blocks:
             if isinstance(block, type(BaseBlock)):
-                raise ValueError('`blocks` is expected to inherit from `BaseBlock`')
+                raise ValueError("`blocks` is expected to inherit from `BaseBlock`")
 
     def call(self, inputs):
 
         y_forecast = tf.constant(0.0)
         for block in self.blocks:
 
-            # shape: 
+            # shape:
             # (quantiles, Batch_size, forecast)
             # (Batch_size, backcast)
             residual_y, y_backcast = block(inputs)
@@ -641,11 +668,7 @@ class Stack(Layer):
 
     def get_config(self):
         config = super().get_config()
-        config.update(
-            {
-                "blocks": self.blocks
-            }
-        )
+        config.update({"blocks": self.blocks})
         return config
 
 

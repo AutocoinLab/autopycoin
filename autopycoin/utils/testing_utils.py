@@ -17,11 +17,16 @@ from .. import losses
 def dtype(obj):
     return obj.dtype.base_dtype.name
 
+
 def string_test(actual, expected):
     np.testing.assert_array_equal(actual, expected)
 
+
 def numeric_test(actual, expected):
-    np.testing.assert_allclose(tf.round(actual, 3), tf.round(expected, 3), rtol=1e-3, atol=1e-5)
+    np.testing.assert_allclose(
+        tf.round(actual, 3), tf.round(expected, 3), rtol=1e-3, atol=1e-5
+    )
+
 
 def layer_test(
     layer_cls,
@@ -136,21 +141,26 @@ def layer_test(
     expected_outputs = (
         expected_output
         if isinstance(expected_output, (tuple, list))
-        else [expected_output])
-    
+        else [expected_output]
+    )
+
     expected_output_dtypes = (
         [input_dtype for _ in ys]
         if expected_output_dtype is None
         else expected_output_dtype
         if isinstance(expected_output_dtype, (list, tuple))
-        else [expected_output_dtype])
-    
+        else [expected_output_dtype]
+    )
+
     expected_output_shapes = (
         expected_output_shape
         if isinstance(expected_output_shape, (tuple, list))
-        else [expected_output_shape])
-    
-    computed_output_shapes = tuple(layer.compute_output_shape(tf.TensorShape(input_shape)))
+        else [expected_output_shape]
+    )
+
+    computed_output_shapes = tuple(
+        layer.compute_output_shape(tf.TensorShape(input_shape))
+    )
     computed_output_signatures = layer.compute_output_signature(
         tf.TensorSpec(shape=input_shape, dtype=input_dtype)
     )
@@ -251,12 +261,24 @@ def layer_test(
         if _thread_local_data.run_eagerly is not None:
             model.compile(
                 "rmsprop",
-                ["mse", losses.QuantileLossError([0.5]), losses.SymetricMeanAbsolutePercentageError],
+                [
+                    "mse",
+                    losses.QuantileLossError([0.5]),
+                    losses.SymetricMeanAbsolutePercentageError,
+                ],
                 weighted_metrics=["acc"],
                 run_eagerly=should_run_eagerly(),
             )
         else:
-            model.compile("rmsprop", ["mse", losses.QuantileLossError([0.5]), losses.SymetricMeanAbsolutePercentageError], weighted_metrics=["acc"])
+            model.compile(
+                "rmsprop",
+                [
+                    "mse",
+                    losses.QuantileLossError([0.5]),
+                    losses.SymetricMeanAbsolutePercentageError,
+                ],
+                weighted_metrics=["acc"],
+            )
         model.train_on_batch(input_data, model.predict(input_data))
 
     # test as first layer in Sequential API
