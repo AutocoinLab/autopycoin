@@ -36,7 +36,7 @@ def smape(y_true, y_pred, mask=False):
     """
 
     y_true = tf.cast(y_true, dtype=y_pred.dtype)
-    
+
     mask = tf.convert_to_tensor(mask)
 
     diff = tf.abs(y_true - y_pred)
@@ -107,7 +107,7 @@ def quantile_loss(y_true, y_pred, quantiles):
 class SymetricMeanAbsolutePercentageError(LossFunctionWrapper):
     """
     Calculate the symetric mean absolute percentage error between `y_true`and `y_pred`.
-    
+
     To avoid infinite error, we add epsilon value to zeros denominator.
     This behavior can be modified by setting mask to True.
     then, infinite instances are not taken into account in calculation.

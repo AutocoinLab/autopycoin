@@ -1,8 +1,7 @@
 """
 Customized Tools from keras API.
 """
-
-from tensorflow import TensorShape, TensorSpec, dtypes
+import tensorflow as tf
 from tensorflow.compat.v1 import Dimension
 from tensorflow.keras import layers, models
 from tensorflow.python.eager import context
@@ -18,11 +17,16 @@ from .. import losses
 def dtype(obj):
     return obj.dtype.base_dtype.name
 
+
 def string_test(actual, expected):
     np.testing.assert_array_equal(actual, expected)
 
+
 def numeric_test(actual, expected):
-    np.testing.assert_allclose(actual, expected, rtol=1e-3, atol=1e-5)
+    np.testing.assert_allclose(
+        tf.round(actual, 3), tf.round(expected, 3), rtol=1e-3, atol=1e-5
+    )
+
 
 def layer_test(
     layer_cls,
@@ -133,27 +137,32 @@ def layer_test(
     y = layer(x)
 
     # Allow multi-y test
-    ys = y if isinstance(y, (tuple, list)) else list(y)
+    ys = y if isinstance(y, (tuple, list)) else [y]
     expected_outputs = (
         expected_output
         if isinstance(expected_output, (tuple, list))
-        else list(expected_output)
+        else [expected_output]
     )
+
     expected_output_dtypes = (
         [input_dtype for _ in ys]
         if expected_output_dtype is None
         else expected_output_dtype
         if isinstance(expected_output_dtype, (list, tuple))
-        else list(expected_output_dtype)
+        else [expected_output_dtype]
     )
+
     expected_output_shapes = (
         expected_output_shape
         if isinstance(expected_output_shape, (tuple, list))
-        else list(expected_output_shape)
+        else [expected_output_shape]
     )
-    computed_output_shapes = tuple(layer.compute_output_shape(TensorShape(input_shape)))
+
+    computed_output_shapes = tuple(
+        layer.compute_output_shape(tf.TensorShape(input_shape))
+    )
     computed_output_signatures = layer.compute_output_signature(
-        TensorSpec(shape=input_shape, dtype=input_dtype)
+        tf.TensorSpec(shape=input_shape, dtype=input_dtype)
     )
 
     for (
@@ -172,7 +181,7 @@ def layer_test(
         computed_output_signatures,
     ):
 
-        if dtypes.as_dtype(expected_output_dtype) == dtypes.string:
+        if tf.dtypes.as_dtype(expected_output_dtype) == tf.dtypes.string:
             if test_harness:
                 assert_equal = test_harness.assertAllEqual
             else:
@@ -212,7 +221,7 @@ def layer_test(
                     )
 
         if expected_output_shape is not None:
-            assert_shapes_equal(TensorShape(expected_output_shape), y.shape)
+            assert_shapes_equal(tf.TensorShape(expected_output_shape), y.shape)
 
         # check shape inference
         model = models.Model(x, y)
@@ -252,12 +261,24 @@ def layer_test(
         if _thread_local_data.run_eagerly is not None:
             model.compile(
                 "rmsprop",
-                ["mse", losses.QuantileLossError([0.5]), losses.SymetricMeanAbsolutePercentageError],
+                [
+                    "mse",
+                    losses.QuantileLossError([0.5]),
+                    losses.SymetricMeanAbsolutePercentageError,
+                ],
                 weighted_metrics=["acc"],
                 run_eagerly=should_run_eagerly(),
             )
         else:
-            model.compile("rmsprop", ["mse", losses.QuantileLossError([0.5]), losses.SymetricMeanAbsolutePercentageError], weighted_metrics=["acc"])
+            model.compile(
+                "rmsprop",
+                [
+                    "mse",
+                    losses.QuantileLossError([0.5]),
+                    losses.SymetricMeanAbsolutePercentageError,
+                ],
+                weighted_metrics=["acc"],
+            )
         model.train_on_batch(input_data, model.predict(input_data))
 
     # test as first layer in Sequential API
