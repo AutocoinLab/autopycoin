@@ -132,24 +132,24 @@ def layer_test(
     y = layer(x)
 
     # Allow multi-y test
-    ys = y if isinstance(y, (tuple, list)) else list(y)
+    ys = y if isinstance(y, (tuple, list)) else [y]
     expected_outputs = (
         expected_output
         if isinstance(expected_output, (tuple, list))
-        else list(expected_output)
-    )
+        else [expected_output])
+    
     expected_output_dtypes = (
         [input_dtype for _ in ys]
         if expected_output_dtype is None
         else expected_output_dtype
         if isinstance(expected_output_dtype, (list, tuple))
-        else list(expected_output_dtype)
-    )
+        else [expected_output_dtype])
+    
     expected_output_shapes = (
         expected_output_shape
         if isinstance(expected_output_shape, (tuple, list))
-        else list(expected_output_shape)
-    )
+        else [expected_output_shape])
+    
     computed_output_shapes = tuple(layer.compute_output_shape(tf.TensorShape(input_shape)))
     computed_output_signatures = layer.compute_output_signature(
         tf.TensorSpec(shape=input_shape, dtype=input_dtype)

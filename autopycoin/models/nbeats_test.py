@@ -80,6 +80,9 @@ def prepare_data(request):
                             tf.sin(1 * (2/3) * 2 * np.pi) +
                             tf.sin(2 * (2/3) * 2 * np.pi)).numpy()
 
+    request.cls.trend_neurons = 5
+    request.cls.seasonality_neurons = 5
+
 
 @keras_parameterized.run_all_keras_modes
 @pytest.mark.usefixtures("prepare_data")
@@ -284,4 +287,95 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
                 tf.constant([15., y1, y2, 15., y1, y2], shape=(2, 3)),
             ],
             custom_objects={"SeasonalityBlock": nbeats.SeasonalityBlock},
+        )
+
+    def test_genericblock(self):
+
+        layer_test(
+            nbeats.GenericBlock,
+            kwargs={
+                "horizon": self.horizon,
+                "back_horizon": self.back_horizon,
+                "n_neurons": self.n_neurons,
+                "trend_neurons": self.trend_neurons,
+                "seasonality_neurons": self.seasonality_neurons,
+                "quantiles": self.quantiles,
+                "drop_rate": self.drop_rate,
+            },
+            input_dtype="float",
+            input_shape=(2, 2),
+            expected_output_shape=((None, 1), (None, 2)),
+            expected_output_dtype=["float32", "float32"],
+            expected_output=None,
+            custom_objects={"GenericBlock": nbeats.GenericBlock},
+        )
+
+    def test_stack_generic(self):
+
+        kwargs={
+                "horizon": self.horizon,
+                "back_horizon": self.back_horizon,
+                "n_neurons": self.n_neurons,
+                "trend_neurons": self.trend_neurons,
+                "seasonality_neurons": self.seasonality_neurons,
+                "quantiles": self.quantiles,
+                "drop_rate": self.drop_rate,
+            }
+        blocks = [
+            nbeats.GenericBlock(**kwargs),
+            nbeats.GenericBlock(**kwargs)
+        ]
+
+        layer_test(
+            nbeats.Stack,
+            kwargs={
+                "blocks" : blocks
+            },
+            input_dtype="float",
+            input_shape=(2, 2),
+            expected_output_shape=((None, 1), (None, 2)),
+            expected_output_dtype=["float32", "float32"],
+            expected_output=None,
+            custom_objects={"Stack": nbeats.Stack},
+        )
+
+    def test_stack_interpretable(self):
+
+        kwargs_1={
+                "horizon": self.seasonality_horizon,
+                "back_horizon": self.seasonality_back_horizon,
+                "p_degree": self.p_degree,
+                "n_neurons": self.n_neurons,
+                "quantiles": self.quantiles,
+                "drop_rate": self.drop_rate,
+            }
+        
+        kwargs_2={
+                "horizon" : self.seasonality_horizon,
+                "back_horizon" : self.seasonality_back_horizon,
+                "n_neurons" : self.n_neurons,
+                "periods" : self.periods,
+                "back_periods" : self.back_periods,
+                "forecast_fourier_order" : self.forecast_fourier_order,
+                "backcast_fourier_order" : self.backcast_fourier_order,
+                "quantiles" : self.quantiles,
+                "drop_rate" : self.drop_rate,
+            }
+
+        blocks = [
+            nbeats.TrendBlock(**kwargs_1),
+            nbeats.SeasonalityBlock(**kwargs_2)
+        ]
+
+        layer_test(
+            nbeats.Stack,
+            kwargs={
+                "blocks" : blocks
+            },
+            input_dtype="float",
+            input_shape=(2, 3),
+            expected_output_shape=((None, 2), (None, 3)),
+            expected_output_dtype=["float32", "float32"],
+            expected_output=None,
+            custom_objects={"Stack": nbeats.Stack},
         )

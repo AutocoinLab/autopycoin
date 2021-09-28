@@ -2,6 +2,6 @@
 Initialization of models.
 """
 
-from .nbeats import NBEATS, TrendBlock, SeasonalityBlock, Stack, GenericBlock
+from .nbeats import NBEATS, Stack, TrendBlock, SeasonalityBlock, GenericBlock
 
-__ALL__ = ["NBEATS", "TrendBlock", "SeasonalityBlock", "Stack", "GenericBlock"]
+__ALL__ = ["NBEATS", "Stack", "TrendBlock", "SeasonalityBlock", "GenericBlock"]
