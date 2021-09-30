@@ -639,3 +639,64 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
 
         outputs = model.predict(np.array([[1.0, 2.0, 3.0]]))
         self.assertEqual(outputs.shape, (2, 1, 2))
+
+    def test_create_generic_nbeats(self):
+
+        model = nbeats.create_generic_nbeats(
+            horizon=self.seasonality_horizon,
+            back_horizon=self.seasonality_back_horizon,
+            forecast_neurons=self.n_neurons,
+            backcast_neurons=self.n_neurons,
+            n_neurons=self.n_neurons,
+            n_blocks=3,
+            n_stacks=2,
+            quantiles=self.quantiles,
+            drop_rate=0,
+            share=True,
+        )
+
+        self.assertIsInstance(model, nbeats.NBEATS)
+        generic_stack_1 = model.stacks[0]
+        generic_stack_2 = model.stacks[1]
+        self.assertIs(generic_stack_1.name, "generic_stack")
+        self.assertIs(generic_stack_2.name, "generic_stack")
+
+        # Test if interpretable model is composed by trend and seasonality blocks only
+        for block in generic_stack_1.blocks:
+            self.assertIsInstance(block, nbeats.GenericBlock)
+        for block in generic_stack_2.blocks:
+            self.assertIsInstance(block, nbeats.GenericBlock)
+
+        # Compare weights values, expected to be equals over blocks because share=True
+        self.assertEquals(
+            generic_stack_1.blocks[0].get_weights(),
+            generic_stack_1.blocks[1].get_weights(),
+            generic_stack_1.blocks[2].get_weights(),
+        )
+
+        self.assertEquals(
+            generic_stack_2.blocks[0].get_weights(),
+            generic_stack_2.blocks[1].get_weights(),
+            generic_stack_2.blocks[2].get_weights(),
+        )
+
+        # Compare output shape with expected
+        outputs = model.predict(np.array([[1.0, 2.0, 3.0]]))
+        self.assertEqual(outputs.shape, (1, 2))
+
+        # Compare output shape with expected when quantiles = 2
+        model = nbeats.create_generic_nbeats(
+            horizon=self.seasonality_horizon,
+            back_horizon=self.seasonality_back_horizon,
+            forecast_neurons=self.n_neurons,
+            backcast_neurons=self.n_neurons,
+            n_neurons=self.n_neurons,
+            n_blocks=3,
+            n_stacks=2,
+            quantiles=2,
+            drop_rate=0,
+            share=True,
+        )
+
+        outputs = model.predict(np.array([[1.0, 2.0, 3.0]]))
+        self.assertEqual(outputs.shape, (2, 1, 2))
