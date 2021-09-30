@@ -1,15 +1,18 @@
+# pylint: skip-file
+
 """
 Customized Tools from keras API.
 """
+
+import numpy as np
+import threading
+
 import tensorflow as tf
 from tensorflow.compat.v1 import Dimension
 from tensorflow.keras import layers, models
 from tensorflow.python.eager import context
 from tensorflow.python.keras.utils import tf_contextlib
 from tensorflow.python.keras.utils import tf_inspect
-
-import numpy as np
-import threading
 
 from .. import losses
 
@@ -26,6 +29,7 @@ def numeric_test(actual, expected):
     np.testing.assert_allclose(
         tf.round(actual, 3), tf.round(expected, 3), rtol=1e-3, atol=1e-5
     )
+
 
 def layer_test(
     layer_cls,
@@ -140,7 +144,7 @@ def layer_test(
 
     # Allow multi-y test
     ys = create_list(y)
-    
+
     expected_outputs = create_list(expected_output)
 
     expected_output_dtypes = (

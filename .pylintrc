@@ -3,4 +3,8 @@
 disable=attribute-defined-outside-init,
         arguments-differ,
         no-name-in-module,
-        no-self-use
+        no-self-use,
+        too-many-arguments,
+        too-many-locals,
+        too-many-instance-attributes,
+        too-many-lines

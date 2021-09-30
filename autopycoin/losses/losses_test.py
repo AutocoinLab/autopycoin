@@ -1,3 +1,5 @@
+# pylint: skip-file
+
 """Tests for autopycoin loss functions."""
 
 import numpy as np

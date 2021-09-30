@@ -59,11 +59,11 @@ def smape(y_true, y_pred, mask=False):
     )
 
     if isinstance(diff, tf.RaggedTensor):
-        M = tf.cast(error.row_lengths(), dtype=error.dtype)
+        total_samples = tf.cast(error.row_lengths(), dtype=error.dtype)
     else:
-        M = diff.shape[1]
+        total_samples = diff.shape[1]
 
-    error = 200 * tf.reduce_sum(error, axis=-1) / M
+    error = 200 * tf.reduce_sum(error, axis=-1) / total_samples
     return error
 
 
@@ -99,7 +99,7 @@ def quantile_loss(y_true, y_pred, quantiles):
     >>> quantile_loss(y_true, y_pred, quantiles=[0.5]).numpy()
     array([0.25, 0.25], dtype=float32)
     """
-    
+
     y_pred = tf.convert_to_tensor(y_pred)
     y_true = tf.cast(y_true, dtype=y_pred.dtype)
 
@@ -115,11 +115,11 @@ def quantile_loss(y_true, y_pred, quantiles):
     ) * tf.clip_by_value(-diff, 0.0, np.inf)
 
     if isinstance(y_true, tf.RaggedTensor):
-        M = tf.cast(y_true.bounding_shape()[1], dtype=y_true.dtype)
+        total_samples = tf.cast(y_true.bounding_shape()[1], dtype=y_true.dtype)
     else:
-        M = y_true.shape[1]
+        total_samples = y_true.shape[1]
 
-    error = tf.math.divide(quantile_loss, M)
+    error = tf.math.divide(quantile_loss, total_samples)
 
     return tf.reduce_sum(error, axis=[0, -1])
 
@@ -127,7 +127,7 @@ def quantile_loss(y_true, y_pred, quantiles):
 class SymetricMeanAbsolutePercentageError(LossFunctionWrapper):
     """
     Calculate the symetric mean absolute percentage error between `y_true`and `y_pred`.
-    
+
     To avoid infinite error, we add epsilon value to zeros denominator.
     This behavior can be modified by setting mask to True.
     then, infinite instances are not taken into account in calculation.
@@ -191,9 +191,7 @@ class SymetricMeanAbsolutePercentageError(LossFunctionWrapper):
     def __init__(
         self, reduction=losses_utils.ReductionV2.AUTO, name="smape", mask=False
     ):
-        super(SymetricMeanAbsolutePercentageError, self).__init__(
-            smape, name=name, reduction=reduction, mask=mask
-        )
+        super().__init__(smape, name=name, reduction=reduction, mask=mask)
 
 
 class QuantileLossError(LossFunctionWrapper):
@@ -258,7 +256,7 @@ class QuantileLossError(LossFunctionWrapper):
     def __init__(
         self, quantiles, reduction=losses_utils.ReductionV2.SUM, name="q_loss"
     ):
-        
+
         super().__init__(
             quantile_loss, quantiles=quantiles, name=name, reduction=reduction
         )
