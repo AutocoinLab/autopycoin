@@ -1,14 +1,49 @@
 """
 N-BEATS implementation
 """
+import numpy as np
 
 import tensorflow as tf
-from tensorflow.keras.layers import Add, Dense, Dropout, InputSpec, Layer, Subtract
+from tensorflow.keras.layers import Dropout, InputSpec, Layer
 from tensorflow.keras import Model
-import numpy as np
 
 
 class BaseBlock(Layer):
+    """
+    Base class for a nbeats block. You custom block need to inherit from it.
+
+    Parameters
+    ----------
+    horizon : integer
+        Horizon time to forecast.
+    back_horizon : integer
+        Past to rebuild. Usually, back_horizon is 1 to 7 times longer than horizon.
+    output_last_dim_forecast : integer
+        Second dimension of the last layer.
+        It is equal to p_degree in case of `TrendBlock`.
+    output_last_dim_backcast : integer
+        Second dimension of the last layer.
+        It is equal to p_degree in case of `TrendBlock`.
+    n_neurons : integer
+        Number of neurons in Fully connected layers. It needs to be > 0.
+    quantiles : integer, default to 1.
+        Number of quantiles used in the QuantileLoss function. It needs to be > 1.
+        If quantiles is 1 then the ouput will have a shape of (batch_size, horizon).
+        else, the ouput will have a shape of (quantiles, batch_size, horizon).
+    drop_rate : float, default to 0.
+        Rate of the dropout layer. This is used to estimate the epistemic error.
+        Expected a value between 0 and 1.
+
+    Attributes
+    ----------
+    p_degree : integer
+    horizon : float
+    back_horizon : float
+    n_neurons : integer
+    quantiles : integer
+    drop_rate : float
+    """
+
     def __init__(
         self,
         horizon,
@@ -31,6 +66,7 @@ class BaseBlock(Layer):
         self._output_last_dim_forecast = output_last_dim_forecast
         self._output_last_dim_backcast = output_last_dim_backcast
 
+        # Some checks
         if self.horizon < 0 or self.back_horizon < 0:
             raise ValueError(
                 f"`horizon` and `back_horizon` parameter expected "
@@ -107,6 +143,7 @@ class BaseBlock(Layer):
             shape=shape_fc_backcast, name="fc_backcast_{self.name}"
         )
 
+        # Set weights with calculated coef
         self.forecast_coef = self.add_weight(
             shape=self.forecast_coef.shape,
             initializer=tf.constant_initializer(self.forecast_coef.numpy()),
@@ -154,6 +191,7 @@ class BaseBlock(Layer):
                 % (input_shape,)
             )
 
+        # If quantile=1, no need to show it
         if self.quantiles == 1:
             return [
                 tf.TensorShape((input_shape[0], int(self.horizon))),
@@ -166,6 +204,10 @@ class BaseBlock(Layer):
         ]
 
     def coefficient_factory(self, *args, **kwargs):
+        """
+        Compute the coefficients used in the last layer a.k.a g constrained layer.
+        This method needs to be overriden.
+        """
         raise NotImplementedError(
             "When subclassing the `BaseBlock` class, you should "
             "implement a `coefficient_factory` method."
@@ -187,14 +229,14 @@ class TrendBlock(BaseBlock):
     back_horizon : integer
         Past to rebuild. Usually, back_horizon is 1 to 7 times longer than horizon.
     p_degree : integer
-        Degree of the polynomial function. It needs to be > 0
+        Degree of the polynomial function. It needs to be > 0.
     n_neurons : integer
         Number of neurons in Fully connected layers. It needs to be > 0.
     quantiles : integer, default to 1.
         Number of quantiles used in the QuantileLoss function. It needs to be > 1.
         If quantiles is 1 then the ouput will have a shape of (batch_size, horizon).
         else, the ouput will have a shape of (quantiles, batch_size, horizon).
-    drop_rate : float, default to 0.1.
+    drop_rate : float, default to 0.
         Rate of the dropout layer. This is used to estimate the epistemic error.
         Expected a value between 0 and 1.
 
@@ -233,7 +275,7 @@ class TrendBlock(BaseBlock):
         p_degree,
         n_neurons,
         quantiles=1,
-        drop_rate=0.1,
+        drop_rate=0,
         **kwargs,
     ):
 
@@ -253,9 +295,12 @@ class TrendBlock(BaseBlock):
         self._p_degree = tf.expand_dims(
             tf.range(self.p_degree, dtype="float32"), axis=-1
         )
+
+        # Get coef
         self.forecast_coef = self.coefficient_factory(self.horizon, self._p_degree)
         self.backcast_coef = self.coefficient_factory(self.back_horizon, self._p_degree)
 
+        # Some checks
         if self.p_degree < 0:
             raise ValueError(
                 f"Received an invalid value for `p_degree`, expected "
@@ -311,13 +356,11 @@ class SeasonalityBlock(BaseBlock):
 
     Parameters
     ----------
-    p_degree : integer
-        Degree of the polynomial function.
     horizon : integer
         Horizon time to forecast.
     back_horizon : integer
         Past to rebuild.
-    nb_neurons : integer
+    n_neurons : integer
         Number of neurons in Fully connected layers.
     periods : list[int]
         Compute the fourier serie period in the forecasting equation.
@@ -333,7 +376,7 @@ class SeasonalityBlock(BaseBlock):
         Number of quantiles used in the QuantileLoss function. It needs to be > 1.
         If quantiles is 1 then the ouput will have a shape of (batch_size, horizon).
         else, the ouput will have a shape of (quantiles, batch_size, horizon).
-    drop_rate : float, default to 0.1.
+    drop_rate : float, default to 0.
         Rate of the dropout layer. This is used to estimate the epistemic error.
         Expected a value between 0 and 1.
 
@@ -377,8 +420,8 @@ class SeasonalityBlock(BaseBlock):
         forecast_fourier_order,
         backcast_fourier_order,
         n_neurons,
-        quantiles,
-        drop_rate,
+        quantiles=1,
+        drop_rate=0,
         **kwargs,
     ):
 
@@ -402,6 +445,8 @@ class SeasonalityBlock(BaseBlock):
         self.back_periods = back_periods
         self.forecast_fourier_order = forecast_fourier_order
         self.backcast_fourier_order = backcast_fourier_order
+
+        # Get coef
         self.forecast_coef = self.coefficient_factory(
             self.horizon, self.periods, self.forecast_fourier_order
         )
@@ -409,6 +454,7 @@ class SeasonalityBlock(BaseBlock):
             self.back_horizon, self.back_periods, self.backcast_fourier_order
         )
 
+        # Some checks
         if len(self.periods) != len(self.forecast_fourier_order):
             raise ValueError(
                 f"`periods` and `forecast_fourier_order` are expected"
@@ -419,7 +465,8 @@ class SeasonalityBlock(BaseBlock):
         if len(self.back_periods) != len(self.backcast_fourier_order):
             raise ValueError(
                 f"`back_periods` and `backcast_fourier_order` are expected"
-                f"to have the same length, got {len(self.back_periods)} and {len(self.backcast_fourier_order)} respectively."
+                f"to have the same length, got {len(self.back_periods)}"
+                f"and {len(self.backcast_fourier_order)} respectively."
             )
 
     def coefficient_factory(self, horizon, periods, fourier_orders):
@@ -438,6 +485,7 @@ class SeasonalityBlock(BaseBlock):
             Coefficients of the g layer.
         """
 
+        # Shape (-1, 1) in order to broadcast periods to all time units
         periods = tf.cast(tf.reshape(periods, shape=(-1, 1)), dtype="float32")
         time_forecast = tf.range(horizon, dtype="float32")
 
@@ -447,12 +495,12 @@ class SeasonalityBlock(BaseBlock):
             seasonality = time_forecast * tf.expand_dims(
                 tf.range(fourier_order, dtype="float32"), axis=-1
             )
+
             # Workout cos and sin seasonality coefficents
             seasonality = tf.concat((tf.cos(seasonality), tf.sin(seasonality)), axis=0)
-
             coefficients.append(seasonality)
-        coefficients = tf.concat(coefficients, axis=0)
 
+        coefficients = tf.concat(coefficients, axis=0)
         return coefficients
 
     def get_config(self):
@@ -487,7 +535,11 @@ class GenericBlock(BaseBlock):
         Horizon time to forecast.
     back_horizon : integer
         Past to rebuild.
-    nb_neurons : integer
+    forecast_neurons : integer
+        Second dimensionality of the last layer.
+    backcast_neurons : integer
+        Second dimensionality of the last layer.
+    n_neurons : integer
         Number of neurons in Fully connected layers.
     quantiles : integer, default to 1.
         Number of quantiles used in the QuantileLoss function. It needs to be > 1.
@@ -501,10 +553,8 @@ class GenericBlock(BaseBlock):
     ----------
     horizon : float
     back_horizon : float
-    periods : list[int]
-    back_periods : list[int]
-    forecast_fourier_order : list[int]
-    backcast_fourier_order : list[int]
+    forecast_neurons : integer
+    backcast_neurons : integer
     n_neurons : integer
     quantiles : integer
     drop_rate : float
@@ -532,8 +582,8 @@ class GenericBlock(BaseBlock):
         self,
         horizon,
         back_horizon,
-        trend_neurons,
-        seasonality_neurons,
+        forecast_neurons,
+        backcast_neurons,
         n_neurons,
         quantiles,
         drop_rate,
@@ -543,25 +593,30 @@ class GenericBlock(BaseBlock):
         super().__init__(
             horizon,
             back_horizon,
-            trend_neurons,
-            seasonality_neurons,
+            forecast_neurons,
+            backcast_neurons,
             n_neurons,
             quantiles,
             drop_rate,
             **kwargs,
         )
 
-        self.trend_neurons = int(trend_neurons)
-        self.seasonality_neurons = int(seasonality_neurons)
-        self.forecast_coef = self.coefficient_factory(self.horizon, self.trend_neurons)
+        self.forecast_neurons = int(forecast_neurons)
+        self.backcast_neurons = int(backcast_neurons)
+
+        # Get coef
+        self.forecast_coef = self.coefficient_factory(
+            self.horizon, self.forecast_neurons
+        )
         self.backcast_coef = self.coefficient_factory(
-            self.back_horizon, self.seasonality_neurons
+            self.back_horizon, self.backcast_neurons
         )
 
     def build(self, input_shape):
 
         super().build(input_shape)
 
+        # Set weights with calculated coef
         self.forecast_coef = self.add_weight(
             shape=self.forecast_coef.shape,
             initializer=tf.constant_initializer(self.forecast_coef.numpy()),
@@ -605,8 +660,8 @@ class GenericBlock(BaseBlock):
             {
                 "horizon": self.horizon,
                 "back_horizon": self.back_horizon,
-                "trend_neurons": self.trend_neurons,
-                "seasonality_neurons": self.seasonality_neurons,
+                "forecast_neurons": self.forecast_neurons,
+                "backcast_neurons": self.backcast_neurons,
                 "n_neurons": self.n_neurons,
                 "quantiles": self.quantiles,
                 "drop_rate": self.drop_rate,
@@ -631,13 +686,19 @@ class Stack(Layer):
 
     Attributes
     ----------
-    blocks : list[BaseBlock layer]
+    blocks : list of BaseBlock layer
 
     Notes
     -----
     input shape:
+    N-D tensor with shape: (batch_size, ..., input_dim).
+    The most common situation would be a 2D input with shape (batch_size, input_dim).
 
     output shape:
+    N-D tensor with shape: (quantiles, batch_size, ..., units).
+    For instance, for a 2D input with shape (batch_size, input_dim) and a quantile parameter to 1,
+    the output would have shape (batch_size, units).
+    With a quantile to 2 or higher the output would have shape (quantiles, batch_size, units).
     """
 
     def __init__(self, blocks, **kwargs):
@@ -646,25 +707,24 @@ class Stack(Layer):
 
         self.blocks = blocks
 
-        for block in blocks:
+        for block in self.blocks:
             if isinstance(block, type(BaseBlock)):
                 raise ValueError("`blocks` is expected to inherit from `BaseBlock`")
 
     def call(self, inputs):
 
-        y_forecast = tf.constant(0.0)
+        outputs_forecast = tf.constant(0.0)
         for block in self.blocks:
-
             # shape:
             # (quantiles, Batch_size, forecast)
             # (Batch_size, backcast)
-            residual_y, y_backcast = block(inputs)
-            inputs = tf.subtract(inputs, y_backcast)
+            outputs_residual, outputs_backcast = block(inputs)
+            inputs = tf.subtract(inputs, outputs_backcast)
 
             # shape: (quantiles, Batch_size, forecast)
-            y_forecast = tf.add(y_forecast, residual_y)
+            outputs_forecast = tf.add(outputs_forecast, outputs_residual)
 
-        return y_forecast, inputs
+        return outputs_forecast, inputs
 
     def get_config(self):
         config = super().get_config()
@@ -690,43 +750,78 @@ class NBEATS(Model):
 
     Attributes
     ----------
-    seasonality : Tensor-like
+    seasonality : tensor
         Seasonality composent of the output.
-    trend : Tensor-like
+    trend : tensor
         Trend composent of the output.
+
+    Notes
+    -----
+    To estimate a prediction interval you need to compile the model
+    with :class:`autopycoin.loss.QuantileLossError`.
+    To estimate a confidence interval you need to run multiple time the predict method
+    as dropout layers are used during inference.
+
+    input shape:
+    N-D tensor with shape: (batch_size, ..., input_dim).
+    The most common situation would be a 2D input with shape (batch_size, input_dim).
+
+    output shape:
+    N-D tensor with shape: (quantiles, batch_size, ..., units).
+    For instance, for a 2D input with shape (batch_size, input_dim) and a quantile parameter to 1,
+    the output would have shape (batch_size, units).
+    With a quantile to 2 or higher the output would have shape (quantiles, batch_size, units).
     """
 
     def __init__(self, stacks, **kwargs):
 
         super().__init__(self, **kwargs)
 
-        self._stacks = stacks
+        self.stacks = stacks
+
+        for stack in self.stacks:
+            if not isinstance(stack, Stack):
+                raise ValueError("`stacks` is expected to inherit from `Stack`")
 
     def call(self, inputs):
-        """
-        Call method used to override special method __call__.
-
-        It implements the logic of the nbeats model.
-        """
 
         # Stock trend and seasonality curves during inference
-        self._residuals_y = tf.TensorArray(tf.float32, size=len(self._stacks))
-        y_forecast = tf.constant([0.0])
+        self._outputs_residual = tf.TensorArray(tf.float32, size=len(self.stacks))
+        outputs_forecast = tf.constant(0.0)
 
-        for idx, stack in enumerate(self._stacks):
-            residual_y, inputs = stack(inputs)
-            self._residuals_y.write(idx, residual_y)
-            y_forecast = Add()([y_forecast, residual_y])
+        for idx, stack in enumerate(self.stacks):
+            # shape:
+            # (quantiles, Batch_size, forecast)
+            # (Batch_size, backcast)
+            outputs_residual, inputs = stack(inputs)
+            self._outputs_residual.write(idx, outputs_residual)
 
-        return y_forecast
+            # shape: (quantiles, Batch_size, forecast)
+            outputs_forecast = tf.math.add(outputs_forecast, outputs_residual)
+
+        self._outputs_residual = self._outputs_residual.stack()
+        return outputs_forecast
 
     @property
     def seasonality(self):
-        return self._residuals_y.stack()[1:]
+        """The seasonality composant"""
+        if not isinstance(self.stacks[1].blocks[0], SeasonalityBlock):
+            raise AttributeError(
+                f"Only seasonality block defines a seasonality, got {self.stacks[1].blocks[0]}"
+            )
+        return self._outputs_residual[1:]
 
     @property
     def trend(self):
-        return self._residuals_y.stack()[:1]
+        """The trend composant"""
+        if not isinstance(self.stacks[0].blocks[0], TrendBlock):
+            raise AttributeError(
+                f"Only trend block defines a trend, got {self.stacks[0].blocks[0]}"
+            )
+        return self._outputs_residual[:1]
+
+    def get_config(self):
+        return {"stacks": self.stacks}
 
 
 def create_interpretable_nbeats(
@@ -734,18 +829,57 @@ def create_interpretable_nbeats(
     back_horizon,
     periods,
     back_periods,
-    horizon_fourier_order,
-    back_horizon_fourier_order,
+    forecast_fourier_order,
+    backcast_fourier_order,
     p_degree=1,
     trend_n_neurons=16,
     seasonality_n_neurons=16,
     quantiles=1,
+    drop_rate=0,
     share=True,
-    drop_rate=0.1,
     **kwargs,
 ):
-    """Wrapper to create interpretable model. check nbeats documentation
-    to know more about Parameters."""
+    """
+    Wrapper to create interpretable model using recommandations of the paper authors.
+
+    Parameters
+    ----------
+    horizon : integer
+        Horizon time to forecast.
+    back_horizon : integer
+        Past to rebuild. Usually, back_horizon = n * horizon with n between 1 and 7.
+    periods : list[int]
+        Compute the fourier serie period in the forecasting equation.
+        If it's a list all periods are taken into account in the calculation.
+    back_periods : list[int]
+        Compute the fourier serie period in the backcasting equation.
+        If it's a list all periods are taken into account in the calculation.
+    forecast_fourier_order : list[int]
+        Compute the fourier order. each order element is linked the respective period.
+    backcast_fourier_order : list[int]
+        Compute the fourier order. each order element is linked the respective back period.
+    p_degree : integer
+        Degree of the polynomial function. It needs to be > 0.
+    trend_n_neurons : integer
+        Number of neurons in th Fully connected trend layers.
+    seasonality_n_neurons:
+        Number of neurons in Fully connected seasonality layers.
+    quantiles : integer, default to 1.
+        Number of quantiles used in the QuantileLoss function. It needs to be > 1.
+        If quantiles is 1 then the ouput will have a shape of (batch_size, horizon).
+        else, the ouput will have a shape of (quantiles, batch_size, horizon).
+    drop_rate : float, default to 0.
+        Rate of the dropout layer. This is used to estimate the epistemic error.
+        Expected a value between 0 and 1.
+    share : boolean
+        If True, the weights are shared between blocks inside a stack.
+
+    Returns
+    -------
+    model : NBEATS model
+        Return an interpetable model with two stacks. One composed by 3 `TrendBlock`
+        objects and a second composed by 3 `SeasonalityBlock` objects.
+    """
 
     if share is True:
         trend_block = TrendBlock(
@@ -755,6 +889,7 @@ def create_interpretable_nbeats(
             n_neurons=trend_n_neurons,
             quantiles=quantiles,
             drop_rate=drop_rate,
+            name="trend_block",
             **kwargs,
         )
 
@@ -763,11 +898,12 @@ def create_interpretable_nbeats(
             back_horizon=back_horizon,
             periods=periods,
             back_periods=back_periods,
-            horizon_fourier_order=horizon_fourier_order,
-            back_horizon_fourier_order=back_horizon_fourier_order,
+            forecast_fourier_order=forecast_fourier_order,
+            backcast_fourier_order=backcast_fourier_order,
             n_neurons=seasonality_n_neurons,
             quantiles=quantiles,
             drop_rate=drop_rate,
+            name="seasonality_block",
             **kwargs,
         )
 
@@ -782,6 +918,7 @@ def create_interpretable_nbeats(
                 n_neurons=trend_n_neurons,
                 quantiles=quantiles,
                 drop_rate=drop_rate,
+                name="trend_block",
                 **kwargs,
             )
             for _ in range(3)
@@ -792,35 +929,68 @@ def create_interpretable_nbeats(
                 back_horizon=back_horizon,
                 periods=periods,
                 back_periods=back_periods,
-                horizon_fourier_order=horizon_fourier_order,
-                back_horizon_fourier_order=back_horizon_fourier_order,
+                forecast_fourier_order=forecast_fourier_order,
+                backcast_fourier_order=backcast_fourier_order,
                 n_neurons=seasonality_n_neurons,
                 quantiles=quantiles,
                 drop_rate=drop_rate,
+                name="seasonality_block",
                 **kwargs,
             )
             for _ in range(3)
         ]
 
-    trendstacks = Stack(trendblocks)
-    seasonalitystacks = Stack(seasonalityblocks)
+    trendstacks = Stack(trendblocks, name="trend_stack")
+    seasonalitystacks = Stack(seasonalityblocks, name="seasonality_stack")
+    model = NBEATS([trendstacks, seasonalitystacks], name="NBEATS_interpretable")
 
-    return NBEATS([trendstacks, seasonalitystacks])
+    return model
 
 
 def create_generic_nbeats(
     horizon,
     back_horizon,
+    forecast_neurons,
+    backcast_neurons,
     n_neurons,
-    quantiles,
     n_blocks,
     n_stacks,
+    quantiles=1,
+    drop_rate=0,
     share=True,
-    drop_rate=0.1,
     **kwargs,
 ):
-    """Wrapper to create generic model. check nbeats documentation to know more
-    about Parameters."""
+    """
+    Wrapper to create generic model.
+
+    Parameters
+    ----------
+    horizon : integer
+        Horizon time to forecast.
+    back_horizon : integer
+        Past to rebuild. Usually, back_horizon = n * horizon with n between 1 and 7.
+    n_neurons : integer
+        Number of neurons in th Fully connected generic layers.
+    n_blocks : integer
+        Number of blocks per stack.
+    n_stacks : integer
+        Number of stacks in the model.
+    quantiles : integer, default to 1.
+        Number of quantiles used in the QuantileLoss function. It needs to be > 1.
+        If quantiles is 1 then the ouput will have a shape of (batch_size, horizon).
+        else, the ouput will have a shape of (quantiles, batch_size, horizon).
+    drop_rate : float, default to 0.
+        Rate of the dropout layer. This is used to estimate the epistemic error.
+        Expected a value between 0 and 1.
+    share : boolean
+        If True, the weights are shared between blocks inside a stack.
+
+    Returns
+    -------
+    model : NBEATS model
+        Return an generic model with n stacks defined by the parameter `n_stack`
+        and respoectively n blocks defined by `n_blocks`.
+    """
 
     generic_stacks = []
     if share is True:
@@ -828,6 +998,8 @@ def create_generic_nbeats(
             generic_block = GenericBlock(
                 horizon=horizon,
                 back_horizon=back_horizon,
+                forecast_neurons=forecast_neurons,
+                backcast_neurons=backcast_neurons,
                 n_neurons=n_neurons,
                 quantiles=quantiles,
                 drop_rate=drop_rate,
@@ -843,6 +1015,8 @@ def create_generic_nbeats(
                 GenericBlock(
                     horizon=horizon,
                     back_horizon=back_horizon,
+                    forecast_neurons=forecast_neurons,
+                    backcast_neurons=backcast_neurons,
                     n_neurons=n_neurons,
                     quantiles=quantiles,
                     drop_rate=drop_rate,
@@ -853,4 +1027,5 @@ def create_generic_nbeats(
 
             generic_stacks.append(Stack(generic_blocks))
 
-    return NBEATS(generic_stacks)
+    model = NBEATS(generic_stacks)
+    return model
