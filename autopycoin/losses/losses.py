@@ -44,7 +44,9 @@ def smape(y_true, y_pred, mask=False):
     array([99.999985, 99.999985], dtype=float32)
     """
 
-    y_pred = tf.convert_to_tensor(y_pred)
+    if not isinstance(y_pred, tf.RaggedTensor):
+        y_pred = tf.convert_to_tensor(y_pred)
+
     y_true = tf.cast(y_true, dtype=y_pred.dtype)
 
     mask = tf.convert_to_tensor(mask)
@@ -100,7 +102,9 @@ def quantile_loss(y_true, y_pred, quantiles):
     array([0.25, 0.25], dtype=float32)
     """
 
-    y_pred = tf.convert_to_tensor(y_pred)
+    if not isinstance(y_pred, tf.RaggedTensor):
+        y_pred = tf.convert_to_tensor(y_pred)
+
     y_true = tf.cast(y_true, dtype=y_pred.dtype)
 
     quantiles = tf.convert_to_tensor(quantiles)
@@ -110,7 +114,7 @@ def quantile_loss(y_true, y_pred, quantiles):
     quantiles = tf.reshape(quantiles, shape=shape_broadcast)
 
     diff = y_true - y_pred
-    quantile_loss = quantiles * tf.clip_by_value(diff, 0.0, np.inf) + (
+    q_loss = quantiles * tf.clip_by_value(diff, 0.0, np.inf) + (
         1 - quantiles
     ) * tf.clip_by_value(-diff, 0.0, np.inf)
 
@@ -119,7 +123,7 @@ def quantile_loss(y_true, y_pred, quantiles):
     else:
         total_samples = y_true.shape[1]
 
-    error = tf.math.divide(quantile_loss, total_samples)
+    error = tf.math.divide(q_loss, total_samples)
 
     return tf.reduce_sum(error, axis=[0, -1])
 
