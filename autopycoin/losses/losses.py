@@ -33,8 +33,18 @@ def smape(y_true, y_pred, mask=False):
     -------
     error : scalar Tensor
         The error in %.
+
+    Examples
+    --------
+    >>> from autopycoin.losses import smape
+    >>> import tensorflow as tf
+    >>> y_true = [[0., 1.], [0., 0.]]
+    >>> y_pred = [[1., 1.], [1., 0.]]
+    >>> smape(y_true, y_pred).numpy()
+    array([99.999985, 99.999985], dtype=float32)
     """
 
+    y_pred = tf.convert_to_tensor(y_pred)
     y_true = tf.cast(y_true, dtype=y_pred.dtype)
 
     mask = tf.convert_to_tensor(mask)
@@ -79,8 +89,18 @@ def quantile_loss(y_true, y_pred, quantiles):
     -------
     error : Tensor of shape `[batch_size, d0, .. dN]`.
         The error in %.
-    """
 
+    Examples
+    --------
+    >>> from autopycoin.losses import quantile_loss
+    >>> import tensorflow as tf
+    >>> y_true = [[0., 1.], [0., 0.]]
+    >>> y_pred = [[[1., 1.], [1., 0.]]]
+    >>> quantile_loss(y_true, y_pred, quantiles=[0.5]).numpy()
+    array([0.25, 0.25], dtype=float32)
+    """
+    
+    y_pred = tf.convert_to_tensor(y_pred)
     y_true = tf.cast(y_true, dtype=y_pred.dtype)
 
     quantiles = tf.convert_to_tensor(quantiles)
@@ -107,11 +127,34 @@ def quantile_loss(y_true, y_pred, quantiles):
 class SymetricMeanAbsolutePercentageError(LossFunctionWrapper):
     """
     Calculate the symetric mean absolute percentage error between `y_true`and `y_pred`.
-
+    
     To avoid infinite error, we add epsilon value to zeros denominator.
     This behavior can be modified by setting mask to True.
     then, infinite instances are not taken into account in calculation.
-    Standalone usage:
+
+    Parameters
+    ----------
+    reduction : Type of `tf.keras.losses.Reduction`, Optional
+        Type of `tf.keras.losses.Reduction`to apply to
+        loss. Default value is `AUTO`. `AUTO` indicates that the reduction
+        option will be determined by the usage context. For almost all
+        cases this defaults to `SUM_OVER_BATCH_SIZE`. When used with
+        `tf.distribute.Strategy`, outside of built-in training lotf such
+        as `tf.keras` `compile` and `fit`, using `AUTO` or
+            `SUM_OVER_BATCH_SIZE`
+        will raise an error. Please see this custom training [tutorial](
+            https://www.tensorflow.org/tutorials/distribute/custom_training)
+            for more details.
+
+    name : string, Optional
+        name for the op. Defaults to 'smape'.
+
+    mask : Boolean, Optional
+        Define if infinite values need to be taken into account.
+        Defaults to False.
+
+    Examples
+    --------
     >>> import tensorflow as tf
     >>> y_true = [[0., 1.], [0., 0.]]
     >>> y_pred = [[1., 1.], [1., 0.]]
@@ -125,7 +168,7 @@ class SymetricMeanAbsolutePercentageError(LossFunctionWrapper):
     >>> # Using mask.
     >>> smape = SymetricMeanAbsolutePercentageError(mask=True)
     >>> smape(y_true, y_pred).numpy()
-    50.0
+    100.0
     >>> # Using 'sum' reduction type.
     >>> smape = SymetricMeanAbsolutePercentageError(
     ...     reduction=tf.keras.losses.Reduction.SUM)
@@ -135,7 +178,7 @@ class SymetricMeanAbsolutePercentageError(LossFunctionWrapper):
     >>> smape = SymetricMeanAbsolutePercentageError(
     ...     reduction=tf.keras.losses.Reduction.NONE)
     >>> smape(y_true, y_pred).numpy()
-    array([99.999985, 99.999985], dtype=float3232)
+    array([99.999985, 99.999985], dtype=float32)
 
     Usage with the `compile()` API:
     ```python
@@ -148,30 +191,6 @@ class SymetricMeanAbsolutePercentageError(LossFunctionWrapper):
     def __init__(
         self, reduction=losses_utils.ReductionV2.AUTO, name="smape", mask=False
     ):
-        """Initializes `SymetricMeanAbsolutePercentageError` instance.
-
-        Parameters
-        ----------
-        reduction : Type of `tf.keras.losses.Reduction`, Optional
-            Type of `tf.keras.losses.Reduction`to apply to
-            loss. Default value is `AUTO`. `AUTO` indicates that the reduction
-            option will be determined by the usage context. For almost all
-            cases this defaults to `SUM_OVER_BATCH_SIZE`. When used with
-            `tf.distribute.Strategy`, outside of built-in training lotf such
-            as `tf.keras` `compile` and `fit`, using `AUTO` or
-             `SUM_OVER_BATCH_SIZE`
-            will raise an error. Please see this custom training [tutorial](
-              https://www.tensorflow.org/tutorials/distribute/custom_training)
-              for more details.
-
-        name : string, Optional
-            name for the op. Defaults to 'smape'.
-
-        mask : Boolean, Optional
-            Define if infinite values need to be taken into account.
-            Defaults to False.
-
-        """
         super(SymetricMeanAbsolutePercentageError, self).__init__(
             smape, name=name, reduction=reduction, mask=mask
         )
@@ -180,7 +199,31 @@ class SymetricMeanAbsolutePercentageError(LossFunctionWrapper):
 class QuantileLossError(LossFunctionWrapper):
     """Calculate the quantile loss error between `y_true`and `y_pred`
     across all examples.
-    Standalone usage:
+
+    Parameters
+    ----------
+    quantiles : ndarray or dataframe or list or Tensor of shape
+    `[batch_size, d0, .. dN]`.
+        The set of output quantiles on which is calculated the
+        quantile loss.
+
+    reduction : Type of `tf.keras.losses.Reduction`, Optional
+        Type of `tf.keras.losses.Reduction`to apply to
+        loss. Default value is `AUTO`. `AUTO` indicates that the reduction
+        option will be determined by the usage context. For almost all
+        cases this defaults to `SUM_OVER_BATCH_SIZE`. When used with
+        `tf.distribute.Strategy`, outside of built-in training lotf such
+        as `tf.keras` `compile` and `fit`, using `AUTO` or
+        `SUM_OVER_BATCH_SIZE`
+        will raise an error. Please see this custom training [tutorial](
+            https://www.tensorflow.org/tutorials/distribute/custom_training)
+            for more details.
+
+    name : string, Optional
+        name for the op. Defaults to 'quantile_loss'.
+
+    Examples
+    --------
     >>> import tensorflow as tf
     >>> y_true = [[0., 1.], [0., 0.]]
     >>> y_pred = [[[1., 1.], [1., 0.]]]
@@ -200,7 +243,7 @@ class QuantileLossError(LossFunctionWrapper):
     >>> ql = QuantileLossError(quantiles=[0.5],
     ...     reduction=tf.keras.losses.Reduction.NONE)
     >>> ql(y_true, y_pred).numpy()
-    array([0.25, 0.25], dtype=float3232)
+    array([0.25, 0.25], dtype=float32)
     >>> # Using multiple quantiles.
     >>> ql = QuantileLossError(quantiles=[0.1, 0.5, 0.9])
     >>> ql(y_true, y_pred).numpy()
@@ -215,30 +258,7 @@ class QuantileLossError(LossFunctionWrapper):
     def __init__(
         self, quantiles, reduction=losses_utils.ReductionV2.SUM, name="q_loss"
     ):
-        """Initializes `OverallWeightedAverage` instance.
-
-        Parameters
-        ----------
-        quantiles : ndarray or dataframe or list or Tensor of shape
-        `[batch_size, d0, .. dN]`.
-            The set of output quantiles on which is calculated the
-            quantile loss.
-
-        reduction : Type of `tf.keras.losses.Reduction`, Optional
-            Type of `tf.keras.losses.Reduction`to apply to
-            loss. Default value is `AUTO`. `AUTO` indicates that the reduction
-            option will be determined by the usage context. For almost all
-            cases this defaults to `SUM_OVER_BATCH_SIZE`. When used with
-            `tf.distribute.Strategy`, outside of built-in training lotf such
-            as `tf.keras` `compile` and `fit`, using `AUTO` or
-            `SUM_OVER_BATCH_SIZE`
-            will raise an error. Please see this custom training [tutorial](
-              https://www.tensorflow.org/tutorials/distribute/custom_training)
-               for more details.
-
-        name : string, Optional
-            name for the op. Defaults to 'quantile_loss'.
-        """
+        
         super().__init__(
             quantile_loss, quantiles=quantiles, name=name, reduction=reduction
         )

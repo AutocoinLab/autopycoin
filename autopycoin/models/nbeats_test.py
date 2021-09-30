@@ -232,11 +232,11 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
             expected_output_dtype=["float32", "float32"],
             expected_output=[
                 tf.constant(
-                    [6.0, self.y1, 6.0, self.y1, 6.0, self.y1, 6.0, self.y1],
+                    [6.0, 0.0, 6.0, 0.0, 6.0, 0.0, 6.0, 0.0],
                     shape=(quantiles, 2, 2),
                 ),
                 tf.constant(
-                    [9.0, self.y2, self.y2, 9.0, self.y2, self.y2], shape=(2, 3)
+                    [9.0, self.y1, self.y2, 9.0, self.y1, self.y2], shape=(2, 3)
                 ),
             ],
             custom_objects={"SeasonalityBlock": nbeats.SeasonalityBlock},
@@ -358,8 +358,8 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
                 "horizon": self.horizon,
                 "back_horizon": self.back_horizon,
                 "n_neurons": self.n_neurons,
-                "trend_neurons": self.trend_neurons,
-                "seasonality_neurons": self.seasonality_neurons,
+                "forecast_neurons": self.trend_neurons,
+                "backcast_neurons": self.seasonality_neurons,
                 "quantiles": self.quantiles,
                 "drop_rate": self.drop_rate,
             },
@@ -377,8 +377,8 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
             "horizon": self.horizon,
             "back_horizon": self.back_horizon,
             "n_neurons": self.n_neurons,
-            "trend_neurons": self.trend_neurons,
-            "seasonality_neurons": self.seasonality_neurons,
+            "forecast_neurons": self.trend_neurons,
+            "backcast_neurons": self.seasonality_neurons,
             "quantiles": self.quantiles,
             "drop_rate": self.drop_rate,
         }
@@ -397,6 +397,10 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
 
     def test_stack_interpretable(self):
 
+        trend_weights = self.trend_weights.copy()
+        trend_weights[0] = np.zeros(shape=(3, 3))
+        trend_weights[-2:] = [np.array([[1.0, 1.0], [0.0, 0.5]]),
+                             np.array([[1.0, 1.0, 1.0], [0.0, 1/3, 2/3]])]
         kwargs_1 = {
             "horizon": self.seasonality_horizon,
             "back_horizon": self.seasonality_back_horizon,
@@ -404,6 +408,7 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
             "n_neurons": self.n_neurons,
             "quantiles": self.quantiles,
             "drop_rate": self.drop_rate,
+            "weights": trend_weights
         }
 
         kwargs_2 = {
@@ -416,6 +421,7 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
             "backcast_fourier_order": self.backcast_fourier_order,
             "quantiles": self.quantiles,
             "drop_rate": self.drop_rate,
+            "weights": self.seasonality_weights
         }
 
         blocks = [nbeats.TrendBlock(**kwargs_1), nbeats.SeasonalityBlock(**kwargs_2)]
@@ -427,6 +433,176 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
             input_shape=(2, 3),
             expected_output_shape=((None, 2), (None, 3)),
             expected_output_dtype=["float32", "float32"],
-            expected_output=None,
+            expected_output=[
+                tf.constant([9.0, 4.5, 9.0, 4.5], shape=(2, 2)),
+                -1 * tf.constant([12.0, self.y1 + 3 + 1, self.y2 + 3 + 2, 12.0, self.y1 + 3 + 1, self.y2 + 3 + 2], shape=(2, 3)),
+            ],
             custom_objects={"Stack": nbeats.Stack},
         )
+
+    def test_nbeats(self):
+
+        trend_weights = self.trend_weights.copy()
+        trend_weights[0] = np.zeros(shape=(3, 3))
+        trend_weights[-2:] = [np.array([[1.0, 1.0], [0.0, 0.5]]),
+                             np.array([[1.0, 1.0, 1.0], [0.0, 1/3, 2/3]])]
+        kwargs_1 = {
+            "horizon": self.seasonality_horizon,
+            "back_horizon": self.seasonality_back_horizon,
+            "p_degree": self.p_degree,
+            "n_neurons": self.n_neurons,
+            "quantiles": self.quantiles,
+            "drop_rate": self.drop_rate,
+            "weights": trend_weights
+        }
+
+        kwargs_2 = {
+            "horizon": self.seasonality_horizon,
+            "back_horizon": self.seasonality_back_horizon,
+            "n_neurons": self.n_neurons,
+            "periods": self.periods,
+            "back_periods": self.back_periods,
+            "forecast_fourier_order": self.forecast_fourier_order,
+            "backcast_fourier_order": self.backcast_fourier_order,
+            "quantiles": self.quantiles,
+            "drop_rate": self.drop_rate,
+            "weights": self.seasonality_weights
+        }
+
+        blocks_1 = nbeats.Stack([nbeats.TrendBlock(**kwargs_1), nbeats.SeasonalityBlock(**kwargs_2)])
+        blocks_2 = nbeats.Stack([nbeats.TrendBlock(**kwargs_1), nbeats.SeasonalityBlock(**kwargs_2)])
+        stacks = [blocks_1, blocks_2]
+
+        layer_test(
+            nbeats.NBEATS,
+            kwargs={"stacks": stacks},
+            input_dtype="float",
+            input_shape=(2, 3),
+            expected_output_shape=((None, 2), (None, 3)),
+            expected_output_dtype=["float32", "float32"],
+            expected_output=tf.constant([18.0, 9.0, 18.0, 9.0], shape=(2, 2)),
+        )
+
+    def test_nbeats_attributes(self):
+
+        trend_weights = self.trend_weights.copy()
+        trend_weights[0] = np.zeros(shape=(3, 3))
+        trend_weights[-2:] = [np.array([[1.0, 1.0], [0.0, 0.5]]),
+                             np.array([[1.0, 1.0, 1.0], [0.0, 1/3, 2/3]])]
+        kwargs_1 = {
+            "horizon": self.seasonality_horizon,
+            "back_horizon": self.seasonality_back_horizon,
+            "p_degree": self.p_degree,
+            "n_neurons": self.n_neurons,
+            "quantiles": self.quantiles,
+            "drop_rate": self.drop_rate,
+            "weights": trend_weights
+        }
+
+        kwargs_2 = {
+            "horizon": self.seasonality_horizon,
+            "back_horizon": self.seasonality_back_horizon,
+            "n_neurons": self.n_neurons,
+            "periods": self.periods,
+            "back_periods": self.back_periods,
+            "forecast_fourier_order": self.forecast_fourier_order,
+            "backcast_fourier_order": self.backcast_fourier_order,
+            "quantiles": self.quantiles,
+            "drop_rate": self.drop_rate,
+            "weights": self.seasonality_weights
+        }
+
+        blocks_1 = nbeats.Stack([nbeats.TrendBlock(**kwargs_1), nbeats.TrendBlock(**kwargs_1)])
+        blocks_2 = nbeats.Stack([nbeats.SeasonalityBlock(**kwargs_2), nbeats.SeasonalityBlock(**kwargs_2)])
+        stacks = [blocks_1, blocks_2]
+
+        model = nbeats.NBEATS(stacks)
+        inputs = np.array([[0., 0., 0.],
+                           [0., 0., 0.]])
+
+        model(inputs)
+        self.assertNotEmpty(model.seasonality)
+        self.assertNotEmpty(model.trend)
+
+        kwargs_3 = {
+            "horizon": self.horizon,
+            "back_horizon": self.back_horizon,
+            "n_neurons": self.n_neurons,
+            "forecast_neurons": self.trend_neurons,
+            "backcast_neurons": self.seasonality_neurons,
+            "quantiles": self.quantiles,
+            "drop_rate": self.drop_rate,
+        }
+
+        blocks_3 = nbeats.Stack([nbeats.GenericBlock(**kwargs_3), nbeats.GenericBlock(**kwargs_3)])
+
+        stacks = [blocks_3, blocks_3]
+
+        model = nbeats.NBEATS(stacks)
+        inputs = np.array([[0., 0.],
+                           [0., 0.]])
+
+        model(inputs)
+
+        with self.assertRaises(AttributeError):
+            model.seasonality
+            model.trend
+
+    def test_create_interpretable_nbeats(self):
+
+        model = nbeats.create_interpretable_nbeats(
+            horizon = self.seasonality_horizon,
+            back_horizon = self.seasonality_back_horizon,
+            periods = self.periods,
+            back_periods = self.back_periods,
+            forecast_fourier_order = self.forecast_fourier_order,
+            backcast_fourier_order = self.backcast_fourier_order,
+            p_degree=self.p_degree,
+            trend_n_neurons=self.n_neurons,
+            seasonality_n_neurons=self.n_neurons,
+            quantiles=self.quantiles,
+            drop_rate=0,
+            share=True)
+
+        self.assertIsInstance(model, nbeats.NBEATS)
+        trend_stack = model.stacks[0]
+        seasonality_stack = model.stacks[1]
+        self.assertIs(trend_stack.name, 'trend_stack')
+        self.assertIs(seasonality_stack.name, 'seasonality_stack')
+        
+        # Test if interpretable model is composed by trend and seasonality blocks only
+        for block in trend_stack.blocks:
+            self.assertIsInstance(block, nbeats.TrendBlock)
+        for block in seasonality_stack.blocks:
+            self.assertIsInstance(block, nbeats.SeasonalityBlock)
+
+        # Compare weights values, expected to be equals over blocks because share=True
+        self.assertEquals(trend_stack.blocks[0].get_weights(),
+        trend_stack.blocks[1].get_weights(),
+        trend_stack.blocks[2].get_weights())
+
+        self.assertEquals(seasonality_stack.blocks[0].get_weights(),
+        seasonality_stack.blocks[1].get_weights(),
+        seasonality_stack.blocks[2].get_weights())
+
+        # Compare output shape with expected
+        outputs = model.predict(np.array([[1.0, 2.0, 3.0]]))
+        self.assertEqual(outputs.shape, (1, 2))
+
+        # Compare output shape with expected when quantiles = 2
+        model = nbeats.create_interpretable_nbeats(
+            horizon = self.seasonality_horizon,
+            back_horizon = self.seasonality_back_horizon,
+            periods = self.periods,
+            back_periods = self.back_periods,
+            forecast_fourier_order = self.forecast_fourier_order,
+            backcast_fourier_order = self.backcast_fourier_order,
+            p_degree=self.p_degree,
+            trend_n_neurons=self.n_neurons,
+            seasonality_n_neurons=self.n_neurons,
+            quantiles=2,
+            drop_rate=0,
+            share=True)
+
+        outputs = model.predict(np.array([[1.0, 2.0, 3.0]]))
+        self.assertEqual(outputs.shape, (2, 1, 2))

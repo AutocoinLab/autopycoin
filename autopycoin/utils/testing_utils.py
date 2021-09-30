@@ -27,7 +27,6 @@ def numeric_test(actual, expected):
         tf.round(actual, 3), tf.round(expected, 3), rtol=1e-3, atol=1e-5
     )
 
-
 def layer_test(
     layer_cls,
     kwargs=None,
@@ -90,7 +89,7 @@ def layer_test(
         for i, e in enumerate(input_data_shape):
             if e is None:
                 input_data_shape[i] = np.random.randint(1, 4)
-        input_data = 10 * np.random.random(input_data_shape)
+        input_data = 10 * np.zeros(input_data_shape)
         if input_dtype[:5] == "float":
             input_data -= 0.5
         input_data = input_data.astype(input_dtype)
@@ -136,34 +135,31 @@ def layer_test(
     x = layers.Input(shape=input_shape[1:], dtype=input_dtype)
     y = layer(x)
 
+    def create_list(tensor):
+        return tensor if isinstance(tensor, (tuple, list)) else [tensor]
+
     # Allow multi-y test
-    ys = y if isinstance(y, (tuple, list)) else [y]
-    expected_outputs = (
-        expected_output
-        if isinstance(expected_output, (tuple, list))
-        else [expected_output]
-    )
+    ys = create_list(y)
+    
+    expected_outputs = create_list(expected_output)
 
     expected_output_dtypes = (
         [input_dtype for _ in ys]
         if expected_output_dtype is None
         else expected_output_dtype
-        if isinstance(expected_output_dtype, (list, tuple))
+        if isinstance(expected_output_dtype, (tuple, list))
         else [expected_output_dtype]
     )
 
-    expected_output_shapes = (
-        expected_output_shape
-        if isinstance(expected_output_shape, (tuple, list))
-        else [expected_output_shape]
-    )
+    expected_output_shapes = create_list(expected_output_shape)
 
-    computed_output_shapes = tuple(
-        layer.compute_output_shape(tf.TensorShape(input_shape))
-    )
+    computed_output_shapes = layer.compute_output_shape(tf.TensorShape(input_shape))
+    computed_output_shapes = create_list(computed_output_shapes)
+
     computed_output_signatures = layer.compute_output_signature(
         tf.TensorSpec(shape=input_shape, dtype=input_dtype)
     )
+    computed_output_signatures = create_list(computed_output_signatures)
 
     for (
         y,
@@ -225,7 +221,10 @@ def layer_test(
 
         # check shape inference
         model = models.Model(x, y)
-        actual_output = model.predict(input_data)
+        if isinstance(layer, tf.keras.Model):
+            actual_output = layer.predict(input_data)
+        else:
+            actual_output = model.predict(input_data)
         actual_output_shape = actual_output.shape
         assert_shapes_equal(computed_output_shape, actual_output_shape)
         assert_shapes_equal(computed_output_signature.shape, actual_output_shape)
@@ -245,13 +244,14 @@ def layer_test(
             assert_equal(actual_output, expected_output)
 
     # test serialization, weight setting at model level
-    model_config = model.get_config()
-    recovered_model = models.Model.from_config(model_config, custom_objects)
-    if model.weights:
-        weights = model.get_weights()
-        recovered_model.set_weights(weights)
-        output = recovered_model.predict(input_data)
-        assert_equal(output, actual_output)
+    if not isinstance(layer, tf.keras.Model):
+        model_config = model.get_config()
+        recovered_model = models.Model.from_config(model_config, custom_objects)
+        if model.weights:
+            weights = model.get_weights()
+            recovered_model.set_weights(weights)
+            output = recovered_model.predict(input_data)
+            assert_equal(output, actual_output)
 
     # test training mode (e.g. useful for dropout tests)
     # Rebuild the model to avoid the graph being reused between predict() and
@@ -281,14 +281,15 @@ def layer_test(
             )
         model.train_on_batch(input_data, model.predict(input_data))
 
-    # test as first layer in Sequential API
-    layer_config = layer.get_config()
-    layer_config["batch_input_shape"] = input_shape
-    layer = layer.__class__.from_config(layer_config)
+    if not isinstance(layer, tf.keras.Model):
+        # test as first layer in Sequential API
+        layer_config = layer.get_config()
+        layer_config["batch_input_shape"] = input_shape
+        layer = layer.__class__.from_config(layer_config)
 
-    # Test adapt, if data was passed.
-    if adapt_data is not None:
-        layer.adapt(adapt_data)
+        # Test adapt, if data was passed.
+        if adapt_data is not None:
+            layer.adapt(adapt_data)
 
     return actual_output
 
