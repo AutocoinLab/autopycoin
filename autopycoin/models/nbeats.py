@@ -1003,11 +1003,12 @@ def create_generic_nbeats(
                 n_neurons=n_neurons,
                 quantiles=quantiles,
                 drop_rate=drop_rate,
+                name="generic_block",
                 **kwargs,
             )
 
             generic_blocks = [generic_block for _ in range(n_blocks)]
-            generic_stacks.append(Stack(generic_blocks))
+            generic_stacks.append(Stack(generic_blocks, name="generic_stack"))
 
     else:
         for _ in range(n_stacks):
@@ -1020,12 +1021,13 @@ def create_generic_nbeats(
                     n_neurons=n_neurons,
                     quantiles=quantiles,
                     drop_rate=drop_rate,
+                    name="generic_block",
                     **kwargs,
                 )
                 for _ in range(n_blocks)
             ]
 
-            generic_stacks.append(Stack(generic_blocks))
+            generic_stacks.append(Stack(generic_blocks, name="generic_stack"))
 
-    model = NBEATS(generic_stacks)
+    model = NBEATS(generic_stacks, name="NBEATS_generic",)
     return model

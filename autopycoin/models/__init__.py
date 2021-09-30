@@ -9,6 +9,7 @@ from .nbeats import (
     SeasonalityBlock,
     GenericBlock,
     create_interpretable_nbeats,
+    create_generic_nbeats
 )
 
 __ALL__ = [
@@ -18,4 +19,5 @@ __ALL__ = [
     "SeasonalityBlock",
     "GenericBlock",
     "create_interpretable_nbeats",
+    "create_generic_nbeats"
 ]
