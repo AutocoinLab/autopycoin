@@ -750,6 +750,7 @@ class NBEATS(Model):
 
     Attributes
     ----------
+    stacks : list[tensor]
     seasonality : tensor
         Seasonality composent of the output.
     trend : tensor
