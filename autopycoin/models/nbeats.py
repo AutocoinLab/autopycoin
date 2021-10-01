@@ -90,19 +90,20 @@ class BaseBlock(Layer):
             )
 
     def build(self, input_shape):
+
         dtype = tf.as_dtype(self.dtype or tf.float32())
         if not (dtype.is_floating or dtype.is_complex):
             raise TypeError(
                 f"Unable to build `{self.name}` layer with "
                 "non-floating point dtype %s" % (dtype,)
             )
-
+        
         input_shape = tf.TensorShape(input_shape)
         last_dim = tf.compat.dimension_value(input_shape[-1])
         if last_dim is None:
             raise ValueError(
-                "The last dimension of the inputs to `TrendBlock` "
-                "should be defined. Found `None`."
+                f"The last dimension of the inputs"
+                f" should be defined. Found {last_dim}."
             )
 
         self.input_spec = InputSpec(min_ndim=2, axes={-1: last_dim})
@@ -183,6 +184,8 @@ class BaseBlock(Layer):
         return outputs_forecast, outputs_backcast
 
     def compute_output_shape(self, input_shape):
+        if isinstance(input_shape, tuple):
+            input_shape = input_shape[0]
         input_shape = tf.TensorShape(input_shape)
         input_shape = input_shape.with_rank_at_least(2)
         if tf.compat.dimension_value(input_shape[-1]) is None:
@@ -248,6 +251,7 @@ class TrendBlock(BaseBlock):
     n_neurons : integer
     quantiles : integer
     drop_rate : float
+    input_spec : InputSpec
 
     Notes
     -----
@@ -391,6 +395,7 @@ class SeasonalityBlock(BaseBlock):
     n_neurons : integer
     quantiles : integer
     drop_rate : float
+    input_spec : InputSpec
 
     Notes
     -----
@@ -558,6 +563,7 @@ class GenericBlock(BaseBlock):
     n_neurons : integer
     quantiles : integer
     drop_rate : float
+    input_spec : InputSpec
 
     Notes
     -----
@@ -680,13 +686,13 @@ class Stack(Layer):
 
     Parameters
     ----------
-    blocks: list[BaseBlock layer]
+    blocks: list[custom BaseBlock]
         Blocks layers. they can be generic, seasonal or trend ones.
         You can also define your own block by subclassing `BaseBlock`.
 
     Attributes
     ----------
-    blocks : list of BaseBlock layer
+    blocks : list of custom BaseBlock layers
 
     Notes
     -----
@@ -720,7 +726,6 @@ class Stack(Layer):
             # (Batch_size, backcast)
             outputs_residual, outputs_backcast = block(inputs)
             inputs = tf.subtract(inputs, outputs_backcast)
-
             # shape: (quantiles, Batch_size, forecast)
             outputs_forecast = tf.add(outputs_forecast, outputs_residual)
 
@@ -785,6 +790,9 @@ class NBEATS(Model):
                 raise ValueError("`stacks` is expected to inherit from `Stack`")
 
     def call(self, inputs):
+
+        if isinstance(inputs, tuple):
+            inputs = inputs[0]
 
         # Stock trend and seasonality curves during inference
         self._outputs_residual = tf.TensorArray(tf.float32, size=len(self.stacks))

@@ -11,32 +11,34 @@ class WindowGenerator:
 
     Parameters
     ----------
-        data: Dataframe of shape (timesteps, variables)
+        data : Dataframe of shape (timesteps, variables)
             The time series dataframe.
-        input_width: int
+        input_width : int
             The number of historical time steps to use in the model.
-        label_width: int
+        label_width : int
             the number of time steps to forecast.
-        shift: int
+        shift : int
             Compute the shift between inputs variables and labels variables.
-        valid_size: int
+        valid_size : int
             The Number of examples in the validation set.
-        test_size: int
+        test_size : int
             The Number of examples in the test set.
-        batch_size: int, default to None.
+        strategy : str
+            "one_shot" or "auto_regressive". It defines the inputs shape.
+        batch_size : int, default to None.
             The number of examples per batch. If None, then batch_size = len(data)
-        input_columns: list[str]
+        input_columns : list[str]
             The input columns names, default to None.
-        known_columns: list[str]
+        known_columns : list[str]
             The known columns names, default to None.
-        label_columns: list[str]
+        label_columns : list[str]
             The label columns names, default to None.
-        date_columns: list[str]
+        date_columns : list[str]
             The date columns names, default to None.
             Date columns will be cast to string and join by
             '-' delimiter to be used as xticks.
         preprocessing : Callable
-            Preprocessing function to use on the data. 
+            Preprocessing function to use on the data.
             This function will to take input of shape ((inputs, known, date_inputs, date_labels), labels)
 
     Attributes
@@ -52,6 +54,7 @@ class WindowGenerator:
         label_indices : array
         valid_size : int
         test_size : int
+        strategy : str
         batch_size : int
         train : dataframe
         valid : dataframe
@@ -61,7 +64,7 @@ class WindowGenerator:
     -----
     output shape:
     tuple ((inputs, known, date_inputs, date_labels), labels)
-    with tensors of shape: (quantiles, batch_size, ..., units).
+    with tensors of shape: (batch_size, time_steps, units) or (batch_size, time_steps * units).
     """
 
     def __init__(
@@ -72,6 +75,7 @@ class WindowGenerator:
         shift,
         test_size,
         valid_size,
+        strategy,
         batch_size=None,
         input_columns=None,
         known_columns=None,
@@ -102,19 +106,21 @@ class WindowGenerator:
         test_start = data.shape[0] - (self.total_window_size + self.test_size - 1)
         valid_start = test_start - (self.total_window_size + self.valid_size - 2)
 
+        self.strategy = strategy
+
         # Filter the columns
-        self.known_columns = known_columns
-        self.input_columns = input_columns
-        self.label_columns = label_columns
-        self.date_columns = date_columns
+        self.known_columns = known_columns or []
+        self.input_columns = input_columns or []
+        self.label_columns = label_columns or []
+        self.date_columns = date_columns or []
 
         data = data.loc[
             :,
             set(
-                (input_columns or [])
-                + (known_columns or [])
-                + (date_columns or [])
-                + (label_columns or [])
+                self.input_columns
+                + self.known_columns
+                + self.date_columns
+                + self.label_columns
             ),
         ]
 
@@ -135,19 +141,19 @@ class WindowGenerator:
         # label indices according to the label dataset
         if label_columns is not None:
             self.label_columns_indices = {
-                name: i for i, name in enumerate(label_columns)
+                name: i for i, name in enumerate(self.label_columns)
             }
 
         # Column indices according to the input dataset
         self.inputs_columns_indices = {
-            name: i for i, name in enumerate(input_columns)
+            name: i for i, name in enumerate(self.input_columns)
         }
 
         # label indices according to the input dataset
         self.labels_in_inputs_indices = {
             key: value
             for key, value in self.inputs_columns_indices.items()
-            if key in label_columns
+            if key in self.label_columns
         }
 
         # Columns indices according to train_ds
@@ -222,7 +228,7 @@ class WindowGenerator:
         """
 
         # Workout Date
-        if self.date_columns is not None:
+        if self.date_columns:
             date = tf.stack(
                 [
                     features[:, :, self.column_indices[name]]
@@ -241,7 +247,7 @@ class WindowGenerator:
         date_labels = date[:, self.label_slice]
 
         # Workout Known inputs
-        if self.known_columns is not None:
+        if self.known_columns:
             known = tf.stack(
                 [
                     features[:, self.label_slice, self.column_indices[name]]
@@ -266,8 +272,12 @@ class WindowGenerator:
             axis=-1,
         )
 
-        inputs.set_shape([None, self.input_width, len(self.input_columns)])
-        labels.set_shape([None, self.label_width, len(self.label_columns)])
+        if self.strategy == "one_shot":
+            inputs = tf.reshape(inputs, shape=(-1, self.input_width * len(self.input_columns)))
+            labels = tf.reshape(labels, shape=(-1, self.label_width * len(self.label_columns)))
+        else:
+            inputs.set_shape([None, self.input_width, len(self.input_columns)])
+            labels.set_shape([None, self.label_width, len(self.label_columns)])
 
         return (inputs, known, date_inputs, date_labels), labels
 
@@ -315,7 +325,7 @@ class WindowGenerator:
 
             Associated indices to each column are: {self.column_indices} \n
 
-            Parameter remainder:\n
+            Parameters remainder:\n
             - input_width : {self.input_width}
             - label_width : {self.label_width}
             - shift : {self.shift}
@@ -327,7 +337,7 @@ class WindowGenerator:
             The validation set becomes : \n {self.valid_ds} \n
             The test set becomes : \n {self.test_ds} \n
 
-            A split exemple: \n
+            A split example: \n
                 Inputs : \n {inputs}
                 Known inputs : \n {known}
                 Input dates : \n {date_inputs}
