@@ -1,4 +1,5 @@
-"""Functions to assess loss.
+"""
+Functions to assess loss.
 """
 
 import numpy as np
@@ -7,11 +8,11 @@ import tensorflow as tf
 from tensorflow.keras.backend import epsilon
 from tensorflow.python.keras.losses import LossFunctionWrapper
 from tensorflow.python.keras.utils import losses_utils
-from autopycoin.utils import check_infinity
+
+from ..utils import check_infinity
 
 
 def smape(y_true, y_pred, mask=False):
-
     """
     Calculate the symmetric mean absolute percentage error between `y_true`and `y_pred`.
 

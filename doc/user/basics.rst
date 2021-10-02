@@ -10,9 +10,11 @@ Our models
 This package aims to define multiple deep learning model for time series forecasting
 using tensorflow. The first model available is :class:`autopycoin.models.N_BEATS`.
 We provide really easy-to-use functions which help you to use this model.
-It can be imported as::
+They can be imported as::
 
+    >>>
     >>> from autopycoin.models import create_interpretable_nbeats, create_generic_nbeats
+    >>>
     >>> nbeats_model = create_interpretable_nbeats(
     >>>     horizon=2,
     >>>     back_horizon=3,

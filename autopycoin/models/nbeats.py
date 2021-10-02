@@ -127,13 +127,14 @@ class BaseBlock(Layer):
 
         self.dropout = Dropout(self.drop_rate)
 
-        shape_fc_forecast = (
+        if self.quantiles == 1:
+            shape_fc_forecast = (self.n_neurons, self._output_last_dim_forecast)
+        else:
+            shape_fc_forecast = (
             self.quantiles,
             self.n_neurons,
             self._output_last_dim_forecast,
         )
-        if self.quantiles == 1:
-            shape_fc_forecast = (self.n_neurons, self._output_last_dim_forecast)
 
         self.fc_forecast = self.add_weight(
             shape=shape_fc_forecast, name="fc_forecast_{self.name}"
@@ -432,8 +433,8 @@ class SeasonalityBlock(BaseBlock):
 
         # Workout the number of neurons needed to compute seasonality
         # coefficients
-        forecast_neurons = tf.reduce_sum(2 * periods)
-        backcast_neurons = tf.reduce_sum(2 * back_periods)
+        forecast_neurons = tf.reduce_sum(2 * forecast_fourier_order)
+        backcast_neurons = tf.reduce_sum(2 * backcast_fourier_order)
 
         super().__init__(
             horizon,
