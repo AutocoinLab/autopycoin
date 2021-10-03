@@ -5,10 +5,10 @@ Unit tests for generator class
 import pandas as pd
 import numpy as np
 import pytest
-import logging
 
 import tensorflow as tf
 from tensorflow.python.keras import keras_parameterized
+from tensorflow.keras.backend import floatx
 
 from .generator import WindowGenerator
 from ..models.nbeats import create_interpretable_nbeats
@@ -37,21 +37,12 @@ def prepare_generator(request):
         ],
         columns=["data1", "data2", "data3", "data4", "known", "annee", "label"],
     )
-    request.cls.prod_data = pd.DataFrame(
-        [
-            [10, 11, 12, 13, 100, 2000, 0],
-            [21, 22, 23, 24, 101, 2001, 0],
-            [31, 32, 33, 34, 102, 2002, 0],
-            [41, 42, 43, 44, 103, 2003, 0],
-        ],
-        columns=["data1", "data2", "data3", "data4", "known", "annee", "label"],
-    )
 
     forecast = 3  # number of predict step
     test_size = 2  # number of test instances
     valid_size = 2  # number of validation instances
     strategy = "auto_regressive"
-    
+
     input_columns = [
         "data1",
         "data2",
@@ -76,7 +67,7 @@ def prepare_generator(request):
         test_size=test_size,
         valid_size=valid_size,
         strategy=strategy,
-        batch_size=None,
+        batch_size=2,
         input_columns=input_columns,
         known_columns=known_columns,
         label_columns=label_columns,
@@ -84,6 +75,10 @@ def prepare_generator(request):
     )
 
     request.cls.x, request.cls.y = iter(request.cls.w_autoreg.train).get_next()
+    data_to_forecast = request.cls.w_autoreg.forecast(request.cls.data)
+    request.cls.x_autoreg_forecast, request.cls.y_autoreg_forecast = iter(
+        data_to_forecast
+    ).get_next()
 
     input_columns = [
         "label",
@@ -96,17 +91,21 @@ def prepare_generator(request):
         shift=forecast,
         test_size=test_size,
         valid_size=valid_size,
-        strategy='one_shot',
-        batch_size=None,
+        strategy="one_shot",
+        batch_size=2,
         input_columns=input_columns,
         known_columns=None,
         label_columns=label_columns,
-        date_columns=None,
+        date_columns=date_columns,
     )
 
-    request.cls.x_oneshot, request.cls.y_oneshot = iter(request.cls.w_oneshot.train).get_next()
-
-    logging.info("Execute generator fixture")
+    request.cls.x_oneshot, request.cls.y_oneshot = iter(
+        request.cls.w_oneshot.train
+    ).get_next()
+    data_to_forecast = request.cls.w_oneshot.forecast(request.cls.data)
+    request.cls.x_oneshot_forecast, request.cls.y_oneshot_forecast = iter(
+        data_to_forecast
+    ).get_next()
 
 
 @keras_parameterized.run_all_keras_modes
@@ -209,11 +208,25 @@ class TestGenerator(keras_parameterized.TestCase):
             "label": 6,
         }
 
+    def test_data(self):
+        dataset = iter(self.w_oneshot.train).get_next()
+        self.assertEqual(len(dataset[0]), 4)
+        self.assertIs(type(dataset[0]), tuple)
+        self.assertIsNot(type(dataset[1]), tuple)
+
+        dataset = iter(self.w_autoreg.train).get_next()
+        self.assertIs(type(dataset[0]), tuple)
+        self.assertEqual(len(dataset[0]), 4)
+        self.assertIsNot(type(dataset[1]), tuple)
+
     def test_y_train(self):
 
         y_true = np.array([[[2.0], [3.0], [4.0]], [[3.0], [4.0], [5.0]]])
 
         np.testing.assert_array_equal(self.y, y_true)
+        np.testing.assert_array_equal(self.y_autoreg_forecast, y_true)
+        np.testing.assert_array_equal(self.y_oneshot, tf.squeeze(y_true))
+        np.testing.assert_array_equal(self.y_oneshot_forecast, tf.squeeze(y_true))
 
     def test_x0_train(self):
 
@@ -263,6 +276,14 @@ class TestGenerator(keras_parameterized.TestCase):
         )
 
         np.testing.assert_array_equal(self.x[0], x_true)
+        np.testing.assert_array_equal(self.x_autoreg_forecast[0], x_true)
+        np.testing.assert_array_equal(
+            self.x_oneshot[0], np.array([[0.0, 6.0], [6.0, 2.0]], dtype=floatx())
+        )
+        np.testing.assert_array_equal(
+            self.x_oneshot_forecast[0],
+            np.array([[0.0, 6.0], [6.0, 2.0]], dtype=floatx()),
+        )
 
     def test_x1_train(self):
 
@@ -274,24 +295,28 @@ class TestGenerator(keras_parameterized.TestCase):
         )
 
         np.testing.assert_array_equal(self.x[1], x_true)
+        np.testing.assert_array_equal(self.x_autoreg_forecast[1], x_true)
+        np.testing.assert_array_equal(self.x_oneshot[1], np.array(None))
+        np.testing.assert_array_equal(self.x_oneshot_forecast[1], np.array(None))
 
     def test_x2_train(self):
 
         x_true = np.array([[b"2000", b"2001"], [b"2001", b"2002"]])
 
         np.testing.assert_array_equal(self.x[2], x_true)
+        np.testing.assert_array_equal(self.x_autoreg_forecast[2], x_true)
+        np.testing.assert_array_equal(self.x_oneshot[2], x_true)
+        np.testing.assert_array_equal(self.x_oneshot_forecast[2], x_true)
 
     def test_x3_train(self):
 
         x_true = np.array([[b"2002", b"2003", b"2004"], [b"2003", b"2004", b"2005"]])
 
         np.testing.assert_array_equal(self.x[3], x_true)
+        np.testing.assert_array_equal(self.x_autoreg_forecast[3], x_true)
+        np.testing.assert_array_equal(self.x_oneshot[3], x_true)
+        np.testing.assert_array_equal(self.x_oneshot_forecast[3], x_true)
 
-    def test_oneshot_vs_autoreg(self):
-
-        np.testing.assert_array_equal(self.x_oneshot[0], [[0., 6.], [6., 2.]])
-        np.testing.assert_array_equal(self.y_oneshot, [[2., 3., 4.], [3., 4., 5.]])
-        
     def test_with_model(self):
         model = create_interpretable_nbeats(
             horizon=3,
@@ -305,7 +330,7 @@ class TestGenerator(keras_parameterized.TestCase):
             seasonality_n_neurons=16,
             quantiles=1,
             drop_rate=0,
-            share=True
+            share=True,
         )
 
         model.compile(loss=QuantileLossError(quantiles=[0.5]))

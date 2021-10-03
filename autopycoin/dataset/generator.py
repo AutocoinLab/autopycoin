@@ -3,6 +3,7 @@
 
 import numpy as np
 import tensorflow as tf
+from tensorflow.keras.backend import floatx
 
 
 class WindowGenerator:
@@ -157,16 +158,14 @@ class WindowGenerator:
         }
 
         # Columns indices according to train_ds
-        self.column_indices = {
-            name: i for i, name in enumerate(self.train_ds)
-        }  
+        self.column_indices = {name: i for i, name in enumerate(self.train_ds)}
 
         self._preprocessing = preprocessing
 
     def make_dataset(self, data):
         """
         Compute the tensorflow dataset object.
-        
+
         Parameters
         ----------
             data: dataframe or array or tensor of shape (timestep, variables)
@@ -184,7 +183,7 @@ class WindowGenerator:
             batch_size = len(data)
 
         # Necessary because ML model need all values
-        data = tf.convert_to_tensor(data, dtype=tf.float32)
+        data = tf.convert_to_tensor(data, dtype=floatx())
 
         ds = tf.keras.preprocessing.timeseries_dataset_from_array(
             data=data,
@@ -204,7 +203,7 @@ class WindowGenerator:
 
     def split_window(self, features):
         """Compute the window split.
-        
+
         Parameters
         ----------
             features: tensor of shape (Batch_size, timestep, variables)
@@ -273,8 +272,12 @@ class WindowGenerator:
         )
 
         if self.strategy == "one_shot":
-            inputs = tf.reshape(inputs, shape=(-1, self.input_width * len(self.input_columns)))
-            labels = tf.reshape(labels, shape=(-1, self.label_width * len(self.label_columns)))
+            inputs = tf.reshape(
+                inputs, shape=(-1, self.input_width * len(self.input_columns))
+            )
+            labels = tf.reshape(
+                labels, shape=(-1, self.label_width * len(self.label_columns))
+            )
         else:
             inputs.set_shape([None, self.input_width, len(self.input_columns)])
             labels.set_shape([None, self.label_width, len(self.label_columns)])
@@ -299,11 +302,11 @@ class WindowGenerator:
     def forecast(self, data):
         """Build the production dataset.
 
-        parameters
+        Parameters
         ----------
             data: DataFrame, array or tensor of shape (steps, variables)
-                data needs to contains the inputs and outputs where labels are set
-                to zero.
+                data containing instances to forecast. It raises an error
+                if not all columns defines by the instanciating are inside data.
         """
 
         data = data.loc[:, self.column_indices]

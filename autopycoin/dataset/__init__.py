@@ -2,10 +2,6 @@
 Initialization of dataset.
 """
 
-from .generator import (
-    WindowGenerator
-)
+from .generator import WindowGenerator
 
-__ALL__ = [
-    "WindowGenerator"
-]
+__ALL__ = ["WindowGenerator"]

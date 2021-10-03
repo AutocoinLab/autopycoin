@@ -8,6 +8,7 @@ import pytest
 import numpy as np
 
 from tensorflow.python.keras import keras_parameterized
+from tensorflow.keras.backend import floatx
 import tensorflow as tf
 
 from ..utils.testing_utils import layer_test
@@ -120,10 +121,10 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
                 "drop_rate": self.drop_rate,
                 "weights": self.trend_weights,
             },
-            input_dtype="float",
+            input_dtype=floatx(),
             input_shape=(2, 2),
             expected_output_shape=((None, 1), (None, 2)),
-            expected_output_dtype=["float32", "float32"],
+            expected_output_dtype=[floatx(), floatx()],
             expected_output=[
                 tf.constant(3.0, shape=(2, 1)),
                 tf.constant([3.0, 4.5, 3.0, 4.5], shape=(2, 2)),
@@ -148,10 +149,10 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
                 "drop_rate": self.drop_rate,
                 "weights": trend_weights,
             },
-            input_dtype="float",
+            input_dtype=floatx(),
             input_shape=(2, 2),
             expected_output_shape=((quantiles, None, 1), (None, 2)),
-            expected_output_dtype=["float32", "float32"],
+            expected_output_dtype=[floatx(), floatx()],
             expected_output=[
                 tf.constant(3.0, shape=(quantiles, 2, 1)),
                 tf.constant([3.0, 4.5, 3.0, 4.5], shape=(2, 2)),
@@ -193,10 +194,10 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
                 "drop_rate": self.drop_rate,
                 "weights": self.seasonality_weights,
             },
-            input_dtype="float",
+            input_dtype=floatx(),
             input_shape=(2, 3),
             expected_output_shape=((None, 2), (None, 3)),
-            expected_output_dtype=["float32", "float32"],
+            expected_output_dtype=[floatx(), floatx()],
             expected_output=[
                 tf.constant([6.0, 0.0, 6.0, 0.0], shape=(2, 2)),
                 tf.constant(
@@ -228,10 +229,10 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
                 "drop_rate": self.drop_rate,
                 "weights": seasonality_weights,
             },
-            input_dtype="float",
+            input_dtype=floatx(),
             input_shape=(2, 3),
             expected_output_shape=((quantiles, None, 2), (None, 3)),
-            expected_output_dtype=["float32", "float32"],
+            expected_output_dtype=[floatx(), floatx()],
             expected_output=[
                 tf.constant(
                     [6.0, 0.0, 6.0, 0.0, 6.0, 0.0, 6.0, 0.0],
@@ -341,10 +342,10 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
                 "drop_rate": self.drop_rate,
                 "weights": seasonality_weights,
             },
-            input_dtype="float",
+            input_dtype=floatx(),
             input_shape=(2, 3),
             expected_output_shape=((None, 2), (None, 3)),
-            expected_output_dtype=["float32", "float32"],
+            expected_output_dtype=[floatx(), floatx()],
             expected_output=[
                 tf.constant([9.0, 3.0, 9.0, 3.0], shape=(2, 2)),
                 tf.constant([15.0, y1, y2, 15.0, y1, y2], shape=(2, 3)),
@@ -365,10 +366,10 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
                 "quantiles": self.quantiles,
                 "drop_rate": self.drop_rate,
             },
-            input_dtype="float",
+            input_dtype=floatx(),
             input_shape=(2, 2),
             expected_output_shape=((None, 1), (None, 2)),
-            expected_output_dtype=["float32", "float32"],
+            expected_output_dtype=[floatx(), floatx()],
             expected_output=None,
             custom_objects={"GenericBlock": nbeats.GenericBlock},
         )
@@ -389,10 +390,10 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
         layer_test(
             nbeats.Stack,
             kwargs={"blocks": blocks},
-            input_dtype="float",
+            input_dtype=floatx(),
             input_shape=(2, 2),
             expected_output_shape=((None, 1), (None, 2)),
-            expected_output_dtype=["float32", "float32"],
+            expected_output_dtype=[floatx(), floatx()],
             expected_output=None,
             custom_objects={"Stack": nbeats.Stack},
         )
@@ -433,10 +434,10 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
         layer_test(
             nbeats.Stack,
             kwargs={"blocks": blocks},
-            input_dtype="float",
+            input_dtype=floatx(),
             input_shape=(2, 3),
             expected_output_shape=((None, 2), (None, 3)),
-            expected_output_dtype=["float32", "float32"],
+            expected_output_dtype=[floatx(), floatx()],
             expected_output=[
                 tf.constant([9.0, 4.5, 9.0, 4.5], shape=(2, 2)),
                 -1
@@ -497,10 +498,10 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
         layer_test(
             nbeats.NBEATS,
             kwargs={"stacks": stacks},
-            input_dtype="float",
+            input_dtype=floatx(),
             input_shape=(2, 3),
             expected_output_shape=((None, 2), (None, 3)),
-            expected_output_dtype=["float32", "float32"],
+            expected_output_dtype=[floatx(), floatx()],
             expected_output=tf.constant([18.0, 9.0, 18.0, 9.0], shape=(2, 2)),
         )
 

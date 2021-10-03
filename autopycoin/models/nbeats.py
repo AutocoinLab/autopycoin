@@ -6,6 +6,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras.layers import Dropout, InputSpec, Layer
 from tensorflow.keras import Model
+from tensorflow.keras.backend import floatx
 
 
 class BaseBlock(Layer):
@@ -97,7 +98,7 @@ class BaseBlock(Layer):
                 f"Unable to build `{self.name}` layer with "
                 "non-floating point dtype %s" % (dtype,)
             )
-        
+
         input_shape = tf.TensorShape(input_shape)
         last_dim = tf.compat.dimension_value(input_shape[-1])
         if last_dim is None:
@@ -131,10 +132,10 @@ class BaseBlock(Layer):
             shape_fc_forecast = (self.n_neurons, self._output_last_dim_forecast)
         else:
             shape_fc_forecast = (
-            self.quantiles,
-            self.n_neurons,
-            self._output_last_dim_forecast,
-        )
+                self.quantiles,
+                self.n_neurons,
+                self._output_last_dim_forecast,
+            )
 
         self.fc_forecast = self.add_weight(
             shape=shape_fc_forecast, name="fc_forecast_{self.name}"
@@ -298,7 +299,7 @@ class TrendBlock(BaseBlock):
         # Shape (-1, 1) in order to broadcast horizon to all p degrees
         self.p_degree = p_degree
         self._p_degree = tf.expand_dims(
-            tf.range(self.p_degree, dtype="float32"), axis=-1
+            tf.range(self.p_degree, dtype=floatx()), axis=-1
         )
 
         # Get coef
@@ -492,14 +493,14 @@ class SeasonalityBlock(BaseBlock):
         """
 
         # Shape (-1, 1) in order to broadcast periods to all time units
-        periods = tf.cast(tf.reshape(periods, shape=(-1, 1)), dtype="float32")
-        time_forecast = tf.range(horizon, dtype="float32")
+        periods = tf.cast(tf.reshape(periods, shape=(-1, 1)), dtype=floatx())
+        time_forecast = tf.range(horizon, dtype=floatx())
 
         coefficients = []
         for fourier_order, period in zip(fourier_orders, periods):
             time_forecast = 2 * np.pi * time_forecast / period
             seasonality = time_forecast * tf.expand_dims(
-                tf.range(fourier_order, dtype="float32"), axis=-1
+                tf.range(fourier_order, dtype=floatx()), axis=-1
             )
 
             # Workout cos and sin seasonality coefficents
@@ -1039,5 +1040,8 @@ def create_generic_nbeats(
 
             generic_stacks.append(Stack(generic_blocks, name="generic_stack"))
 
-    model = NBEATS(generic_stacks, name="NBEATS_generic",)
+    model = NBEATS(
+        generic_stacks,
+        name="NBEATS_generic",
+    )
     return model
