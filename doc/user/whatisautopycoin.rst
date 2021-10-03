@@ -11,5 +11,5 @@ This package has been designed to save hundreds of hours of work in the preparat
 This kind of problem is very pernicious because data leakage often happens.
 However, many other packages offer similar work. Then we wanted to add another dimension to this project.
 This package will also focus on cryptocurrency, we will not only implement regression model but also reinforcement
- and classification algorithm.
+and classification algorithm.
  

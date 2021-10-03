@@ -1,6 +1,8 @@
 """
 N-BEATS implementation
 """
+
+from typing import Union
 import numpy as np
 
 import tensorflow as tf
@@ -11,29 +13,30 @@ from tensorflow.keras.backend import floatx
 
 class BaseBlock(Layer):
     """
-    Base class for a nbeats block. You custom block need to inherit from it.
+    Base class for a nbeats block.
+    Your custom block need to inherit from it.
 
     Parameters
     ----------
-    horizon : integer
+    horizon : int
         Horizon time to forecast.
-    back_horizon : integer
+    back_horizon : int
         Past to rebuild. Usually, back_horizon is 1 to 7 times longer than horizon.
-    output_last_dim_forecast : integer
-        Second dimension of the last layer.
+    output_last_dim_forecast : int
+        First dimension of the last layer.
         It is equal to p_degree in case of `TrendBlock`.
-    output_last_dim_backcast : integer
-        Second dimension of the last layer.
+    output_last_dim_backcast : int
+        First dimension of the last layer.
         It is equal to p_degree in case of `TrendBlock`.
-    n_neurons : integer
+    n_neurons : int
         Number of neurons in Fully connected layers. It needs to be > 0.
-    quantiles : integer, default to 1.
+    quantiles : int
         Number of quantiles used in the QuantileLoss function. It needs to be > 1.
         If quantiles is 1 then the ouput will have a shape of (batch_size, horizon).
-        else, the ouput will have a shape of (quantiles, batch_size, horizon).
-    drop_rate : float, default to 0.
+        else, the ouput will have a shape of (quantiles, batch_size, horizon). Default to 1.
+    drop_rate : float
         Rate of the dropout layer. This is used to estimate the epistemic error.
-        Expected a value between 0 and 1.
+        Expected a value between 0 and 1. Default to 0.
 
     Attributes
     ----------
@@ -47,13 +50,13 @@ class BaseBlock(Layer):
 
     def __init__(
         self,
-        horizon,
-        back_horizon,
-        output_last_dim_forecast,
-        output_last_dim_backcast,
-        n_neurons,
-        quantiles,
-        drop_rate,
+        horizon : int,
+        back_horizon : int,
+        output_last_dim_forecast : int,
+        output_last_dim_backcast : int,
+        n_neurons : int,
+        quantiles : int,
+        drop_rate : float,
         **kwargs,
     ):
 
@@ -90,8 +93,7 @@ class BaseBlock(Layer):
                 f"an integer >= 1, got {self.quantiles}."
             )
 
-    def build(self, input_shape):
-
+    def build(self, input_shape : tf.TensorShape):
         dtype = tf.as_dtype(self.dtype or tf.float32())
         if not (dtype.is_floating or dtype.is_complex):
             raise TypeError(
@@ -163,8 +165,7 @@ class BaseBlock(Layer):
 
         self.built = True
 
-    def call(self, inputs):  # pylint: disable=arguments-differ
-
+    def call(self, inputs : tf.Tensor) -> tuple[tf.Tensor]:  # pylint: disable=arguments-differ
         for kernel, bias in self.fc_stack:
             # shape: (Batch_size, n_neurons)
             inputs = tf.nn.bias_add(tf.matmul(inputs, kernel), bias)
@@ -185,7 +186,7 @@ class BaseBlock(Layer):
 
         return outputs_forecast, outputs_backcast
 
-    def compute_output_shape(self, input_shape):
+    def compute_output_shape(self, input_shape : tf.TensorShape) -> list[tf.TensorShape]:
         if isinstance(input_shape, tuple):
             input_shape = input_shape[0]
         input_shape = tf.TensorShape(input_shape)
@@ -229,31 +230,62 @@ class TrendBlock(BaseBlock):
 
     Parameters
     ----------
-    horizon : integer
+    horizon : int
         Horizon time to forecast.
-    back_horizon : integer
+    back_horizon : int
         Past to rebuild. Usually, back_horizon is 1 to 7 times longer than horizon.
-    p_degree : integer
+    p_degree : int
         Degree of the polynomial function. It needs to be > 0.
-    n_neurons : integer
+    n_neurons : int
         Number of neurons in Fully connected layers. It needs to be > 0.
-    quantiles : integer, default to 1.
+    quantiles : int
         Number of quantiles used in the QuantileLoss function. It needs to be > 1.
         If quantiles is 1 then the ouput will have a shape of (batch_size, horizon).
-        else, the ouput will have a shape of (quantiles, batch_size, horizon).
-    drop_rate : float, default to 0.
+        else, the ouput will have a shape of (quantiles, batch_size, horizon). Default to 1.
+    drop_rate : float
         Rate of the dropout layer. This is used to estimate the epistemic error.
-        Expected a value between 0 and 1.
+        Expected a value between 0 and 1. Default to 0.
 
     Attributes
     ----------
-    p_degree : integer
+    p_degree : int
     horizon : float
     back_horizon : float
-    n_neurons : integer
-    quantiles : integer
+    n_neurons : int
+    quantiles : int
     drop_rate : float
     input_spec : InputSpec
+
+    Examples
+    --------
+    >>> from autopycoin.models import TrendBlock, SeasonalityBlock, Stack, NBEATS
+    >>>
+    >>> trend_block = TrendBlock(horizon=10,
+    ...                          back_horizon=20,
+    ...                          p_degree=2,
+    ...                          n_neurons=16,
+    ...                          quantiles=1,
+    ...                          drop_rate=0.1,
+    ...                          name="trend_block")
+    >>>
+    >>> seasonality_block = SeasonalityBlock(horizon=10,
+    ...                                      back_horizon=20,
+    ...                                      periods=[10],
+    ...                                      back_periods=[20],
+    ...                                      forecast_fourier_order=[10],
+    ...                                      backcast_fourier_order=[20],
+    ...                                      n_neurons=15,
+    ...                                      quantiles=1,
+    ...                                      drop_rate=0.1,
+    ...                                      name="seasonality_block",
+    >>>
+    >>> trend_blocks = [trend_block for _ in range(3)]
+    >>> seasonalityblocks = [seasonality_block for _ in range(3)]
+    >>> trend_stacks = Stack(trend_blocks, name="trend_stack")
+    >>> seasonality_stacks = Stack(seasonality_blocks, name="seasonality_stack")
+    >>>
+    >>> model = NBEATS([trend_stacks, seasonality_stacks], name="interpretable_NBEATS")
+    >>> model.compile(loss=autopycoin.losses.QuantileLossError(quantiles=[0.5]))
 
     Notes
     -----
@@ -276,12 +308,12 @@ class TrendBlock(BaseBlock):
 
     def __init__(
         self,
-        horizon,
-        back_horizon,
-        p_degree,
-        n_neurons,
-        quantiles=1,
-        drop_rate=0,
+        horizon : int,
+        back_horizon : int,
+        p_degree : int,
+        n_neurons : int,
+        quantiles : int =1,
+        drop_rate : float =0,
         **kwargs,
     ):
 
@@ -313,14 +345,14 @@ class TrendBlock(BaseBlock):
                 f"a positive integer, got {p_degree}."
             )
 
-    def coefficient_factory(self, horizon, p_degree):
+    def coefficient_factory(self, horizon : int, p_degree : int) -> tf.Tensor:
         """
         Compute the coefficients used in the last layer a.k.a g constrained layer.
 
         Parameters
         ----------
         horizon : int
-        periods : lis[int]
+        periods : list[int]
         fourier_orders : list[int]
 
         Returns
@@ -333,7 +365,7 @@ class TrendBlock(BaseBlock):
 
         return coefficients
 
-    def get_config(self):
+    def get_config(self) -> dict:
         config = super().get_config()
         config.update(
             {
@@ -362,11 +394,11 @@ class SeasonalityBlock(BaseBlock):
 
     Parameters
     ----------
-    horizon : integer
+    horizon : int
         Horizon time to forecast.
-    back_horizon : integer
+    back_horizon : int
         Past to rebuild.
-    n_neurons : integer
+    n_neurons : int
         Number of neurons in Fully connected layers.
     periods : list[int]
         Compute the fourier serie period in the forecasting equation.
@@ -378,13 +410,13 @@ class SeasonalityBlock(BaseBlock):
         Compute the fourier order. each order element is linked the respective period.
     backcast_fourier_order : list[int]
         Compute the fourier order. each order element is linked the respective back period.
-    quantiles : integer, default to 1.
+    quantiles : int
         Number of quantiles used in the QuantileLoss function. It needs to be > 1.
         If quantiles is 1 then the ouput will have a shape of (batch_size, horizon).
-        else, the ouput will have a shape of (quantiles, batch_size, horizon).
-    drop_rate : float, default to 0.
+        else, the ouput will have a shape of (quantiles, batch_size, horizon). Default to 1.
+    drop_rate : float
         Rate of the dropout layer. This is used to estimate the epistemic error.
-        Expected a value between 0 and 1.
+        Expected a value between 0 and 1. Default to 0.
 
     Attributes
     ----------
@@ -394,10 +426,41 @@ class SeasonalityBlock(BaseBlock):
     back_periods : list[int]
     forecast_fourier_order : list[int]
     backcast_fourier_order : list[int]
-    n_neurons : integer
-    quantiles : integer
+    n_neurons : int
+    quantiles : int
     drop_rate : float
     input_spec : InputSpec
+
+    Examples
+    --------
+    >>> from autopycoin.models import TrendBlock, SeasonalityBlock, Stack, NBEATS
+    >>>
+    >>> trend_block = TrendBlock(horizon=10,
+    ...                          back_horizon=20,
+    ...                          p_degree=2,
+    ...                          n_neurons=16,
+    ...                          quantiles=1,
+    ...                          drop_rate=0.1,
+    ...                          name="trend_block")
+    >>>
+    >>> seasonality_block = SeasonalityBlock(horizon=10,
+    ...                                      back_horizon=20,
+    ...                                      periods=[10],
+    ...                                      back_periods=[20],
+    ...                                      forecast_fourier_order=[10],
+    ...                                      backcast_fourier_order=[20],
+    ...                                      n_neurons=15,
+    ...                                      quantiles=1,
+    ...                                      drop_rate=0.1,
+    ...                                      name="seasonality_block",
+    >>>
+    >>> trend_blocks = [trend_block for _ in range(3)]
+    >>> seasonalityblocks = [seasonality_block for _ in range(3)]
+    >>> trend_stacks = Stack(trend_blocks, name="trend_stack")
+    >>> seasonality_stacks = Stack(seasonality_blocks, name="seasonality_stack")
+    >>>
+    >>> model = NBEATS([trend_stacks, seasonality_stacks], name="interpretable_NBEATS")
+    >>> model.compile(loss=autopycoin.losses.QuantileLossError(quantiles=[0.5]))
 
     Notes
     -----
@@ -420,15 +483,15 @@ class SeasonalityBlock(BaseBlock):
 
     def __init__(
         self,
-        horizon,
-        back_horizon,
-        periods,
-        back_periods,
-        forecast_fourier_order,
-        backcast_fourier_order,
-        n_neurons,
-        quantiles=1,
-        drop_rate=0,
+        horizon : int,
+        back_horizon : int,
+        periods : list[int],
+        back_periods : list[int],
+        forecast_fourier_order : list[int],
+        backcast_fourier_order : list[int],
+        n_neurons : int,
+        quantiles : int =1,
+        drop_rate : float =0,
         **kwargs,
     ):
 
@@ -476,14 +539,14 @@ class SeasonalityBlock(BaseBlock):
                 f"and {len(self.backcast_fourier_order)} respectively."
             )
 
-    def coefficient_factory(self, horizon, periods, fourier_orders):
+    def coefficient_factory(self, horizon : int, periods : list[int], fourier_orders : list[int]) -> tf.Tensor:
         """
         Compute the coefficients used in the last layer a.k.a g constrained layer.
 
         Parameters
         ----------
         horizon : int
-        periods : lis[int]
+        periods : list[int]
         fourier_orders : list[int]
 
         Returns
@@ -510,7 +573,7 @@ class SeasonalityBlock(BaseBlock):
         coefficients = tf.concat(coefficients, axis=0)
         return coefficients
 
-    def get_config(self):
+    def get_config(self) -> dict:
         config = super().get_config()
         config.update(
             {
@@ -538,34 +601,53 @@ class GenericBlock(BaseBlock):
 
     Parameters
     ----------
-    horizon : integer
+    horizon : int
         Horizon time to forecast.
-    back_horizon : integer
+    back_horizon : int
         Past to rebuild.
-    forecast_neurons : integer
-        Second dimensionality of the last layer.
-    backcast_neurons : integer
-        Second dimensionality of the last layer.
-    n_neurons : integer
+    forecast_neurons : int
+        First dimensionality of the last layer.
+    backcast_neurons : int
+        First dimensionality of the last layer.
+    n_neurons : int
         Number of neurons in Fully connected layers.
-    quantiles : integer, default to 1.
+    quantiles : int
         Number of quantiles used in the QuantileLoss function. It needs to be > 1.
         If quantiles is 1 then the ouput will have a shape of (batch_size, horizon).
-        else, the ouput will have a shape of (quantiles, batch_size, horizon).
-    drop_rate : float, default to 0.1.
+        else, the ouput will have a shape of (quantiles, batch_size, horizon). Default to 1.
+    drop_rate : float
         Rate of the dropout layer. This is used to estimate the epistemic error.
-        Expected a value between 0 and 1.
+        Expected a value between 0 and 1. Default to 0.1.
 
     Attributes
     ----------
     horizon : float
     back_horizon : float
-    forecast_neurons : integer
-    backcast_neurons : integer
-    n_neurons : integer
-    quantiles : integer
+    forecast_neurons : int
+    backcast_neurons : int
+    n_neurons : int
+    quantiles : int
     drop_rate : float
     input_spec : InputSpec
+
+    Examples
+    --------
+    >>> from autopycoin.models import GenericBlock, Stack, NBEATS
+    ...
+    >>> generic_block = GenericBlock(horizon=10,
+    ...                          back_horizon=20,
+    ...                          n_neurons=16,
+    ...                          forecast_neurons=16,
+    ...                          backcast_neurons=16,
+    ...                          quantiles=1,
+    ...                          drop_rate=0.1,
+    ...                          name="generic_block")
+    ...
+    >>> generic_blocks = [generic_block for _ in range(3)]
+    >>> generic_stacks = Stack(generic_blocks, name="generic_stack")
+    ...
+    >>> model = NBEATS([generic_stacks, generic_stacks], name="generic_NBEATS")
+    >>> model.compile(loss=autopycoin.losses.QuantileLossError(quantiles=[0.5]))
 
     Notes
     -----
@@ -588,13 +670,13 @@ class GenericBlock(BaseBlock):
 
     def __init__(
         self,
-        horizon,
-        back_horizon,
-        forecast_neurons,
-        backcast_neurons,
-        n_neurons,
-        quantiles,
-        drop_rate,
+        horizon : int,
+        back_horizon : int,
+        forecast_neurons : int,
+        backcast_neurons : int,
+        n_neurons : int,
+        quantiles : int = 1,
+        drop_rate : float = 0.1,
         **kwargs,
     ):
 
@@ -641,9 +723,9 @@ class GenericBlock(BaseBlock):
 
         self.built = True
 
-    def coefficient_factory(self, horizon, neurons):
+    def coefficient_factory(self, horizon : Union[int,float], neurons : int) -> tf.Tensor:
         """
-        Compute the coefficients used in the last layer a.k.a g constrained layer.
+        Compute the coefficients used in the last layer a.k.a g layer.
 
         Parameters
         ----------
@@ -662,7 +744,7 @@ class GenericBlock(BaseBlock):
 
         return coefficients
 
-    def get_config(self):
+    def get_config(self) -> dict:
         config = super().get_config()
         config.update(
             {
@@ -688,13 +770,44 @@ class Stack(Layer):
 
     Parameters
     ----------
-    blocks: list[custom BaseBlock]
+    blocks : list[:class:`autopycoin.models.BaseBlock`]
         Blocks layers. they can be generic, seasonal or trend ones.
         You can also define your own block by subclassing `BaseBlock`.
 
     Attributes
     ----------
-    blocks : list of custom BaseBlock layers
+    blocks : list[:class:`autopycoin.models.BaseBlock`]
+
+    Examples
+    --------
+    >>> from autopycoin.models import TrendBlock, SeasonalityBlock, Stack, NBEATS
+    >>>
+    >>> trend_block = TrendBlock(horizon=10,
+    ...                          back_horizon=20,
+    ...                          p_degree=2,
+    ...                          n_neurons=16,
+    ...                          quantiles=1,
+    ...                          drop_rate=0.1,
+    ...                          name="trend_block")
+    >>>
+    >>> seasonality_block = SeasonalityBlock(horizon=10,
+    ...                                      back_horizon=20,
+    ...                                      periods=[10],
+    ...                                      back_periods=[20],
+    ...                                      forecast_fourier_order=[10],
+    ...                                      backcast_fourier_order=[20],
+    ...                                      n_neurons=15,
+    ...                                      quantiles=1,
+    ...                                      drop_rate=0.1,
+    ...                                      name="seasonality_block",
+    >>>
+    >>> trend_blocks = [trend_block for _ in range(3)]
+    >>> seasonalityblocks = [seasonality_block for _ in range(3)]
+    >>> trend_stacks = Stack(trend_blocks, name="trend_stack")
+    >>> seasonality_stacks = Stack(seasonality_blocks, name="seasonality_stack")
+    >>>
+    >>> model = NBEATS([trend_stacks, seasonality_stacks], name="interpretable_NBEATS")
+    >>> model.compile(loss=autopycoin.losses.QuantileLossError(quantiles=[0.5]))
 
     Notes
     -----
@@ -709,7 +822,7 @@ class Stack(Layer):
     With a quantile to 2 or higher the output would have shape (quantiles, batch_size, units).
     """
 
-    def __init__(self, blocks, **kwargs):
+    def __init__(self, blocks : list[BaseBlock], **kwargs):
 
         super().__init__(**kwargs)
 
@@ -719,7 +832,7 @@ class Stack(Layer):
             if isinstance(block, type(BaseBlock)):
                 raise ValueError("`blocks` is expected to inherit from `BaseBlock`")
 
-    def call(self, inputs):
+    def call(self, inputs : tf.Tensor) -> tuple[tf.Tensor]:
 
         outputs_forecast = tf.constant(0.0)
         for block in self.blocks:
@@ -733,7 +846,7 @@ class Stack(Layer):
 
         return outputs_forecast, inputs
 
-    def get_config(self):
+    def get_config(self) -> dict:
         config = super().get_config()
         config.update({"blocks": self.blocks})
         return config
@@ -741,16 +854,16 @@ class Stack(Layer):
 
 class NBEATS(Model):
     """
-    Computes the N-BEATS model.
+    Tensorflow model defining the N-BEATS architecture.
 
-    This is a univariate model which can be interpretable or generic. Its strong advantage
+    N-BEATS is a univariate model. Its strong advantage
     resides in its structure which allows us to extract the trend and the seasonality of
-    temporal series available from the attributes `seasonality` and `trend`.
-    This is an unofficial implementation.
+    temporal series. They are available from the attributes `seasonality` and `trend`.
+    This is an unofficial implementation of the paper https://arxiv.org/abs/1905.10437.
 
     Parameters
     ----------
-    stacks : list of :class:`autopycoin.models.Stack`
+    stacks : list[:class:`autopycoin.models.Stack`]
              Stacks can be created from :class:`autopycoin.models.TrendBlock`,
              :class:`autopycoin.models.SeasonalityBlock` or :class:`autopycoin.models.GenericBlock`.
              See stack documentation for more details.
@@ -759,29 +872,64 @@ class NBEATS(Model):
     ----------
     stacks : list[tensor]
     seasonality : tensor
-        Seasonality composent of the output.
+        Seasonality component of the output.
     trend : tensor
-        Trend composent of the output.
+        Trend component of the output.
+
+    Examples
+    --------
+    >>> from autopycoin.models import TrendBlock, SeasonalityBlock, Stack, NBEATS
+    >>>
+    >>> trend_block = TrendBlock(horizon=10,
+    ...                          back_horizon=20,
+    ...                          p_degree=2,
+    ...                          n_neurons=16,
+    ...                          quantiles=1,
+    ...                          drop_rate=0.1,
+    ...                          name="trend_block")
+    >>>
+    >>> seasonality_block = SeasonalityBlock(horizon=10,
+    ...                                      back_horizon=20,
+    ...                                      periods=[10],
+    ...                                      back_periods=[20],
+    ...                                      forecast_fourier_order=[10],
+    ...                                      backcast_fourier_order=[20],
+    ...                                      n_neurons=15,
+    ...                                      quantiles=1,
+    ...                                      drop_rate=0.1,
+    ...                                      name="seasonality_block",
+    >>>
+    >>> trend_blocks = [trend_block for _ in range(3)]
+    >>> seasonalityblocks = [seasonality_block for _ in range(3)]
+    >>> trend_stacks = Stack(trend_blocks, name="trend_stack")
+    >>> seasonality_stacks = Stack(seasonality_blocks, name="seasonality_stack")
+    >>>
+    >>> model = NBEATS([trend_stacks, seasonality_stacks], name="interpretable_NBEATS")
+    >>> model.compile(loss=autopycoin.losses.QuantileLossError(quantiles=[0.5]))
 
     Notes
     -----
-    To estimate a prediction interval you need to compile the model
-    with :class:`autopycoin.loss.QuantileLossError`.
-    To estimate a confidence interval you need to run multiple time the predict method
-    as dropout layers are used during inference.
+    NBEATS supports the estimation of aleotoric and epistemic errors with:
+    
+    - Aleotoric interval : :class:`autopycoin.loss.QuantileLossError`
+    - Epistemic interval : MCDropout
 
-    input shape:
+    You can use :class:`autopycoin.loss.QuantileLossError` as loss error to estimate the
+    aleotoric error. Also, run multiple time a prediction with `drop_date` > 0 to estimate
+    the epistemic error.
+
+    *Input shape*:
     N-D tensor with shape: (batch_size, ..., input_dim).
     The most common situation would be a 2D input with shape (batch_size, input_dim).
 
-    output shape:
+    *Output shape*:
     N-D tensor with shape: (quantiles, batch_size, ..., units).
     For instance, for a 2D input with shape (batch_size, input_dim) and a quantile parameter to 1,
     the output would have shape (batch_size, units).
     With a quantile to 2 or higher the output would have shape (quantiles, batch_size, units).
     """
 
-    def __init__(self, stacks, **kwargs):
+    def __init__(self, stacks : list[Stack], **kwargs):
 
         super().__init__(self, **kwargs)
 
@@ -814,8 +962,8 @@ class NBEATS(Model):
         return outputs_forecast
 
     @property
-    def seasonality(self):
-        """The seasonality composant"""
+    def seasonality(self) -> tf.Tensor:
+        """The seasonality component of the output."""
         if not isinstance(self.stacks[1].blocks[0], SeasonalityBlock):
             raise AttributeError(
                 f"Only seasonality block defines a seasonality, got {self.stacks[1].blocks[0]}"
@@ -823,15 +971,15 @@ class NBEATS(Model):
         return self._outputs_residual[1:]
 
     @property
-    def trend(self):
-        """The trend composant"""
+    def trend(self) -> tf.Tensor:
+        """The trend component of the output."""
         if not isinstance(self.stacks[0].blocks[0], TrendBlock):
             raise AttributeError(
                 f"Only trend block defines a trend, got {self.stacks[0].blocks[0]}"
             )
         return self._outputs_residual[:1]
 
-    def get_config(self):
+    def get_config(self) -> dict:
         return {"stacks": self.stacks}
 
 
@@ -852,12 +1000,16 @@ def create_interpretable_nbeats(
 ):
     """
     Wrapper to create interpretable model using recommandations of the paper authors.
+    Two stacks are created with 3 blocks each. The fist entirely composed by trend blocks,
+    The second entirely composed by seasonality blocks.
+
+    In the same stack, it is possible to share the weights between blocks.
 
     Parameters
     ----------
-    horizon : integer
+    horizon : int
         Horizon time to forecast.
-    back_horizon : integer
+    back_horizon : int
         Past to rebuild. Usually, back_horizon = n * horizon with n between 1 and 7.
     periods : list[int]
         Compute the fourier serie period in the forecasting equation.
@@ -869,27 +1021,46 @@ def create_interpretable_nbeats(
         Compute the fourier order. each order element is linked the respective period.
     backcast_fourier_order : list[int]
         Compute the fourier order. each order element is linked the respective back period.
-    p_degree : integer
+    p_degree : int
         Degree of the polynomial function. It needs to be > 0.
-    trend_n_neurons : integer
+    trend_n_neurons : int
         Number of neurons in th Fully connected trend layers.
-    seasonality_n_neurons:
+    seasonality_n_neurons: int
         Number of neurons in Fully connected seasonality layers.
-    quantiles : integer, default to 1.
+    quantiles : int
         Number of quantiles used in the QuantileLoss function. It needs to be > 1.
         If quantiles is 1 then the ouput will have a shape of (batch_size, horizon).
-        else, the ouput will have a shape of (quantiles, batch_size, horizon).
-    drop_rate : float, default to 0.
+        else, the ouput will have a shape of (quantiles, batch_size, horizon). Default to 1.
+    drop_rate : float
         Rate of the dropout layer. This is used to estimate the epistemic error.
-        Expected a value between 0 and 1.
+        Expected a value between 0 and 1. Default to 0.
     share : boolean
-        If True, the weights are shared between blocks inside a stack.
+        If True, the weights are shared between blocks inside a stack. Dafault to True.
 
     Returns
     -------
-    model : NBEATS model
+    model : :class:`autopycoin.models.NBEATS`
         Return an interpetable model with two stacks. One composed by 3 `TrendBlock`
         objects and a second composed by 3 `SeasonalityBlock` objects.
+
+    Examples
+    --------
+    >>> from autopycoin.models import create_interpretable_nbeats
+    >>>
+    >>> model = create_interpretable_nbeats(horizon=2,
+    ...                                     back_horizon=3,
+    ...                                     periods=[2],
+    ...                                     back_periods=[3],
+    ...                                     forecast_fourier_order=[2],
+    ...                                     backcast_fourier_order=[3],
+    ...                                     p_degree=1,
+    ...                                     trend_n_neurons=16,
+    ...                                     seasonality_n_neurons=16,
+    ...                                     quantiles=1,
+    ...                                     drop_rate=0.1,
+    ...                                     share=True)
+    >>>
+    >>> model.compile(loss=autopycoin.losses.QuantileLossError(quantiles=[0.5]))
     """
 
     if share is True:
@@ -953,7 +1124,7 @@ def create_interpretable_nbeats(
 
     trendstacks = Stack(trendblocks, name="trend_stack")
     seasonalitystacks = Stack(seasonalityblocks, name="seasonality_stack")
-    model = NBEATS([trendstacks, seasonalitystacks], name="NBEATS_interpretable")
+    model = NBEATS([trendstacks, seasonalitystacks], name="interpretable_NBEATS")
 
     return model
 
@@ -974,33 +1145,50 @@ def create_generic_nbeats(
     """
     Wrapper to create generic model.
 
+    In the same stack, it is possible to share the weights between blocks.
+
     Parameters
     ----------
-    horizon : integer
+    horizon : int
         Horizon time to forecast.
-    back_horizon : integer
+    back_horizon : int
         Past to rebuild. Usually, back_horizon = n * horizon with n between 1 and 7.
-    n_neurons : integer
+    n_neurons : int
         Number of neurons in th Fully connected generic layers.
-    n_blocks : integer
+    n_blocks : int
         Number of blocks per stack.
-    n_stacks : integer
+    n_stacks : int
         Number of stacks in the model.
-    quantiles : integer, default to 1.
+    quantiles : int
         Number of quantiles used in the QuantileLoss function. It needs to be > 1.
         If quantiles is 1 then the ouput will have a shape of (batch_size, horizon).
-        else, the ouput will have a shape of (quantiles, batch_size, horizon).
-    drop_rate : float, default to 0.
+        else, the ouput will have a shape of (quantiles, batch_size, horizon). Default to 1.
+    drop_rate : float
         Rate of the dropout layer. This is used to estimate the epistemic error.
-        Expected a value between 0 and 1.
+        Expected a value between 0 and 1. Default to 0.
     share : boolean
-        If True, the weights are shared between blocks inside a stack.
+        If True, the weights are shared between blocks inside a stack. Default to True.
 
     Returns
     -------
-    model : NBEATS model
+    model : :class:`autopycoin.models.NBEATS`
         Return an generic model with n stacks defined by the parameter `n_stack`
         and respoectively n blocks defined by `n_blocks`.
+
+    Examples
+    --------
+    >>> from autopycoin.models import create_generic_nbeats
+    >>>
+    >>> model = create_generic_nbeats(horizon=2,
+    ...                                     back_horizon=3,
+    ...                                     n_neurons=16,
+    ...                                     n_blocks=3,
+    ...                                     n_stacks=3,
+    ...                                     quantiles=1,
+    ...                                     drop_rate=0.1,
+    ...                                     share=True)
+    >>>
+    >>> model.compile(loss=autopycoin.losses.QuantileLossError(quantiles=[0.5]))
     """
 
     generic_stacks = []
@@ -1042,6 +1230,6 @@ def create_generic_nbeats(
 
     model = NBEATS(
         generic_stacks,
-        name="NBEATS_generic",
+        name="generic_NBEATS",
     )
     return model

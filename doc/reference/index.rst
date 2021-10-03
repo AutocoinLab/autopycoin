@@ -6,4 +6,6 @@ This reference manual details functions, modules, and objects included in NumPy,
 .. toctree::
    :maxdepth: 2
 
+   data
+   dataset
    models

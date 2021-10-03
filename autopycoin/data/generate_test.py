@@ -14,7 +14,7 @@ from .generate import random_ts
 @pytest.fixture(scope="class")
 def prepare_ts(request):
     request.cls.time_serie = random_ts(
-        steps=100,
+        n_steps=100,
         trend_degree=1,
         periods=[10],
         fourier_orders=[10],
@@ -23,13 +23,13 @@ def prepare_ts(request):
         seasonality_mean=0,
         seasonality_std=1,
         batch_size=1,
-        n_series=1,
+        n_variables=1,
         noise=False,
         seed=42,
     )
 
     request.cls.time_serie_noise = random_ts(
-        steps=100,
+        n_steps=100,
         trend_degree=1,
         periods=[10],
         fourier_orders=[10],
@@ -38,13 +38,13 @@ def prepare_ts(request):
         seasonality_mean=0,
         seasonality_std=1,
         batch_size=1,
-        n_series=1,
+        n_variables=1,
         noise=True,
         seed=42,
     )
 
     request.cls.time_serie_noise = random_ts(
-        steps=100,
+        n_steps=100,
         trend_degree=1,
         periods=[10],
         fourier_orders=[10],
@@ -53,13 +53,13 @@ def prepare_ts(request):
         seasonality_mean=0,
         seasonality_std=1,
         batch_size=1,
-        n_series=1,
+        n_variables=1,
         noise=True,
         seed=42,
     )
 
     request.cls.time_serie_batch = random_ts(
-        steps=100,
+        n_steps=100,
         trend_degree=1,
         periods=[10],
         fourier_orders=[10],
@@ -68,13 +68,13 @@ def prepare_ts(request):
         seasonality_mean=0,
         seasonality_std=1,
         batch_size=2,
-        n_series=1,
+        n_variables=1,
         noise=True,
         seed=42,
     )
 
     request.cls.time_serie_variables = random_ts(
-        steps=100,
+        n_steps=100,
         trend_degree=1,
         periods=[10],
         fourier_orders=[10],
@@ -83,13 +83,13 @@ def prepare_ts(request):
         seasonality_mean=0,
         seasonality_std=1,
         batch_size=2,
-        n_series=2,
+        n_variables=2,
         noise=True,
         seed=42,
     )
 
     request.cls.time_serie_periods = random_ts(
-        steps=100,
+        n_steps=100,
         trend_degree=1,
         periods=[10, 5],
         fourier_orders=[10, 5],
@@ -98,7 +98,7 @@ def prepare_ts(request):
         seasonality_mean=0,
         seasonality_std=1,
         batch_size=1,
-        n_series=1,
+        n_variables=1,
         noise=False,
         seed=42,
     )

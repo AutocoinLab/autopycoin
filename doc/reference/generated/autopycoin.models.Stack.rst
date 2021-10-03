@@ -1,13 +1,13 @@
-﻿:mod:`autopycoin.models`.NBEATS
-======================================
+﻿:mod:`autopycoin.models`.Stack
+=====================================
 
 .. currentmodule:: autopycoin.models
 
-.. autoclass:: NBEATS
+.. autoclass:: Stack
    :members:
    :exclude-members: call, build, get_config
 
-.. include:: autopycoin.models.NBEATS.examples
+.. include:: autopycoin.models.Stack.examples
 
 .. raw:: html
 

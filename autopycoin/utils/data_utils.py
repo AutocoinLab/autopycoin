@@ -1,11 +1,12 @@
 """Checks used to modified inputs."""
 
 import tensorflow as tf
+from tensorflow.keras.backend import floatx
 
 
 def check_infinity(tensor):
-    """`check_infinity` Defines a control data function. It is
-    used to verify infinite values and to mask them.
+    """
+    This funxtion is used to verify infinite values and to mask them.
 
     Parameters
     ----------
@@ -27,3 +28,21 @@ def check_infinity(tensor):
         new_tensor = tf.boolean_mask(tensor, mask, axis=None, name="boolean_mask")
 
     return new_tensor
+
+
+def range_dims(tensor, shape):
+    """
+    Convenient function which performs a range and a reshape operation.
+
+    Parameters
+    ----------
+    tensor : tensor, array or list
+    shape : tuple
+
+    Returns
+    -------
+    tensor : tensor
+    """
+    tensor = tf.range(tensor, dtype=floatx())
+    tensor = tf.reshape(tensor, shape=shape)
+    return tensor
