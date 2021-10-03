@@ -259,7 +259,7 @@ class TrendBlock(BaseBlock):
     Examples
     --------
     >>> from autopycoin.models import TrendBlock, SeasonalityBlock, Stack, NBEATS
-    >>>
+    >>> from autopycoin.losses import QuantileLossError
     >>> trend_block = TrendBlock(horizon=10,
     ...                          back_horizon=20,
     ...                          p_degree=2,
@@ -285,7 +285,7 @@ class TrendBlock(BaseBlock):
     >>> seasonality_stacks = Stack(seasonality_blocks, name="seasonality_stack")
     >>>
     >>> model = NBEATS([trend_stacks, seasonality_stacks], name="interpretable_NBEATS")
-    >>> model.compile(loss=autopycoin.losses.QuantileLossError(quantiles=[0.5]))
+    >>> model.compile(loss=QuantileLossError(quantiles=[0.5]))
 
     Notes
     -----
@@ -434,7 +434,7 @@ class SeasonalityBlock(BaseBlock):
     Examples
     --------
     >>> from autopycoin.models import TrendBlock, SeasonalityBlock, Stack, NBEATS
-    >>>
+    >>> from autopycoin.losses import QuantileLossError
     >>> trend_block = TrendBlock(horizon=10,
     ...                          back_horizon=20,
     ...                          p_degree=2,
@@ -460,7 +460,7 @@ class SeasonalityBlock(BaseBlock):
     >>> seasonality_stacks = Stack(seasonality_blocks, name="seasonality_stack")
     >>>
     >>> model = NBEATS([trend_stacks, seasonality_stacks], name="interpretable_NBEATS")
-    >>> model.compile(loss=autopycoin.losses.QuantileLossError(quantiles=[0.5]))
+    >>> model.compile(loss=QuantileLossError(quantiles=[0.5]))
 
     Notes
     -----
@@ -633,6 +633,7 @@ class GenericBlock(BaseBlock):
     Examples
     --------
     >>> from autopycoin.models import GenericBlock, Stack, NBEATS
+    >>> from autopycoin.losses import QuantileLossError
     ...
     >>> generic_block = GenericBlock(horizon=10,
     ...                          back_horizon=20,
@@ -647,7 +648,7 @@ class GenericBlock(BaseBlock):
     >>> generic_stacks = Stack(generic_blocks, name="generic_stack")
     ...
     >>> model = NBEATS([generic_stacks, generic_stacks], name="generic_NBEATS")
-    >>> model.compile(loss=autopycoin.losses.QuantileLossError(quantiles=[0.5]))
+    >>> model.compile(loss=QuantileLossError(quantiles=[0.5]))
 
     Notes
     -----
@@ -781,7 +782,7 @@ class Stack(Layer):
     Examples
     --------
     >>> from autopycoin.models import TrendBlock, SeasonalityBlock, Stack, NBEATS
-    >>>
+    >>> from autopycoin.losses import QuantileLossError
     >>> trend_block = TrendBlock(horizon=10,
     ...                          back_horizon=20,
     ...                          p_degree=2,
@@ -807,7 +808,7 @@ class Stack(Layer):
     >>> seasonality_stacks = Stack(seasonality_blocks, name="seasonality_stack")
     >>>
     >>> model = NBEATS([trend_stacks, seasonality_stacks], name="interpretable_NBEATS")
-    >>> model.compile(loss=autopycoin.losses.QuantileLossError(quantiles=[0.5]))
+    >>> model.compile(loss=QuantileLossError(quantiles=[0.5]))
 
     Notes
     -----
@@ -879,7 +880,7 @@ class NBEATS(Model):
     Examples
     --------
     >>> from autopycoin.models import TrendBlock, SeasonalityBlock, Stack, NBEATS
-    >>>
+    >>> from autopycoin.losses import QuantileLossError
     >>> trend_block = TrendBlock(horizon=10,
     ...                          back_horizon=20,
     ...                          p_degree=2,
@@ -905,7 +906,7 @@ class NBEATS(Model):
     >>> seasonality_stacks = Stack(seasonality_blocks, name="seasonality_stack")
     >>>
     >>> model = NBEATS([trend_stacks, seasonality_stacks], name="interpretable_NBEATS")
-    >>> model.compile(loss=autopycoin.losses.QuantileLossError(quantiles=[0.5]))
+    >>> model.compile(loss=QuantileLossError(quantiles=[0.5]))
 
     Notes
     -----
@@ -1046,7 +1047,7 @@ def create_interpretable_nbeats(
     Examples
     --------
     >>> from autopycoin.models import create_interpretable_nbeats
-    >>>
+    >>> from autopycoin.losses import QuantileLossError
     >>> model = create_interpretable_nbeats(horizon=2,
     ...                                     back_horizon=3,
     ...                                     periods=[2],
@@ -1060,7 +1061,7 @@ def create_interpretable_nbeats(
     ...                                     drop_rate=0.1,
     ...                                     share=True)
     >>>
-    >>> model.compile(loss=autopycoin.losses.QuantileLossError(quantiles=[0.5]))
+    >>> model.compile(loss=QuantileLossError(quantiles=[0.5]))
     """
 
     if share is True:
@@ -1178,7 +1179,7 @@ def create_generic_nbeats(
     Examples
     --------
     >>> from autopycoin.models import create_generic_nbeats
-    >>>
+    >>> from autopycoin.losses import QuantileLossError
     >>> model = create_generic_nbeats(horizon=2,
     ...                                     back_horizon=3,
     ...                                     n_neurons=16,
@@ -1188,7 +1189,7 @@ def create_generic_nbeats(
     ...                                     drop_rate=0.1,
     ...                                     share=True)
     >>>
-    >>> model.compile(loss=autopycoin.losses.QuantileLossError(quantiles=[0.5]))
+    >>> model.compile(loss=QuantileLossError(quantiles=[0.5]))
     """
 
     generic_stacks = []
