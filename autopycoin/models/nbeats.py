@@ -452,7 +452,7 @@ class SeasonalityBlock(BaseBlock):
     ...                                      n_neurons=15,
     ...                                      quantiles=1,
     ...                                      drop_rate=0.1,
-    ...                                      name="seasonality_block",
+    ...                                      name="seasonality_block")
     >>>
     >>> trend_blocks = [trend_block for _ in range(3)]
     >>> seasonalityblocks = [seasonality_block for _ in range(3)]
@@ -800,7 +800,7 @@ class Stack(Layer):
     ...                                      n_neurons=15,
     ...                                      quantiles=1,
     ...                                      drop_rate=0.1,
-    ...                                      name="seasonality_block",
+    ...                                      name="seasonality_block")
     >>>
     >>> trend_blocks = [trend_block for _ in range(3)]
     >>> seasonalityblocks = [seasonality_block for _ in range(3)]
@@ -898,7 +898,7 @@ class NBEATS(Model):
     ...                                      n_neurons=15,
     ...                                      quantiles=1,
     ...                                      drop_rate=0.1,
-    ...                                      name="seasonality_block",
+    ...                                      name="seasonality_block")
     >>>
     >>> trend_blocks = [trend_block for _ in range(3)]
     >>> seasonalityblocks = [seasonality_block for _ in range(3)]
