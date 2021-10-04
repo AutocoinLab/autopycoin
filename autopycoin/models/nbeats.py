@@ -1182,6 +1182,8 @@ def create_generic_nbeats(
     >>> from autopycoin.losses import QuantileLossError
     >>> model = create_generic_nbeats(horizon=2,
     ...                               back_horizon=3,
+    ...                               forecast_neurons=16,
+    ...                               backcast_neurons=16,
     ...                               n_neurons=16,
     ...                               n_blocks=3,
     ...                               n_stacks=3,
