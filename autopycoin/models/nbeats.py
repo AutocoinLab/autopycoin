@@ -277,7 +277,7 @@ class TrendBlock(BaseBlock):
     ...                                      n_neurons=15,
     ...                                      quantiles=1,
     ...                                      drop_rate=0.1,
-    ...                                      name="seasonality_block",
+    ...                                      name="seasonality_block")
     >>>
     >>> trend_blocks = [trend_block for _ in range(3)]
     >>> seasonality_blocks = [seasonality_block for _ in range(3)]
@@ -1181,13 +1181,13 @@ def create_generic_nbeats(
     >>> from autopycoin.models import create_generic_nbeats
     >>> from autopycoin.losses import QuantileLossError
     >>> model = create_generic_nbeats(horizon=2,
-    ...                                     back_horizon=3,
-    ...                                     n_neurons=16,
-    ...                                     n_blocks=3,
-    ...                                     n_stacks=3,
-    ...                                     quantiles=1,
-    ...                                     drop_rate=0.1,
-    ...                                     share=True)
+    ...                               back_horizon=3,
+    ...                               n_neurons=16,
+    ...                               n_blocks=3,
+    ...                               n_stacks=3,
+    ...                               quantiles=1,
+    ...                               drop_rate=0.1,
+    ...                               share=True)
     >>>
     >>> model.compile(loss=QuantileLossError(quantiles=[0.5]))
     """
