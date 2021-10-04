@@ -5,6 +5,7 @@
 
 .. autoclass:: NBEATS
    :members:
+   :exclude-members: call, build, get_config
 
 .. include:: autopycoin.models.NBEATS.examples
 

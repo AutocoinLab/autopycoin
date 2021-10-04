@@ -22,11 +22,11 @@ import re
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 
 # for example.py
-sys.path.insert(0, os.path.abspath('.'))
+sys.path.insert(0, os.path.abspath("."))
 # project root
-sys.path.insert(0, os.path.abspath('..'))
+sys.path.insert(0, os.path.abspath(".."))
 
-os.environ['MPLBACKEND'] = 'Agg'  # avoid tkinter import errors on rtfd.io
+os.environ["MPLBACKEND"] = "Agg"  # avoid tkinter import errors on rtfd.io
 
 # -- General configuration ---------------------------------------------------
 
@@ -37,39 +37,39 @@ os.environ['MPLBACKEND'] = 'Agg'  # avoid tkinter import errors on rtfd.io
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    'sphinx.ext.autodoc',
-    'sphinx.ext.autosummary',
-    'sphinx.ext.doctest',
-    'sphinx.ext.intersphinx',
-    'sphinx.ext.todo',
-    'numpydoc',
-    'sphinx.ext.ifconfig',
-    'sphinx.ext.viewcode',
-    'sphinx_gallery.gen_gallery',
+    "sphinx.ext.autodoc",
+    "sphinx.ext.autosummary",
+    "sphinx.ext.doctest",
+    "sphinx.ext.intersphinx",
+    "sphinx.ext.todo",
+    "numpydoc",
+    "sphinx.ext.ifconfig",
+    "sphinx.ext.viewcode",
+    "sphinx_gallery.gen_gallery",
 ]
 
 try:
     import sphinx.ext.imgmath  # noqa
 except ImportError:
-    extensions.append('sphinx.ext.pngmath')
+    extensions.append("sphinx.ext.pngmath")
 else:
-    extensions.append('sphinx.ext.imgmath')
+    extensions.append("sphinx.ext.imgmath")
 
 # Add any paths that contain templates here, relative to this directory.
-templates_path = ['_templates']
+templates_path = ["_templates"]
 
 # The suffix of source filenames.
-source_suffix = '.rst'
+source_suffix = ".rst"
 
 # The encoding of source files.
 # source_encoding = 'utf-8-sig'
 
 # The root toctree document
-master_doc = 'index'  # NOTE: will be changed to `root_doc` in sphinx 4
+master_doc = "index"  # NOTE: will be changed to `root_doc` in sphinx 4
 
 # General information about the project.
-project = u'autopycoin'
-copyright = u'2019, autopycoin maintainers'
+project = u"autopycoin"
+copyright = u"2019, autopycoin maintainers"
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -78,13 +78,14 @@ copyright = u'2019, autopycoin maintainers'
 # The short X.Y version.
 
 import autopycoin
+
 # version = .__version__
 # The full version, including alpha/beta/rc tags.
 release = autopycoin.__version__
-version = re.sub(r'(\d+\.\d+)\.\d+(.*)', r'\1\2', autopycoin.__version__)
-version = re.sub(r'(\.dev\d+).*?$', r'\1', version)
+version = re.sub(r"(\d+\.\d+)\.\d+(.*)", r"\1\2", autopycoin.__version__)
+version = re.sub(r"(\.dev\d+).*?$", r"\1", version)
 numpydoc_xref_param_type = True
-numpydoc_xref_ignore = {'optional', 'type_without_description', 'BadException'}
+numpydoc_xref_ignore = {"optional", "type_without_description", "BadException"}
 # Run docstring validation as part of build process
 numpydoc_validation_checks = {"all", "GL01", "SA04", "RT03"}
 numpydoc_show_class_members = False
@@ -102,7 +103,7 @@ numpydoc_show_inherited_class_members = False
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
-exclude_patterns = ['_build']
+exclude_patterns = ["_build"]
 
 # The reST default role (used for this markup: `text`) to use for all
 # documents.
@@ -120,7 +121,7 @@ exclude_patterns = ['_build']
 # show_authors = False
 
 # The name of the Pygments (syntax highlighting) style to use.
-pygments_style = 'sphinx'
+pygments_style = "sphinx"
 
 # A list of ignored prefixes for module index sorting.
 # modindex_common_prefix = []
@@ -145,7 +146,7 @@ html_sidebars = {
 }
 
 html_title = "%s v%s Manual" % (project, version)
-html_last_updated_fmt = '%b %d, %Y'
+html_last_updated_fmt = "%b %d, %Y"
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -199,7 +200,7 @@ html_static_path = []  # ['_static']
 # html_file_suffix = None
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'project-templatedoc'
+htmlhelp_basename = "project-templatedoc"
 
 
 # -- Options for LaTeX output ---------------------------------------------
@@ -207,10 +208,8 @@ htmlhelp_basename = 'project-templatedoc'
 latex_elements = {
     # The paper size ('letterpaper' or 'a4paper').
     # 'papersize': 'letterpaper',
-
     # The font size ('10pt', '11pt' or '12pt').
     # 'pointsize': '10pt',
-
     # Additional stuff for the LaTeX preamble.
     # 'preamble': '',
 }
@@ -219,8 +218,13 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    ('index', 'autopycoin.tex', u'autopycoin Documentation',
-     u'autopycoin maintainers', 'manual'),
+    (
+        "index",
+        "autopycoin.tex",
+        u"autopycoin Documentation",
+        u"autopycoin maintainers",
+        "manual",
+    ),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
@@ -255,18 +259,17 @@ latex_documents = [
 # If true, do not generate a @detailmenu in the "Top" node's menu.
 # texinfo_no_detailmenu = False
 
-
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {
-    'python': ('https://docs.python.org/3/', None),
-    'numpy': ('https://numpy.org/devdocs/', None),
-    'sklearn': ('https://scikit-learn.org/stable/', None),
+    "python": ("https://docs.python.org/3/", None),
+    "numpy": ("https://numpy.org/devdocs/", None),
+    "sklearn": ("https://scikit-learn.org/stable/", None),
+    "pandas": ("https://pandas.pydata.org/docs/dev/", None)
 }
 
 # sphinx-gallery configuration
 sphinx_gallery_conf = {
-    'doc_module': 'autopycoin',
-    'backreferences_dir': os.path.join('reference/generated'),
-    'reference_url': {
-        'autopycoin': None}
+    "doc_module": "autopycoin",
+    "backreferences_dir": os.path.join("reference/generated"),
+    "reference_url": {"autopycoin": None},
 }

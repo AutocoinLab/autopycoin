@@ -1,5 +1,5 @@
 ####################
-Reference API
+models
 ####################
 
 API of Autopycoin
@@ -8,6 +8,12 @@ API of Autopycoin
 
 nbeats
 ======
+
+.. autosummary::
+   :toctree: generated/
+   :template: class.rst
+
+   models.BaseBlock
 
 .. autosummary::
    :toctree: generated/
@@ -38,3 +44,15 @@ nbeats
    :template: class.rst
 
    models.NBEATS
+
+.. autosummary::
+   :toctree: generated/
+   :template: function.rst
+
+   models.create_interpretable_nbeats
+
+.. autosummary::
+   :toctree: generated/
+   :template: function.rst
+
+   models.create_generic_nbeats

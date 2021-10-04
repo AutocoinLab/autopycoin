@@ -6,12 +6,16 @@ Test for nbeats model
 
 import pytest
 import numpy as np
+import pandas as pd
 
 from tensorflow.python.keras import keras_parameterized
+from tensorflow.keras.backend import floatx
 import tensorflow as tf
 
 from ..utils.testing_utils import layer_test
 from . import nbeats
+from ..data import random_ts
+from ..dataset import WindowGenerator
 
 
 @pytest.fixture(scope="class")
@@ -120,10 +124,10 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
                 "drop_rate": self.drop_rate,
                 "weights": self.trend_weights,
             },
-            input_dtype="float",
+            input_dtype=floatx(),
             input_shape=(2, 2),
             expected_output_shape=((None, 1), (None, 2)),
-            expected_output_dtype=["float32", "float32"],
+            expected_output_dtype=[floatx(), floatx()],
             expected_output=[
                 tf.constant(3.0, shape=(2, 1)),
                 tf.constant([3.0, 4.5, 3.0, 4.5], shape=(2, 2)),
@@ -148,10 +152,10 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
                 "drop_rate": self.drop_rate,
                 "weights": trend_weights,
             },
-            input_dtype="float",
+            input_dtype=floatx(),
             input_shape=(2, 2),
             expected_output_shape=((quantiles, None, 1), (None, 2)),
-            expected_output_dtype=["float32", "float32"],
+            expected_output_dtype=[floatx(), floatx()],
             expected_output=[
                 tf.constant(3.0, shape=(quantiles, 2, 1)),
                 tf.constant([3.0, 4.5, 3.0, 4.5], shape=(2, 2)),
@@ -193,10 +197,10 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
                 "drop_rate": self.drop_rate,
                 "weights": self.seasonality_weights,
             },
-            input_dtype="float",
+            input_dtype=floatx(),
             input_shape=(2, 3),
             expected_output_shape=((None, 2), (None, 3)),
-            expected_output_dtype=["float32", "float32"],
+            expected_output_dtype=[floatx(), floatx()],
             expected_output=[
                 tf.constant([6.0, 0.0, 6.0, 0.0], shape=(2, 2)),
                 tf.constant(
@@ -228,10 +232,10 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
                 "drop_rate": self.drop_rate,
                 "weights": seasonality_weights,
             },
-            input_dtype="float",
+            input_dtype=floatx(),
             input_shape=(2, 3),
             expected_output_shape=((quantiles, None, 2), (None, 3)),
-            expected_output_dtype=["float32", "float32"],
+            expected_output_dtype=[floatx(), floatx()],
             expected_output=[
                 tf.constant(
                     [6.0, 0.0, 6.0, 0.0, 6.0, 0.0, 6.0, 0.0],
@@ -341,10 +345,10 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
                 "drop_rate": self.drop_rate,
                 "weights": seasonality_weights,
             },
-            input_dtype="float",
+            input_dtype=floatx(),
             input_shape=(2, 3),
             expected_output_shape=((None, 2), (None, 3)),
-            expected_output_dtype=["float32", "float32"],
+            expected_output_dtype=[floatx(), floatx()],
             expected_output=[
                 tf.constant([9.0, 3.0, 9.0, 3.0], shape=(2, 2)),
                 tf.constant([15.0, y1, y2, 15.0, y1, y2], shape=(2, 3)),
@@ -365,10 +369,10 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
                 "quantiles": self.quantiles,
                 "drop_rate": self.drop_rate,
             },
-            input_dtype="float",
+            input_dtype=floatx(),
             input_shape=(2, 2),
             expected_output_shape=((None, 1), (None, 2)),
-            expected_output_dtype=["float32", "float32"],
+            expected_output_dtype=[floatx(), floatx()],
             expected_output=None,
             custom_objects={"GenericBlock": nbeats.GenericBlock},
         )
@@ -389,10 +393,10 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
         layer_test(
             nbeats.Stack,
             kwargs={"blocks": blocks},
-            input_dtype="float",
+            input_dtype=floatx(),
             input_shape=(2, 2),
             expected_output_shape=((None, 1), (None, 2)),
-            expected_output_dtype=["float32", "float32"],
+            expected_output_dtype=[floatx(), floatx()],
             expected_output=None,
             custom_objects={"Stack": nbeats.Stack},
         )
@@ -433,10 +437,10 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
         layer_test(
             nbeats.Stack,
             kwargs={"blocks": blocks},
-            input_dtype="float",
+            input_dtype=floatx(),
             input_shape=(2, 3),
             expected_output_shape=((None, 2), (None, 3)),
-            expected_output_dtype=["float32", "float32"],
+            expected_output_dtype=[floatx(), floatx()],
             expected_output=[
                 tf.constant([9.0, 4.5, 9.0, 4.5], shape=(2, 2)),
                 -1
@@ -497,10 +501,10 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
         layer_test(
             nbeats.NBEATS,
             kwargs={"stacks": stacks},
-            input_dtype="float",
+            input_dtype=floatx(),
             input_shape=(2, 3),
             expected_output_shape=((None, 2), (None, 3)),
-            expected_output_dtype=["float32", "float32"],
+            expected_output_dtype=[floatx(), floatx()],
             expected_output=tf.constant([18.0, 9.0, 18.0, 9.0], shape=(2, 2)),
         )
 
@@ -617,11 +621,11 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
             seasonality_stack.blocks[2].get_weights(),
         )
 
-        # Compare output shape with expected
+        # Compare output shape with expected shape
         outputs = model.predict(np.array([[1.0, 2.0, 3.0]]))
         self.assertEqual(outputs.shape, (1, 2))
 
-        # Compare output shape with expected when quantiles = 2
+        # Compare output shape with expected shape when quantiles = 2
         model = nbeats.create_interpretable_nbeats(
             horizon=self.seasonality_horizon,
             back_horizon=self.seasonality_back_horizon,
@@ -700,3 +704,64 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
 
         outputs = model.predict(np.array([[1.0, 2.0, 3.0]]))
         self.assertEqual(outputs.shape, (2, 1, 2))
+
+    def test_nbeats_with_generator(self):
+        # Test nbeats with generator and ensure that results are same
+        # if data is shape ((inputs, known, date, date), labels) and shape
+        # (inputs, labels)
+
+        data = random_ts(
+            n_steps=100,
+            trend_degree=2,
+            periods=[10],
+            fourier_orders=[10],
+            trend_mean=0,
+            trend_std=1,
+            seasonality_mean=0,
+            seasonality_std=1,
+            batch_size=1,
+            n_variables=1,
+            noise=True,
+            seed=42,
+        )
+
+        data = pd.DataFrame(data[0], columns=["values"])
+
+        w_oneshot = WindowGenerator(
+            data,
+            input_width=3,
+            label_width=2,
+            shift=10,
+            test_size=3,
+            valid_size=2,
+            strategy="one_shot",
+            batch_size=None,
+            input_columns=["values"],
+            known_columns=None,
+            label_columns=["values"],
+            date_columns=None,
+            preprocessing=None,
+        )
+
+        model = nbeats.create_interpretable_nbeats(
+            horizon=self.seasonality_horizon,
+            back_horizon=self.seasonality_back_horizon,
+            periods=self.periods,
+            back_periods=self.back_periods,
+            forecast_fourier_order=self.forecast_fourier_order,
+            backcast_fourier_order=self.backcast_fourier_order,
+            p_degree=self.p_degree,
+            trend_n_neurons=self.n_neurons,
+            seasonality_n_neurons=self.n_neurons,
+            quantiles=self.quantiles,
+            drop_rate=0,
+            share=True,
+        )
+
+        model.compile(loss="mse")
+        model.fit(w_oneshot.train, validation_data=w_oneshot.valid)
+        data1 = model.predict(w_oneshot.test)
+        w_oneshot_test = w_oneshot.test.map(lambda x, y: (x[0], y))
+        data2 = model.predict(w_oneshot_test)
+
+        np.testing.assert_array_equal(data1, data2)

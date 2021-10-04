@@ -5,6 +5,7 @@
 
 .. autoclass:: {{ objname }}
    :members:
+   :exclude-members: call, build, get_config
 
 .. include:: {{module}}.{{objname}}.examples
 
