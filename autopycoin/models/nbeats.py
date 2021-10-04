@@ -280,7 +280,7 @@ class TrendBlock(BaseBlock):
     ...                                      name="seasonality_block",
     >>>
     >>> trend_blocks = [trend_block for _ in range(3)]
-    >>> seasonalityblocks = [seasonality_block for _ in range(3)]
+    >>> seasonality_blocks = [seasonality_block for _ in range(3)]
     >>> trend_stacks = Stack(trend_blocks, name="trend_stack")
     >>> seasonality_stacks = Stack(seasonality_blocks, name="seasonality_stack")
     >>>
@@ -455,7 +455,7 @@ class SeasonalityBlock(BaseBlock):
     ...                                      name="seasonality_block")
     >>>
     >>> trend_blocks = [trend_block for _ in range(3)]
-    >>> seasonalityblocks = [seasonality_block for _ in range(3)]
+    >>> seasonality_blocks = [seasonality_block for _ in range(3)]
     >>> trend_stacks = Stack(trend_blocks, name="trend_stack")
     >>> seasonality_stacks = Stack(seasonality_blocks, name="seasonality_stack")
     >>>
@@ -803,7 +803,7 @@ class Stack(Layer):
     ...                                      name="seasonality_block")
     >>>
     >>> trend_blocks = [trend_block for _ in range(3)]
-    >>> seasonalityblocks = [seasonality_block for _ in range(3)]
+    >>> seasonality_blocks = [seasonality_block for _ in range(3)]
     >>> trend_stacks = Stack(trend_blocks, name="trend_stack")
     >>> seasonality_stacks = Stack(seasonality_blocks, name="seasonality_stack")
     >>>
@@ -901,7 +901,7 @@ class NBEATS(Model):
     ...                                      name="seasonality_block")
     >>>
     >>> trend_blocks = [trend_block for _ in range(3)]
-    >>> seasonalityblocks = [seasonality_block for _ in range(3)]
+    >>> seasonality_blocks = [seasonality_block for _ in range(3)]
     >>> trend_stacks = Stack(trend_blocks, name="trend_stack")
     >>> seasonality_stacks = Stack(seasonality_blocks, name="seasonality_stack")
     >>>
@@ -1090,10 +1090,10 @@ def create_interpretable_nbeats(
             **kwargs,
         )
 
-        trendblocks = [trend_block for _ in range(3)]
-        seasonalityblocks = [seasonality_block for _ in range(3)]
+        trend_blocks = [trend_block for _ in range(3)]
+        seasonality_blocks = [seasonality_block for _ in range(3)]
     else:
-        trendblocks = [
+        trend_blocks = [
             TrendBlock(
                 horizon=horizon,
                 back_horizon=back_horizon,
@@ -1106,7 +1106,7 @@ def create_interpretable_nbeats(
             )
             for _ in range(3)
         ]
-        seasonalityblocks = [
+        seasonality_blocks = [
             SeasonalityBlock(
                 horizon=horizon,
                 back_horizon=back_horizon,
@@ -1123,9 +1123,9 @@ def create_interpretable_nbeats(
             for _ in range(3)
         ]
 
-    trendstacks = Stack(trendblocks, name="trend_stack")
-    seasonalitystacks = Stack(seasonalityblocks, name="seasonality_stack")
-    model = NBEATS([trendstacks, seasonalitystacks], name="interpretable_NBEATS")
+    trend_stacks = Stack(trend_blocks, name="trend_stack")
+    seasonality_stacks = Stack(seasonality_blocks, name="seasonality_stack")
+    model = NBEATS([trend_stacks, seasonality_stacks], name="interpretable_NBEATS")
 
     return model
 
