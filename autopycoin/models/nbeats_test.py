@@ -12,6 +12,7 @@ from tensorflow.python.keras import keras_parameterized
 from tensorflow.keras.backend import floatx
 import tensorflow as tf
 
+from ..losses import QuantileLossError
 from ..utils.testing_utils import layer_test
 from . import nbeats
 from ..data import random_ts
@@ -27,7 +28,6 @@ def prepare_data(request):
     request.cls.p_degree = 2
     request.cls.n_neurons = 3
     request.cls.drop_rate = 0
-    request.cls.quantiles = 1
 
     request.cls.trend_weights = [
         np.zeros(shape=(request.cls.back_horizon, request.cls.n_neurons)),
@@ -120,7 +120,6 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
                 "back_horizon": self.back_horizon,
                 "p_degree": self.p_degree,
                 "n_neurons": self.n_neurons,
-                "quantiles": self.quantiles,
                 "drop_rate": self.drop_rate,
                 "weights": self.trend_weights,
             },
@@ -135,34 +134,6 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
             custom_objects={"TrendBlock": nbeats.TrendBlock},
         )
 
-    def test_multi_quantiles_trendblock(self):
-        quantiles = 2
-
-        trend_weights = self.trend_weights.copy()
-        trend_weights[-4] = np.ones(shape=(quantiles, self.n_neurons, self.p_degree))
-
-        layer_test(
-            nbeats.TrendBlock,
-            kwargs={
-                "horizon": self.horizon,
-                "back_horizon": self.back_horizon,
-                "p_degree": self.p_degree,
-                "n_neurons": self.n_neurons,
-                "quantiles": quantiles,
-                "drop_rate": self.drop_rate,
-                "weights": trend_weights,
-            },
-            input_dtype=floatx(),
-            input_shape=(2, 2),
-            expected_output_shape=((quantiles, None, 1), (None, 2)),
-            expected_output_dtype=[floatx(), floatx()],
-            expected_output=[
-                tf.constant(3.0, shape=(quantiles, 2, 1)),
-                tf.constant([3.0, 4.5, 3.0, 4.5], shape=(2, 2)),
-            ],
-            custom_objects={"TrendBlock": nbeats.TrendBlock},
-        )
-
     def test_dropout(self):
         drop_rate = 0.01
 
@@ -171,8 +142,7 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
             horizon=self.horizon,
             back_horizon=self.back_horizon,
             p_degree=self.p_degree,
-            drop_rate=drop_rate,
-            quantiles=self.quantiles,
+            drop_rate=drop_rate
         )
 
         actual_1 = model(tf.constant([[1.0, 8.0], [1.0, 2.0]]))
@@ -193,7 +163,6 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
                 "back_periods": self.back_periods,
                 "forecast_fourier_order": self.forecast_fourier_order,
                 "backcast_fourier_order": self.backcast_fourier_order,
-                "quantiles": self.quantiles,
                 "drop_rate": self.drop_rate,
                 "weights": self.seasonality_weights,
             },
@@ -203,44 +172,6 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
             expected_output_dtype=[floatx(), floatx()],
             expected_output=[
                 tf.constant([6.0, 0.0, 6.0, 0.0], shape=(2, 2)),
-                tf.constant(
-                    [9.0, self.y1, self.y2, 9.0, self.y1, self.y2], shape=(2, 3)
-                ),
-            ],
-            custom_objects={"SeasonalityBlock": nbeats.SeasonalityBlock},
-        )
-
-    def test_multi_quantiles_seasonalityblock(self):
-        quantiles = 2
-
-        seasonality_weights = self.seasonality_weights.copy()
-        seasonality_weights[-4] = np.ones(
-            shape=(quantiles, self.n_neurons, self.forecast_neurons)
-        )
-
-        layer_test(
-            nbeats.SeasonalityBlock,
-            kwargs={
-                "horizon": self.seasonality_horizon,
-                "back_horizon": self.seasonality_back_horizon,
-                "n_neurons": self.n_neurons,
-                "periods": self.periods,
-                "back_periods": self.back_periods,
-                "forecast_fourier_order": self.forecast_fourier_order,
-                "backcast_fourier_order": self.backcast_fourier_order,
-                "quantiles": quantiles,
-                "drop_rate": self.drop_rate,
-                "weights": seasonality_weights,
-            },
-            input_dtype=floatx(),
-            input_shape=(2, 3),
-            expected_output_shape=((quantiles, None, 2), (None, 3)),
-            expected_output_dtype=[floatx(), floatx()],
-            expected_output=[
-                tf.constant(
-                    [6.0, 0.0, 6.0, 0.0, 6.0, 0.0, 6.0, 0.0],
-                    shape=(quantiles, 2, 2),
-                ),
                 tf.constant(
                     [9.0, self.y1, self.y2, 9.0, self.y1, self.y2], shape=(2, 3)
                 ),
@@ -341,7 +272,6 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
                 "back_periods": back_periods,
                 "forecast_fourier_order": forecast_fourier_order,
                 "backcast_fourier_order": backcast_fourier_order,
-                "quantiles": self.quantiles,
                 "drop_rate": self.drop_rate,
                 "weights": seasonality_weights,
             },
@@ -366,7 +296,6 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
                 "n_neurons": self.n_neurons,
                 "forecast_neurons": self.trend_neurons,
                 "backcast_neurons": self.seasonality_neurons,
-                "quantiles": self.quantiles,
                 "drop_rate": self.drop_rate,
             },
             input_dtype=floatx(),
@@ -385,7 +314,6 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
             "n_neurons": self.n_neurons,
             "forecast_neurons": self.trend_neurons,
             "backcast_neurons": self.seasonality_neurons,
-            "quantiles": self.quantiles,
             "drop_rate": self.drop_rate,
         }
         blocks = [nbeats.GenericBlock(**kwargs), nbeats.GenericBlock(**kwargs)]
@@ -414,7 +342,6 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
             "back_horizon": self.seasonality_back_horizon,
             "p_degree": self.p_degree,
             "n_neurons": self.n_neurons,
-            "quantiles": self.quantiles,
             "drop_rate": self.drop_rate,
             "weights": trend_weights,
         }
@@ -427,7 +354,6 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
             "back_periods": self.back_periods,
             "forecast_fourier_order": self.forecast_fourier_order,
             "backcast_fourier_order": self.backcast_fourier_order,
-            "quantiles": self.quantiles,
             "drop_rate": self.drop_rate,
             "weights": self.seasonality_weights,
         }
@@ -472,7 +398,6 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
             "back_horizon": self.seasonality_back_horizon,
             "p_degree": self.p_degree,
             "n_neurons": self.n_neurons,
-            "quantiles": self.quantiles,
             "drop_rate": self.drop_rate,
             "weights": trend_weights,
         }
@@ -485,7 +410,6 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
             "back_periods": self.back_periods,
             "forecast_fourier_order": self.forecast_fourier_order,
             "backcast_fourier_order": self.backcast_fourier_order,
-            "quantiles": self.quantiles,
             "drop_rate": self.drop_rate,
             "weights": self.seasonality_weights,
         }
@@ -521,7 +445,6 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
             "back_horizon": self.seasonality_back_horizon,
             "p_degree": self.p_degree,
             "n_neurons": self.n_neurons,
-            "quantiles": self.quantiles,
             "drop_rate": self.drop_rate,
             "weights": trend_weights,
         }
@@ -534,7 +457,6 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
             "back_periods": self.back_periods,
             "forecast_fourier_order": self.forecast_fourier_order,
             "backcast_fourier_order": self.backcast_fourier_order,
-            "quantiles": self.quantiles,
             "drop_rate": self.drop_rate,
             "weights": self.seasonality_weights,
         }
@@ -560,7 +482,6 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
             "n_neurons": self.n_neurons,
             "forecast_neurons": self.trend_neurons,
             "backcast_neurons": self.seasonality_neurons,
-            "quantiles": self.quantiles,
             "drop_rate": self.drop_rate,
         }
 
@@ -591,7 +512,6 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
             p_degree=self.p_degree,
             trend_n_neurons=self.n_neurons,
             seasonality_n_neurons=self.n_neurons,
-            quantiles=self.quantiles,
             drop_rate=0,
             share=True,
         )
@@ -625,7 +545,7 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
         outputs = model.predict(np.array([[1.0, 2.0, 3.0]]))
         self.assertEqual(outputs.shape, (1, 2))
 
-        # Compare output shape with expected shape when quantiles = 2
+        # Compare output shape with expected shape when quantiles = 3
         model = nbeats.create_interpretable_nbeats(
             horizon=self.seasonality_horizon,
             back_horizon=self.seasonality_back_horizon,
@@ -636,13 +556,12 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
             p_degree=self.p_degree,
             trend_n_neurons=self.n_neurons,
             seasonality_n_neurons=self.n_neurons,
-            quantiles=2,
             drop_rate=0,
             share=True,
         )
-
+        model.compile(loss=QuantileLossError([0.1, 0.5, 0.9]))
         outputs = model.predict(np.array([[1.0, 2.0, 3.0]]))
-        self.assertEqual(outputs.shape, (2, 1, 2))
+        self.assertEqual(outputs.shape, (3, 1, 2))
 
     def test_create_generic_nbeats(self):
 
@@ -654,7 +573,6 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
             n_neurons=self.n_neurons,
             n_blocks=3,
             n_stacks=2,
-            quantiles=self.quantiles,
             drop_rate=0,
             share=True,
         )
@@ -697,18 +615,15 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
             n_neurons=self.n_neurons,
             n_blocks=3,
             n_stacks=2,
-            quantiles=2,
             drop_rate=0,
             share=True,
         )
-
+        model.compile(loss=QuantileLossError([0.1, 0.5, 0.9]))
         outputs = model.predict(np.array([[1.0, 2.0, 3.0]]))
-        self.assertEqual(outputs.shape, (2, 1, 2))
+        self.assertEqual(outputs.shape, (3, 1, 2))
 
     def test_nbeats_with_generator(self):
-        # Test nbeats with generator and ensure that results are same
-        # if data is shape ((inputs, known, date, date), labels) and shape
-        # (inputs, labels)
+        # Test nbeats with generator
 
         data = random_ts(
             n_steps=100,
@@ -753,13 +668,27 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
             p_degree=self.p_degree,
             trend_n_neurons=self.n_neurons,
             seasonality_n_neurons=self.n_neurons,
-            quantiles=self.quantiles,
             drop_rate=0,
             share=True,
         )
 
-        model.compile(loss="mse")
+        # Test multiple methods
+        inputs_shape = (None, 3)
+        model.build(inputs_shape)
+        model.summary()
+        model.compile(loss=QuantileLossError([0.1, 0.5, 0.9]))
         model.fit(w_oneshot.train, validation_data=w_oneshot.valid)
+        model.summary()
+        n_quantiles = model.stacks[0].blocks[0].quantiles # to change
+
+        # test if model is adapting to QuantileLossError.
+        # when the model is built by `build` output tensor is shape (None, outputs)
+        # when we compile the model with QuantileLossError the output become (quantiles, None, outputs)
+        self.assertEqual(n_quantiles, 3) # to change
+
+        # Test if results are same
+        # if data is shape ((inputs, known, date, date), labels) and shape
+        # (inputs, labels)
         data1 = model.predict(w_oneshot.test)
         w_oneshot_test = w_oneshot.test.map(lambda x, y: (x[0], y))
         data2 = model.predict(w_oneshot_test)

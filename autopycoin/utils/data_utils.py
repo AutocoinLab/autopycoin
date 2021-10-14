@@ -30,7 +30,7 @@ def check_infinity(tensor):
     return new_tensor
 
 
-def range_dims(tensor, shape):
+def range_dims(tensor, shape, dtype=floatx()):
     """
     Convenient function which performs a range and a reshape operation.
 
@@ -43,6 +43,6 @@ def range_dims(tensor, shape):
     -------
     tensor : tensor
     """
-    tensor = tf.range(tensor, dtype=floatx())
+    tensor = tf.range(tensor, dtype=dtype)
     tensor = tf.reshape(tensor, shape=shape)
     return tensor

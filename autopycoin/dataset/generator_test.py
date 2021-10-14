@@ -75,7 +75,7 @@ def prepare_generator(request):
     )
 
     request.cls.x, request.cls.y = iter(request.cls.w_autoreg.train).get_next()
-    data_to_forecast = request.cls.w_autoreg.forecast(request.cls.data)
+    data_to_forecast = request.cls.w_autoreg.forecast(request.cls.data, 2)
     request.cls.x_autoreg_forecast, request.cls.y_autoreg_forecast = iter(
         data_to_forecast
     ).get_next()
@@ -102,7 +102,7 @@ def prepare_generator(request):
     request.cls.x_oneshot, request.cls.y_oneshot = iter(
         request.cls.w_oneshot.train
     ).get_next()
-    data_to_forecast = request.cls.w_oneshot.forecast(request.cls.data)
+    data_to_forecast = request.cls.w_oneshot.forecast(request.cls.data, 2)
     request.cls.x_oneshot_forecast, request.cls.y_oneshot_forecast = iter(
         data_to_forecast
     ).get_next()
@@ -220,7 +220,6 @@ class TestGenerator(keras_parameterized.TestCase):
         self.assertIsNot(type(dataset[1]), tuple)
 
     def test_y_train(self):
-
         y_true = np.array([[[2.0], [3.0], [4.0]], [[3.0], [4.0], [5.0]]])
 
         np.testing.assert_array_equal(self.y, y_true)
@@ -229,7 +228,6 @@ class TestGenerator(keras_parameterized.TestCase):
         np.testing.assert_array_equal(self.y_oneshot_forecast, tf.squeeze(y_true))
 
     def test_x0_train(self):
-
         x_true = np.array(
             [
                 [
@@ -328,7 +326,6 @@ class TestGenerator(keras_parameterized.TestCase):
             p_degree=1,
             trend_n_neurons=16,
             seasonality_n_neurons=16,
-            quantiles=1,
             drop_rate=0,
             share=True,
         )
