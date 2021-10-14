@@ -142,7 +142,7 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
             horizon=self.horizon,
             back_horizon=self.back_horizon,
             p_degree=self.p_degree,
-            drop_rate=drop_rate
+            drop_rate=drop_rate,
         )
 
         actual_1 = model(tf.constant([[1.0, 8.0], [1.0, 2.0]]))
@@ -679,12 +679,12 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
         model.compile(loss=QuantileLossError([0.1, 0.5, 0.9]))
         model.fit(w_oneshot.train, validation_data=w_oneshot.valid)
         model.summary()
-        n_quantiles = model.stacks[0].blocks[0].quantiles # to change
+        n_quantiles = model.stacks[0].blocks[0].quantiles  # to change
 
         # test if model is adapting to QuantileLossError.
         # when the model is built by `build` output tensor is shape (None, outputs)
         # when we compile the model with QuantileLossError the output become (quantiles, None, outputs)
-        self.assertEqual(n_quantiles, 3) # to change
+        self.assertEqual(n_quantiles, 3)  # to change
 
         # Test if results are same
         # if data is shape ((inputs, known, date, date), labels) and shape

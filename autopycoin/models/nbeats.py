@@ -47,13 +47,13 @@ class BaseBlock(Layer):
 
     def __init__(
         self,
-        horizon : int,
-        back_horizon : int,
-        output_last_dim_forecast : int,
-        output_last_dim_backcast : int,
-        n_neurons : int,
-        drop_rate : float,
-        **kwargs : dict,
+        horizon: int,
+        back_horizon: int,
+        output_last_dim_forecast: int,
+        output_last_dim_backcast: int,
+        n_neurons: int,
+        drop_rate: float,
+        **kwargs: dict,
     ):
 
         super().__init__(**kwargs)
@@ -83,7 +83,7 @@ class BaseBlock(Layer):
                 f"a positive integer, got {self.n_neurons}."
             )
 
-    def build(self, input_shape : tf.TensorShape):
+    def build(self, input_shape: tf.TensorShape):
         dtype = tf.as_dtype(self.dtype or tf.float32())
         if not (dtype.is_floating or dtype.is_complex):
             raise TypeError(
@@ -122,7 +122,7 @@ class BaseBlock(Layer):
 
         # If the model is compiling with a loss error defining uncertainty then
         # broadcast the output to take into account this uncertainty
-        if hasattr(self, 'quantiles'):
+        if hasattr(self, "quantiles"):
             shape_fc_forecast = (
                 self.quantiles,
                 self.n_neurons,
@@ -157,7 +157,9 @@ class BaseBlock(Layer):
 
         self.built = True
 
-    def call(self, inputs : tf.Tensor) -> Tuple[tf.Tensor]:  # pylint: disable=arguments-differ
+    def call(
+        self, inputs: tf.Tensor
+    ) -> Tuple[tf.Tensor]:  # pylint: disable=arguments-differ
         for kernel, bias in self.fc_stack:
             # shape: (Batch_size, n_neurons)
             inputs = tf.nn.bias_add(tf.matmul(inputs, kernel), bias)
@@ -178,7 +180,7 @@ class BaseBlock(Layer):
 
         return outputs_forecast, outputs_backcast
 
-    def compute_output_shape(self, input_shape : tf.TensorShape) -> List[tf.TensorShape]:
+    def compute_output_shape(self, input_shape: tf.TensorShape) -> List[tf.TensorShape]:
         if isinstance(input_shape, tuple):
             input_shape = input_shape[0]
         input_shape = tf.TensorShape(input_shape)
@@ -191,11 +193,11 @@ class BaseBlock(Layer):
 
         # If the model is compiling with a loss error defining uncertainty then
         # broadcast the output to take into account this uncertainty
-        if hasattr(self, 'quantiles'):
-            return[
-            tf.TensorShape((self.quantiles, input_shape[0], int(self.horizon))),
-            tf.TensorShape((input_shape[0], int(self.back_horizon))),
-        ]
+        if hasattr(self, "quantiles"):
+            return [
+                tf.TensorShape((self.quantiles, input_shape[0], int(self.horizon))),
+                tf.TensorShape((input_shape[0], int(self.back_horizon))),
+            ]
 
         return [
             tf.TensorShape((input_shape[0], int(self.horizon))),
@@ -294,11 +296,11 @@ class TrendBlock(BaseBlock):
 
     def __init__(
         self,
-        horizon : int,
-        back_horizon : int,
-        p_degree : int,
-        n_neurons : int,
-        drop_rate : float =0,
+        horizon: int,
+        back_horizon: int,
+        p_degree: int,
+        n_neurons: int,
+        drop_rate: float = 0,
         **kwargs,
     ):
 
@@ -329,7 +331,7 @@ class TrendBlock(BaseBlock):
                 f"a positive integer, got {p_degree}."
             )
 
-    def coefficient_factory(self, horizon : int, p_degree : int) -> tf.Tensor:
+    def coefficient_factory(self, horizon: int, p_degree: int) -> tf.Tensor:
         """
         Compute the coefficients used in the last layer a.k.a g constrained layer.
 
@@ -457,14 +459,14 @@ class SeasonalityBlock(BaseBlock):
 
     def __init__(
         self,
-        horizon : int,
-        back_horizon : int,
-        periods : List[int],
-        back_periods : List[int],
-        forecast_fourier_order : List[int],
-        backcast_fourier_order : List[int],
-        n_neurons : int,
-        drop_rate : float =0,
+        horizon: int,
+        back_horizon: int,
+        periods: List[int],
+        back_periods: List[int],
+        forecast_fourier_order: List[int],
+        backcast_fourier_order: List[int],
+        n_neurons: int,
+        drop_rate: float = 0,
         **kwargs,
     ):
 
@@ -511,7 +513,9 @@ class SeasonalityBlock(BaseBlock):
                 f"and {len(self.backcast_fourier_order)} respectively."
             )
 
-    def coefficient_factory(self, horizon : int, periods : List[int], fourier_orders : List[int]) -> tf.Tensor:
+    def coefficient_factory(
+        self, horizon: int, periods: List[int], fourier_orders: List[int]
+    ) -> tf.Tensor:
         """
         Compute the coefficients used in the last layer a.k.a g constrained layer.
 
@@ -634,12 +638,12 @@ class GenericBlock(BaseBlock):
 
     def __init__(
         self,
-        horizon : int,
-        back_horizon : int,
-        forecast_neurons : int,
-        backcast_neurons : int,
-        n_neurons : int,
-        drop_rate : float = 0.1,
+        horizon: int,
+        back_horizon: int,
+        forecast_neurons: int,
+        backcast_neurons: int,
+        n_neurons: int,
+        drop_rate: float = 0.1,
         **kwargs,
     ):
 
@@ -685,7 +689,9 @@ class GenericBlock(BaseBlock):
 
         self.built = True
 
-    def coefficient_factory(self, horizon : Union[int,float], neurons : int) -> tf.Tensor:
+    def coefficient_factory(
+        self, horizon: Union[int, float], neurons: int
+    ) -> tf.Tensor:
         """
         Compute the coefficients used in the last layer a.k.a g layer.
 
@@ -779,7 +785,7 @@ class Stack(Layer):
     With a QuantileLossError with 2 quantiles or higher the output would have shape (quantiles, batch_size, units).
     """
 
-    def __init__(self, blocks : List[BaseBlock], **kwargs):
+    def __init__(self, blocks: List[BaseBlock], **kwargs):
 
         super().__init__(**kwargs)
 
@@ -789,7 +795,7 @@ class Stack(Layer):
             if isinstance(block, type(BaseBlock)):
                 raise ValueError("`blocks` is expected to inherit from `BaseBlock`")
 
-    def call(self, inputs : tf.Tensor) -> Tuple[tf.Tensor]:
+    def call(self, inputs: tf.Tensor) -> Tuple[tf.Tensor]:
 
         outputs_forecast = tf.constant(0.0)
         for block in self.blocks:
@@ -865,7 +871,7 @@ class NBEATS(Model):
     Notes
     -----
     NBEATS supports the estimation of aleotoric and epistemic errors with:
-    
+
     - Aleotoric interval : :class:`autopycoin.loss.QuantileLossError`
     - Epistemic interval : MCDropout
 
@@ -884,7 +890,7 @@ class NBEATS(Model):
     With a QuantileLossError with 2 quantiles or higher the output would have shape (quantiles, batch_size, units).
     """
 
-    def __init__(self, stacks : List[Stack], **kwargs):
+    def __init__(self, stacks: List[Stack], **kwargs):
 
         super().__init__(self, **kwargs)
 
@@ -896,15 +902,17 @@ class NBEATS(Model):
             if not isinstance(stack, Stack):
                 raise ValueError("`stacks` is expected to inherit from `Stack`")
 
-    def compile(self,
-                optimizer='rmsprop',
-                loss=None,
-                metrics=None,
-                loss_weights=None,
-                weighted_metrics=None,
-                run_eagerly=None,
-                steps_per_execution=None,
-                **kwargs):
+    def compile(
+        self,
+        optimizer="rmsprop",
+        loss=None,
+        metrics=None,
+        loss_weights=None,
+        weighted_metrics=None,
+        run_eagerly=None,
+        steps_per_execution=None,
+        **kwargs,
+    ):
 
         if isinstance(loss, QuantileLossError):
             # will be changed.
@@ -914,14 +922,16 @@ class NBEATS(Model):
                     block.built = False
                     block.quantiles = len(loss.quantiles)
 
-        return super().compile(optimizer=optimizer,
-                                loss=loss,
-                                metrics=metrics,
-                                loss_weights=loss_weights,
-                                weighted_metrics=weighted_metrics,
-                                run_eagerly=run_eagerly,
-                                steps_per_execution=steps_per_execution,
-                                **kwargs)
+        return super().compile(
+            optimizer=optimizer,
+            loss=loss,
+            metrics=metrics,
+            loss_weights=loss_weights,
+            weighted_metrics=weighted_metrics,
+            run_eagerly=run_eagerly,
+            steps_per_execution=steps_per_execution,
+            **kwargs,
+        )
 
     def call(self, inputs):
 

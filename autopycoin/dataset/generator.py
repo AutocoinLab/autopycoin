@@ -111,19 +111,19 @@ class WindowGenerator:
 
     def __init__(
         self,
-        data : pd.DataFrame,
-        input_width : int,
-        label_width : int,
-        shift : int,
-        test_size : int,
-        valid_size : int,
-        strategy : str,
-        batch_size: Union[int, None] =None,
-        input_columns : Union[list, None] =None,
-        known_columns : Union[list, None] =None,
-        label_columns : Union[list, None] =None,
-        date_columns : Union[list, None] =None,
-        preprocessing: Union[list, None] =None,
+        data: pd.DataFrame,
+        input_width: int,
+        label_width: int,
+        shift: int,
+        test_size: int,
+        valid_size: int,
+        strategy: str,
+        batch_size: Union[int, None] = None,
+        input_columns: Union[list, None] = None,
+        known_columns: Union[list, None] = None,
+        label_columns: Union[list, None] = None,
+        date_columns: Union[list, None] = None,
+        preprocessing: Union[list, None] = None,
     ):
 
         # Work out the window parameters.
@@ -203,7 +203,9 @@ class WindowGenerator:
 
         self._preprocessing = preprocessing
 
-    def _make_dataset(self, data: Union[pd.DataFrame, np.array, tf.Tensor], batch_size: int) -> tf.data.Dataset:
+    def _make_dataset(
+        self, data: Union[pd.DataFrame, np.array, tf.Tensor], batch_size: int
+    ) -> tf.data.Dataset:
         """
         Compute the tensorflow dataset object.
 

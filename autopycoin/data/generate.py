@@ -16,14 +16,14 @@ def random_ts(
     trend_degree: int,
     periods: list,
     fourier_orders: list,
-    trend_mean: int =0,
-    trend_std: int =1,
-    seasonality_mean: int =0,
-    seasonality_std: int =1,
-    batch_size: int =1,
-    n_variables: int =1,
-    noise: bool =False,
-    seed: None or int =None,
+    trend_mean: int = 0,
+    trend_std: int = 1,
+    seasonality_mean: int = 0,
+    seasonality_std: int = 1,
+    batch_size: int = 1,
+    n_variables: int = 1,
+    noise: bool = False,
+    seed: None or int = None,
 ) -> tf.Tensor:
     """
     Generate random time series with a trend and seasonality components.

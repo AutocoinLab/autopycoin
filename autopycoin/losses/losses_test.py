@@ -84,11 +84,7 @@ class QuantileLossTest(test.TestCase):
     def test_ragged_tensors(self):
         ql_obj = losses.QuantileLossError(quantiles=[0.1, 0.5, 0.9])
 
-        y_true = tf.ragged.constant(
-            [
-                [[1.0, 1.0, 9.0], [2.0, 5.0]]
-            ]
-        )
+        y_true = tf.ragged.constant([[[1.0, 1.0, 9.0], [2.0, 5.0]]])
         y_pred = tf.ragged.constant(
             [
                 [[4.0, 1.0, 8.0], [12.0, 3.0]],
