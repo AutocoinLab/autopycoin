@@ -14,16 +14,16 @@ from ..utils import range_dims
 def random_ts(
     n_steps: int,
     trend_degree: int,
-    periods: list[int],
-    fourier_orders: list[int],
-    trend_mean: int =0,
-    trend_std: int =1,
-    seasonality_mean: int =0,
-    seasonality_std: int =1,
-    batch_size: int =1,
-    n_variables: int =1,
-    noise: bool =False,
-    seed: None or int =None,
+    periods: list,
+    fourier_orders: list,
+    trend_mean: int = 0,
+    trend_std: int = 1,
+    seasonality_mean: int = 0,
+    seasonality_std: int = 1,
+    batch_size: int = 1,
+    n_variables: int = 1,
+    noise: bool = False,
+    seed: None or int = None,
 ) -> tf.Tensor:
     """
     Generate random time series with a trend and seasonality components.
@@ -70,7 +70,7 @@ def random_ts(
 
     Returns
     -------
-    time_series : tensor
+    time_series : `tensor`
         Times series defined by a randm process.
 
     Examples

@@ -8,4 +8,9 @@ This reference manual details functions, modules, and objects included in NumPy,
 
    data
    dataset
+   losses
+
+.. toctree::
+   :maxdepth: 3
+
    models

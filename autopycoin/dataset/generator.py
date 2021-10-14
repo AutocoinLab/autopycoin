@@ -1,10 +1,14 @@
 """
 This file defines the WindowGenerator model.
 """
-
+from typing import Union, Tuple
+import pandas as pd
 import numpy as np
+
 import tensorflow as tf
 from tensorflow.keras.backend import floatx
+
+from ..utils import range_dims
 
 
 class WindowGenerator:
@@ -13,7 +17,7 @@ class WindowGenerator:
 
     Parameters
     ----------
-    data : `DataFrame of shape (timesteps, variables)`
+    data : `dataframe of shape (timesteps, variables)`
         The time series dataframe.
     input_width : int
         The number of historical time steps to use in the model.
@@ -27,20 +31,20 @@ class WindowGenerator:
         The Number of examples in the test set.
     strategy : str
         "one_shot" or "auto_regressive". It defines the inputs shape.
-    batch_size : int
+    batch_size : int, `Optional`
         The number of examples per batch. If None, then batch_size = len(data).
         Default to None.
-    input_columns : list[str]
+    input_columns : list[str], `Optional`
         The input columns names, default to None.
-    known_columns : list[str]
+    known_columns : list[str], `Optional`
         The known columns names, default to None.
-    label_columns : list[str]
+    label_columns : list[str], `Optional`
         The label columns names, default to None.
-    date_columns : list[str]
+    date_columns : list[str], `Optional`
         The date columns names, default to None.
         Date columns will be cast to string and join by
         '-' delimiter to be used as xticks. Default to None.
-    preprocessing : callable
+    preprocessing : callable, `Optional`
         Preprocessing function to use on the data.
         This function will to take input of shape ((inputs, known, date_inputs, date_labels), labels).
         Default to None.
@@ -60,13 +64,13 @@ class WindowGenerator:
     test_size : int
     strategy : str
     batch_size : int
-    train : `DataFrame`
-    valid : `DataFrame`
-    test : `DataFrame`
+    train : `dataset`
+    valid : `dataset`
+    test : `dataset`
 
     Notes
     -----
-    *output shape*:
+    *Output shape*:
     tuple ((inputs, known, date_inputs, date_labels), labels)
     with tensors of shape: (batch_size, time_steps, units) or (batch_size, time_steps * units).
 
@@ -102,24 +106,24 @@ class WindowGenerator:
     ...                             date_columns=None,
     ...                             preprocessing=None)
     >>> w_oneshot.train
-    <MapDataset shapes: (((None, 3), NoneTensorSpec(), (None, 1), (None, 0)), (None, 2)), types: ((tf.float32, NoneTensorSpec(), tf.int32, tf.int32), tf.float32)>
+    <PrefetchDataset shapes: (((None, 3), NoneTensorSpec(), (None, 1), (None, 0)), (None, 2)), types: ((tf.float32, NoneTensorSpec(), tf.int32, tf.int32), tf.float32)>
     """
 
     def __init__(
         self,
-        data,
-        input_width,
-        label_width,
-        shift,
-        test_size,
-        valid_size,
-        strategy,
-        batch_size=None,
-        input_columns=None,
-        known_columns=None,
-        label_columns=None,
-        date_columns=None,
-        preprocessing=None,
+        data: pd.DataFrame,
+        input_width: int,
+        label_width: int,
+        shift: int,
+        test_size: int,
+        valid_size: int,
+        strategy: str,
+        batch_size: Union[int, None] = None,
+        input_columns: Union[list, None] = None,
+        known_columns: Union[list, None] = None,
+        label_columns: Union[list, None] = None,
+        date_columns: Union[list, None] = None,
+        preprocessing: Union[list, None] = None,
     ):
 
         # Work out the window parameters.
@@ -199,24 +203,26 @@ class WindowGenerator:
 
         self._preprocessing = preprocessing
 
-    def _make_dataset(self, data):
+    def _make_dataset(
+        self, data: Union[pd.DataFrame, np.array, tf.Tensor], batch_size: int
+    ) -> tf.data.Dataset:
         """
         Compute the tensorflow dataset object.
 
         Parameters
         ----------
-        data : `DataFrame`, array or `tensor of shape (timestep, variables)`
+        data : `dataframe`, array or `tensor of shape (timestep, variables)`
             The time series dataset.
+        batch_size : int
+            Set up the batch size.
 
         Returns
         -------
-        ds : `Tensorflow dataset`
+        ds : `dataset`
             The dataset that can be used in keras model.
         """
 
-        batch_size = self.batch_size
-
-        if self.batch_size is None:
+        if batch_size is None:
             batch_size = len(data)
 
         # Necessary because ML model need all values
@@ -231,14 +237,14 @@ class WindowGenerator:
             batch_size=batch_size,
         )
 
-        ds = ds.map(self._split_window)
+        ds = ds.map(self._split_window, num_parallel_calls=tf.data.AUTOTUNE)
 
         if self._preprocessing is not None:
-            ds = ds.map(self._preprocessing)
+            ds = ds.map(self._preprocessing, num_parallel_calls=tf.data.AUTOTUNE)
 
-        return ds
+        return ds.prefetch(1)
 
-    def _split_window(self, features):
+    def _split_window(self, features: tf.Tensor) -> Tuple[tf.Tensor]:
         """
         Compute the window split.
 
@@ -278,10 +284,10 @@ class WindowGenerator:
             date = tf.strings.as_string(date)
             date = tf.strings.reduce_join(date, separator="-", axis=2)
         else:
-            date = tf.reshape(tf.range(tf.shape(features)[1]), shape=(-1, 1))
+            date = range_dims(tf.shape(features)[1], shape=(-1, 1), dtype=tf.int32)
 
-        date_inputs = date[:, self.input_slice]
-        date_labels = date[:, self.label_slice]
+        date_inputs = date[..., self.input_slice]
+        date_labels = date[..., self.label_slice]
 
         # Workout Known inputs
         if self.known_columns:
@@ -323,39 +329,39 @@ class WindowGenerator:
         return (inputs, known, date_inputs, date_labels), labels
 
     @property
-    def train(self):
+    def train(self) -> tf.data.Dataset:
         """Build the train dataset."""
-        return self._make_dataset(self.train_ds)
+        return self._make_dataset(self.train_ds, self.batch_size)
 
     @property
-    def valid(self):
+    def valid(self) -> tf.data.Dataset:
         """Build the valid dataset."""
-        return self._make_dataset(self.valid_ds)
+        return self._make_dataset(self.valid_ds, self.batch_size)
 
     @property
-    def test(self):
+    def test(self) -> tf.data.Dataset:
         """Build the test dataset."""
-        return self._make_dataset(self.test_ds)
+        return self._make_dataset(self.test_ds, None)
 
-    def forecast(self, data):
+    def forecast(self, data: pd.DataFrame, batch_size: int) -> tf.data.Dataset:
         """
         Build the production dataset.
 
         Parameters
         ----------
-        data : `DataFrame of shape (steps, variables)`
+        data : `dataframe of shape (steps, variables)`
             Data to forecast. It raises an error
             if not all columns defined by the instanciating are inside data.
 
         Returns
         -------
-        data : `MapDataset`
+        data : `dataset`
             MapDataset which returns data with shape
             ((inputs, known, date_inputs, date_labels), labels).
         """
 
         data = data.loc[:, self.column_indices]
-        data = self._make_dataset(data)
+        data = self._make_dataset(data, batch_size)
         return data
 
     def __repr__(self):
