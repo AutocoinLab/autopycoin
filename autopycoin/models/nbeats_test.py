@@ -27,7 +27,7 @@ def prepare_data(request):
     request.cls.back_horizon = 2
     request.cls.p_degree = 2
     request.cls.n_neurons = 3
-    request.cls.drop_rate = 0
+    request.cls.drop_rate = 0.
 
     request.cls.trend_weights = [
         np.zeros(shape=(request.cls.back_horizon, request.cls.n_neurons)),
@@ -652,9 +652,9 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
             strategy="one_shot",
             batch_size=None,
             input_columns=["values"],
-            known_columns=None,
             label_columns=["values"],
-            date_columns=None,
+            known_columns=[],
+            date_columns=[],
             preprocessing=None,
         )
 
@@ -679,7 +679,7 @@ class NBEATSLayersTest(keras_parameterized.TestCase):
         model.compile(loss=QuantileLossError([0.1, 0.5, 0.9]))
         model.fit(w_oneshot.train, validation_data=w_oneshot.valid)
         model.summary()
-        n_quantiles = model.stacks[0].blocks[0].quantiles  # to change
+        n_quantiles = len(model.quantiles)  # to change
 
         # test if model is adapting to QuantileLossError.
         # when the model is built by `build` output tensor is shape (None, outputs)

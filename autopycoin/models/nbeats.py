@@ -2,17 +2,22 @@
 N-BEATS implementation
 """
 
-from typing import Union, Tuple, List
+from typing import Any, Union, Tuple, List
 import numpy as np
+import abc
 
 import tensorflow as tf
-from autopycoin.losses.losses import QuantileLossError
-from tensorflow.keras.layers import Dropout, InputSpec, Layer
-from tensorflow.keras import Model
+from tensorflow.keras.layers import Dropout, InputSpec
+#from tensorflow.keras import Model
 from tensorflow.keras.backend import floatx
 
+from ..losses.losses import QuantileLossError
+from .training import Model
+from .base_layer import Layer
+from ..baseclass import AutopycoinBaseClass
 
-class BaseBlock(Layer):
+
+class BaseBlock(Layer, AutopycoinBaseClass):
     """
     Base class for a nbeats block.
 
@@ -58,30 +63,12 @@ class BaseBlock(Layer):
 
         super().__init__(**kwargs)
 
-        self.horizon = float(horizon)
-        self.back_horizon = float(back_horizon)
-        self.n_neurons = int(n_neurons)
-        self.drop_rate = float(drop_rate)
+        self.horizon = horizon
+        self.back_horizon = back_horizon
+        self.n_neurons = n_neurons
+        self.drop_rate = drop_rate
         self._output_last_dim_forecast = output_last_dim_forecast
         self._output_last_dim_backcast = output_last_dim_backcast
-
-        # Some checks
-        if self.horizon < 0 or self.back_horizon < 0:
-            raise ValueError(
-                f"`horizon` and `back_horizon` parameter expected "
-                f"a positive integer, got {self.horizon} and {self.back_horizon}."
-            )
-
-        if 0 > self.drop_rate > 1:
-            raise ValueError(
-                f"Received an invalid value for `drop_rate`, expected "
-                f"a float between 0 and 1, got {self.drop_rate}."
-            )
-        if self.n_neurons < 0:
-            raise ValueError(
-                f"Received an invalid value for `n_neurons`, expected "
-                f"a positive integer, got {self.n_neurons}."
-            )
 
     def build(self, input_shape: tf.TensorShape):
         dtype = tf.as_dtype(self.dtype or tf.float32())
@@ -101,6 +88,7 @@ class BaseBlock(Layer):
 
         self.input_spec = InputSpec(min_ndim=2, axes={-1: last_dim})
 
+        # Computing fc layers
         self.fc_stack = []
         for count in range(4):
             self.fc_stack.append(
@@ -121,10 +109,10 @@ class BaseBlock(Layer):
         self.dropout = Dropout(self.drop_rate)
 
         # If the model is compiling with a loss error defining uncertainty then
-        # broadcast the output to take into account this uncertainty
-        if hasattr(self, "quantiles"):
+        # broadcast the output to take into account this uncertainty.
+        if self._n_quantiles:
             shape_fc_forecast = (
-                self.quantiles,
+                self._n_quantiles,
                 self.n_neurons,
                 self._output_last_dim_forecast,
             )
@@ -180,7 +168,7 @@ class BaseBlock(Layer):
 
         return outputs_forecast, outputs_backcast
 
-    def compute_output_shape(self, input_shape: tf.TensorShape) -> List[tf.TensorShape]:
+    def compute_output_shape(self, input_shape: tf.TensorShape) -> Tuple[tf.TensorShape]:
         if isinstance(input_shape, tuple):
             input_shape = input_shape[0]
         input_shape = tf.TensorShape(input_shape)
@@ -191,20 +179,21 @@ class BaseBlock(Layer):
                 % (input_shape,)
             )
 
-        # If the model is compiling with a loss error defining uncertainty then
-        # broadcast the output to take into account this uncertainty
-        if hasattr(self, "quantiles"):
+        # If the model is compiled with a loss error defining uncertainty then
+        # reshape the output to take into account this uncertainty.
+        if self._n_quantiles:
             return [
-                tf.TensorShape((self.quantiles, input_shape[0], int(self.horizon))),
-                tf.TensorShape((input_shape[0], int(self.back_horizon))),
+                tf.TensorShape((self._n_quantiles, input_shape[0], self.horizon)),
+                tf.TensorShape((input_shape[0], self.back_horizon)),
             ]
 
         return [
-            tf.TensorShape((input_shape[0], int(self.horizon))),
-            tf.TensorShape((input_shape[0], int(self.back_horizon))),
+            tf.TensorShape((input_shape[0], self.horizon)),
+            tf.TensorShape((input_shape[0], self.back_horizon)),
         ]
 
-    def coefficient_factory(self, *args, **kwargs):
+    @abc.abstractmethod
+    def coefficient_factory(self, *args: list, **kwargs: dict):
         """
         Compute the coefficients used in the last layer a.k.a g constrained layer.
         This method needs to be overriden.
@@ -214,8 +203,32 @@ class BaseBlock(Layer):
             "implement a `coefficient_factory` method."
         )
 
+    def __validate__(
+        self, method_name, args, kwargs
+    ):  # pylint: disable=unused-argument
+        """Validates attributes and args."""
+        getattr(self, '_val' + method_name, lambda args, kwargs: True)(args, kwargs)
 
-class TrendBlock(BaseBlock):
+    def _val_init__(self, args, kwargs): # pylint: disable=unused-argument
+        if self.horizon < 0 or self.back_horizon < 0:
+            raise ValueError(
+                f"`horizon` and `back_horizon` parameter expected "
+                f"a positive integer, got {self.horizon} and {self.back_horizon}."
+            )
+
+        if 0 > self.drop_rate > 1:
+            raise ValueError(
+                f"Received an invalid value for `drop_rate`, expected "
+                f"a float between 0 and 1, got {self.drop_rate}."
+            )
+        if self.n_neurons < 0:
+            raise ValueError(
+                f"Received an invalid value for `n_neurons`, expected "
+                f"a positive integer, got {self.n_neurons}."
+            )
+
+
+class TrendBlock(BaseBlock, AutopycoinBaseClass):
     """
     Trend block definition.
 
@@ -300,17 +313,17 @@ class TrendBlock(BaseBlock):
         back_horizon: int,
         p_degree: int,
         n_neurons: int,
-        drop_rate: float = 0,
-        **kwargs,
+        drop_rate: float = 0.,
+        **kwargs: dict,
     ):
 
         super().__init__(
-            horizon,
-            back_horizon,
-            p_degree,
-            p_degree,
-            n_neurons,
-            drop_rate,
+            horizon=horizon,
+            back_horizon=back_horizon,
+            output_last_dim_forecast=p_degree,
+            output_last_dim_backcast=p_degree,
+            n_neurons=n_neurons,
+            drop_rate=drop_rate,
             **kwargs,
         )
 
@@ -324,29 +337,20 @@ class TrendBlock(BaseBlock):
         self.forecast_coef = self.coefficient_factory(self.horizon, self._p_degree)
         self.backcast_coef = self.coefficient_factory(self.back_horizon, self._p_degree)
 
-        # Some checks
-        if self.p_degree < 0:
-            raise ValueError(
-                f"Received an invalid value for `p_degree`, expected "
-                f"a positive integer, got {p_degree}."
-            )
-
-    def coefficient_factory(self, horizon: int, p_degree: int) -> tf.Tensor:
+    def coefficient_factory(self, horizon: float, p_degree: tf.Tensor) -> tf.Tensor:
         """
         Compute the coefficients used in the last layer a.k.a g constrained layer.
 
         Parameters
         ----------
         horizon : int
-        periods : list[int]
-        fourier_orders : list[int]
+        p_degree: int
 
         Returns
         -------
         coefficients : `tensor with shape (p_degree, horizon)`
             Coefficients of the g layer.
         """
-
         coefficients = (tf.range(horizon) / horizon) ** p_degree
 
         return coefficients
@@ -364,8 +368,22 @@ class TrendBlock(BaseBlock):
         )
         return config
 
+    def __validate__(
+        self, method_name, args, kwargs
+    ):  # pylint: disable=unused-argument
+        """Validates attributes and args."""
+        getattr(self, '_val' + method_name, lambda args, kwargs: True)(args, kwargs)
 
-class SeasonalityBlock(BaseBlock):
+    def _val_init__(self, args, kwargs): # pylint: disable=unused-argument
+        super()._val_init__(args, kwargs)
+        if self.p_degree < 0:
+            raise ValueError(
+                f"Received an invalid value for `p_degree`, expected "
+                f"a positive integer, got {self.p_degree}."
+            )
+
+
+class SeasonalityBlock(BaseBlock, AutopycoinBaseClass):
     """
     Seasonality block definition.
 
@@ -385,15 +403,15 @@ class SeasonalityBlock(BaseBlock):
         Past to rebuild.
     n_neurons : int
         Number of neurons in Fully connected layers.
-    periods : list[int]
+    periods : Tuple[int, ...]
         Compute the fourier serie period in the forecasting equation.
         If it's a list all periods are taken into account in the calculation.
-    back_periods : list[int]
+    back_periods : Tuple[int, ...]
         Compute the fourier serie period in the backcasting equation.
         If it's a list all periods are taken into account in the calculation.
-    forecast_fourier_order : list[int]
+    forecast_fourier_order : Tuple[int, ...]
         Compute the fourier order. each order element is linked the respective period.
-    backcast_fourier_order : list[int]
+    backcast_fourier_order : Tuple[int, ...]
         Compute the fourier order. each order element is linked the respective back period.
     drop_rate : float
         Rate of the dropout layer. This is used to estimate the epistemic error.
@@ -403,10 +421,10 @@ class SeasonalityBlock(BaseBlock):
     ----------
     horizon : float
     back_horizon : float
-    periods : list[int]
-    back_periods : list[int]
-    forecast_fourier_order : list[int]
-    backcast_fourier_order : list[int]
+    periods : Tuple[int, ...]
+    back_periods : Tuple[int, ...]
+    forecast_fourier_order : Tuple[int, ...]
+    backcast_fourier_order : Tuple[int, ...]
     n_neurons : int
     drop_rate : float
     input_spec : `InputSpec`
@@ -461,13 +479,13 @@ class SeasonalityBlock(BaseBlock):
         self,
         horizon: int,
         back_horizon: int,
-        periods: List[int],
-        back_periods: List[int],
-        forecast_fourier_order: List[int],
-        backcast_fourier_order: List[int],
+        periods: Tuple[int, ...],
+        back_periods: Tuple[int, ...],
+        forecast_fourier_order: Tuple[int, ...],
+        backcast_fourier_order: Tuple[int, ...],
         n_neurons: int,
-        drop_rate: float = 0,
-        **kwargs,
+        drop_rate: float = 0.,
+        **kwargs: dict,
     ):
 
         # Workout the number of neurons needed to compute seasonality
@@ -475,13 +493,13 @@ class SeasonalityBlock(BaseBlock):
         forecast_neurons = tf.reduce_sum(2 * forecast_fourier_order)
         backcast_neurons = tf.reduce_sum(2 * backcast_fourier_order)
 
-        super().__init__(
-            horizon,
-            back_horizon,
-            forecast_neurons,
-            backcast_neurons,
-            n_neurons,
-            drop_rate,
+        super(SeasonalityBlock, self).__init__(
+            horizon=horizon,
+            back_horizon=back_horizon,
+            output_last_dim_forecast=forecast_neurons,
+            output_last_dim_backcast=backcast_neurons,
+            n_neurons=n_neurons,
+            drop_rate=drop_rate,
             **kwargs,
         )
 
@@ -498,23 +516,8 @@ class SeasonalityBlock(BaseBlock):
             self.back_horizon, self.back_periods, self.backcast_fourier_order
         )
 
-        # Some checks
-        if len(self.periods) != len(self.forecast_fourier_order):
-            raise ValueError(
-                f"`periods` and `forecast_fourier_order` are expected"
-                f"to have the same length, got"
-                f"{len(self.periods)} and {len(self.forecast_fourier_order)} respectively."
-            )
-
-        if len(self.back_periods) != len(self.backcast_fourier_order):
-            raise ValueError(
-                f"`back_periods` and `backcast_fourier_order` are expected"
-                f"to have the same length, got {len(self.back_periods)}"
-                f"and {len(self.backcast_fourier_order)} respectively."
-            )
-
     def coefficient_factory(
-        self, horizon: int, periods: List[int], fourier_orders: List[int]
+        self, horizon: float, periods: Tuple[int, ...], fourier_orders: Tuple[int, ...]
     ) -> tf.Tensor:
         """
         Compute the coefficients used in the last layer a.k.a g constrained layer.
@@ -522,8 +525,8 @@ class SeasonalityBlock(BaseBlock):
         Parameters
         ----------
         horizon : int
-        periods : list[int]
-        fourier_orders : list[int]
+        periods : Tuple[int, ...]
+        fourier_orders : Tuple[int, ...]
 
         Returns
         -------
@@ -565,8 +568,30 @@ class SeasonalityBlock(BaseBlock):
         )
         return config
 
+    def __validate__(
+        self, method_name, args, kwargs
+    ):  # pylint: disable=unused-argument
+        """Validates attributes and args."""
+        getattr(self, '_val' + method_name, lambda args, kwargs: True)(args, kwargs)
 
-class GenericBlock(BaseBlock):
+    def _val_init__(self, args, kwargs): # pylint: disable=unused-argument
+        super()._val_init__(args, kwargs)
+        if len(self.periods) != len(self.forecast_fourier_order):
+            raise ValueError(
+                f"`periods` and `forecast_fourier_order` are expected"
+                f"to have the same length, got"
+                f"{len(self.periods)} and {len(self.forecast_fourier_order)} respectively."
+            )
+
+        if len(self.back_periods) != len(self.backcast_fourier_order):
+            raise ValueError(
+                f"`back_periods` and `backcast_fourier_order` are expected"
+                f"to have the same length, got {len(self.back_periods)}"
+                f"and {len(self.backcast_fourier_order)} respectively."
+            )
+
+
+class GenericBlock(BaseBlock, AutopycoinBaseClass):
     """
     Generic block definition as described in the paper.
 
@@ -644,23 +669,23 @@ class GenericBlock(BaseBlock):
         backcast_neurons: int,
         n_neurons: int,
         drop_rate: float = 0.1,
-        **kwargs,
+        **kwargs: dict,
     ):
 
         super().__init__(
-            horizon,
-            back_horizon,
-            forecast_neurons,
-            backcast_neurons,
-            n_neurons,
-            drop_rate,
+            horizon=horizon,
+            back_horizon=back_horizon,
+            output_last_dim_forecast=forecast_neurons,
+            output_last_dim_backcast=backcast_neurons,
+            n_neurons=n_neurons,
+            drop_rate=drop_rate,
             **kwargs,
         )
 
-        self.forecast_neurons = int(forecast_neurons)
-        self.backcast_neurons = int(backcast_neurons)
+        self.forecast_neurons = forecast_neurons
+        self.backcast_neurons = backcast_neurons
 
-        # Get coef
+        # Compute coef
         self.forecast_coef = self.coefficient_factory(
             self.horizon, self.forecast_neurons
         )
@@ -668,11 +693,11 @@ class GenericBlock(BaseBlock):
             self.back_horizon, self.backcast_neurons
         )
 
-    def build(self, input_shape):
+    def build(self, input_shape: tf.TensorShape):
 
         super().build(input_shape)
 
-        # Set weights with calculated coef
+        # Set weights with pre-calculated coef
         self.forecast_coef = self.add_weight(
             shape=self.forecast_coef.shape,
             initializer=tf.constant_initializer(self.forecast_coef.numpy()),
@@ -680,6 +705,7 @@ class GenericBlock(BaseBlock):
             name="gf_{self.name}",
         )
 
+        # Set weights with pre-calculated coef
         self.backcast_coef = self.add_weight(
             shape=self.backcast_coef.shape,
             initializer=tf.constant_initializer(self.backcast_coef.numpy()),
@@ -690,7 +716,7 @@ class GenericBlock(BaseBlock):
         self.built = True
 
     def coefficient_factory(
-        self, horizon: Union[int, float], neurons: int
+        self, horizon: int, neurons: int
     ) -> tf.Tensor:
         """
         Compute the coefficients used in the last layer a.k.a g layer.
@@ -707,7 +733,7 @@ class GenericBlock(BaseBlock):
         """
 
         coefficients = tf.keras.initializers.GlorotUniform(seed=42)(
-            shape=(neurons, int(horizon))
+            shape=(neurons, horizon)
         )
 
         return coefficients
@@ -727,7 +753,7 @@ class GenericBlock(BaseBlock):
         return config
 
 
-class Stack(Layer):
+class Stack(Model):
     """
     A stack is a series of blocks where each block produce two outputs,
     the forecast and the backcast.
@@ -737,13 +763,13 @@ class Stack(Layer):
 
     Parameters
     ----------
-    blocks : list[:class:`autopycoin.models.BaseBlock`]
+    blocks : Tuple[:class:`autopycoin.models.BaseBlock`]
         Blocks layers. they can be generic, seasonal or trend ones.
         You can also define your own block by subclassing `BaseBlock`.
 
     Attributes
     ----------
-    blocks : list[:class:`autopycoin.models.BaseBlock`]
+    blocks : Tuple[:class:`autopycoin.models.BaseBlock`]
 
     Examples
     --------
@@ -785,26 +811,20 @@ class Stack(Layer):
     With a QuantileLossError with 2 quantiles or higher the output would have shape (quantiles, batch_size, units).
     """
 
-    def __init__(self, blocks: List[BaseBlock], **kwargs):
+    def __init__(self, blocks: Tuple[BaseBlock], **kwargs: dict):
 
         super().__init__(**kwargs)
-
         self.blocks = blocks
-
-        for block in self.blocks:
-            if isinstance(block, type(BaseBlock)):
-                raise ValueError("`blocks` is expected to inherit from `BaseBlock`")
 
     def call(self, inputs: tf.Tensor) -> Tuple[tf.Tensor]:
 
         outputs_forecast = tf.constant(0.0)
         for block in self.blocks:
-            # shape:
-            # (quantiles, Batch_size, forecast)
-            # (Batch_size, backcast)
+            # outputs_residual is (quantiles, Batch_size, forecast)
+            # outputs_backcast is (Batch_size, backcast)
             outputs_residual, outputs_backcast = block(inputs)
             inputs = tf.subtract(inputs, outputs_backcast)
-            # shape: (quantiles, Batch_size, forecast)
+            # outputs_forecast is (quantiles, Batch_size, forecast)
             outputs_forecast = tf.add(outputs_forecast, outputs_residual)
 
         return outputs_forecast, inputs
@@ -814,8 +834,19 @@ class Stack(Layer):
         config.update({"blocks": self.blocks})
         return config
 
+    def __validate__(
+        self, method_name, args, kwargs
+    ):  # pylint: disable=unused-argument
+        """Validates attributes and args."""
+        getattr(self, '_val' + method_name, lambda args, kwargs: True)(args, kwargs)
 
-class NBEATS(Model):
+    def _val_init__(self, args, kwargs): # pylint: disable=unused-argument
+        for block in self.blocks:
+            if isinstance(block, type(BaseBlock)):
+                raise ValueError("`blocks` is expected to inherit from `BaseBlock`")
+
+
+class NBEATS(Model, AutopycoinBaseClass):
     """
     Tensorflow model defining the N-BEATS architecture.
 
@@ -826,14 +857,14 @@ class NBEATS(Model):
 
     Parameters
     ----------
-    stacks : list[:class:`autopycoin.models.Stack`]
+    stacks : Tuple[:class:`autopycoin.models.Stack`]
              Stacks can be created from :class:`autopycoin.models.TrendBlock`,
              :class:`autopycoin.models.SeasonalityBlock` or :class:`autopycoin.models.GenericBlock`.
              See stack documentation for more details.
 
     Attributes
     ----------
-    stacks : list[`tensor`]
+    stacks : Tuple[`tensor`]
     seasonality : `tensor`
         Seasonality component of the output.
     trend : `tensor`
@@ -887,69 +918,32 @@ class NBEATS(Model):
     N-D tensor with shape: (quantiles, batch_size, ..., units) or (batch_size, ..., units) .
     For instance, for a 2D input with shape (batch_size, input_dim),
     the output would have shape (batch_size, units).
-    With a QuantileLossError with 2 quantiles or higher the output would have shape (quantiles, batch_size, units).
+    With a QuantileLossError with 2 quantiles or higher the output
+    would have shape (quantiles, batch_size, units).
     """
 
-    def __init__(self, stacks: List[Stack], **kwargs):
+    def __init__(self, stacks: Tuple[Stack, ...], **kwargs: dict):
 
-        super().__init__(self, **kwargs)
+        super().__init__(**kwargs)
 
         # Stacks where blocks are defined
         self.stacks = stacks
 
-        # check if stack are inherit from Stack
-        for stack in self.stacks:
-            if not isinstance(stack, Stack):
-                raise ValueError("`stacks` is expected to inherit from `Stack`")
-
-    def compile(
-        self,
-        optimizer="rmsprop",
-        loss=None,
-        metrics=None,
-        loss_weights=None,
-        weighted_metrics=None,
-        run_eagerly=None,
-        steps_per_execution=None,
-        **kwargs,
-    ):
-
-        if isinstance(loss, QuantileLossError):
-            # will be changed.
-            # need a generator to go through all blocks
-            for stack in self.stacks:
-                for block in stack.blocks:
-                    block.built = False
-                    block.quantiles = len(loss.quantiles)
-
-        return super().compile(
-            optimizer=optimizer,
-            loss=loss,
-            metrics=metrics,
-            loss_weights=loss_weights,
-            weighted_metrics=weighted_metrics,
-            run_eagerly=run_eagerly,
-            steps_per_execution=steps_per_execution,
-            **kwargs,
-        )
-
-    def call(self, inputs):
+    def call(self, inputs: Union[tuple, dict, list, tf.Tensor]) -> tf.Tensor:
 
         if isinstance(inputs, tuple):
             inputs = inputs[0]
 
         # Stock trend and seasonality curves during inference
         self._outputs_residual = tf.TensorArray(tf.float32, size=len(self.stacks))
-        outputs_forecast = tf.constant(0.0)
 
+        outputs_forecast = tf.constant(0.)
         for idx, stack in enumerate(self.stacks):
-            # shape:
-            # (quantiles, Batch_size, forecast)
-            # (Batch_size, backcast)
+            # outputs_residual is (quantiles, Batch_size, forecast)
+            # inputs is (Batch_size, backcast)
             outputs_residual, inputs = stack(inputs)
             self._outputs_residual.write(idx, outputs_residual)
-
-            # shape: (quantiles, Batch_size, forecast)
+            # outputs_forecast is (quantiles, Batch_size, forecast)
             outputs_forecast = tf.math.add(outputs_forecast, outputs_residual)
 
         self._outputs_residual = self._outputs_residual.stack()
@@ -958,6 +952,7 @@ class NBEATS(Model):
     @property
     def seasonality(self) -> tf.Tensor:
         """The seasonality component of the output."""
+
         if not isinstance(self.stacks[1].blocks[0], SeasonalityBlock):
             raise AttributeError(
                 f"Only seasonality block defines a seasonality, got {self.stacks[1].blocks[0]}"
@@ -967,6 +962,7 @@ class NBEATS(Model):
     @property
     def trend(self) -> tf.Tensor:
         """The trend component of the output."""
+
         if not isinstance(self.stacks[0].blocks[0], TrendBlock):
             raise AttributeError(
                 f"Only trend block defines a trend, got {self.stacks[0].blocks[0]}"
@@ -976,23 +972,36 @@ class NBEATS(Model):
     def get_config(self) -> dict:
         return {"stacks": self.stacks}
 
+    def __validate__(
+        self, method_name, args, kwargs
+    ):  # pylint: disable=unused-argument
+        """Validates attributes and args."""
+        getattr(self, '_val' + method_name, lambda args, kwargs: True)(args, kwargs)
+
+    def _val_init__(self, args, kwargs): # pylint: disable=unused-argument
+        # check if each stack inherit from Stack
+        for stack in self.stacks:
+            if not isinstance(stack, Stack):
+                raise ValueError("`stacks` is expected to inherit from `Stack`")
+
+
 
 def create_interpretable_nbeats(
-    horizon,
-    back_horizon,
-    periods,
-    back_periods,
-    forecast_fourier_order,
-    backcast_fourier_order,
-    p_degree=1,
-    trend_n_neurons=16,
-    seasonality_n_neurons=16,
-    drop_rate=0,
-    share=True,
-    **kwargs,
+    horizon: int,
+    back_horizon: int,
+    periods: List[int],
+    back_periods: List[int],
+    forecast_fourier_order: List[int],
+    backcast_fourier_order: List[int],
+    p_degree: int=1,
+    trend_n_neurons: int=16,
+    seasonality_n_neurons: int=16,
+    drop_rate: float =0.,
+    share: bool=True,
+    **kwargs: dict,
 ):
     """
-    Wrapper to create interpretable model using recommandations of the paper authors.
+    Wrapper to create an interpretable model using recommendations of the paper.
     Two stacks are created with 3 blocks each. The fist entirely composed by trend blocks,
     The second entirely composed by seasonality blocks.
 
@@ -1004,15 +1013,15 @@ def create_interpretable_nbeats(
         Horizon time to forecast.
     back_horizon : int
         Past to rebuild. Usually, back_horizon = n * horizon with n between 1 and 7.
-    periods : list[int]
+    periods : Tuple[int, ...]
         Compute the fourier serie period in the forecasting equation.
         If it's a list all periods are taken into account in the calculation.
-    back_periods : list[int]
+    back_periods : Tuple[int, ...]
         Compute the fourier serie period in the backcasting equation.
         If it's a list all periods are taken into account in the calculation.
-    forecast_fourier_order : list[int]
+    forecast_fourier_order : Tuple[int, ...]
         Compute the fourier order. each order element is linked the respective period.
-    backcast_fourier_order : list[int]
+    backcast_fourier_order : Tuple[int, ...]
         Compute the fourier order. each order element is linked the respective back period.
     p_degree : int
         Degree of the polynomial function. It needs to be > 0.
@@ -1113,19 +1122,19 @@ def create_interpretable_nbeats(
 
 
 def create_generic_nbeats(
-    horizon,
-    back_horizon,
-    forecast_neurons,
-    backcast_neurons,
-    n_neurons,
-    n_blocks,
-    n_stacks,
-    drop_rate=0,
-    share=True,
-    **kwargs,
+    horizon: int,
+    back_horizon: int,
+    forecast_neurons: int,
+    backcast_neurons: int,
+    n_neurons: int,
+    n_blocks: int,
+    n_stacks: int,
+    drop_rate: float=0.,
+    share: bool=True,
+    **kwargs: dict,
 ):
     """
-    Wrapper to create generic model.
+    Wrapper to create a generic model.
 
     In the same stack, it is possible to share the weights between blocks.
 

@@ -1,17 +1,21 @@
 """
 This file defines the WindowGenerator model.
 """
-from typing import Union, Tuple
+
+from typing import Union, Tuple, Mapping, List
 import pandas as pd
 import numpy as np
 
 import tensorflow as tf
 from tensorflow.keras.backend import floatx
 
-from ..utils import range_dims
+from .. import AutopycoinBaseClass
 
 
-class WindowGenerator:
+STRATEGIES = ["one_shot", "auto_regressive"]
+
+
+class WindowGenerator(AutopycoinBaseClass):
     """
     Transform a time series dataset into an usable format.
 
@@ -34,17 +38,17 @@ class WindowGenerator:
     batch_size : int, `Optional`
         The number of examples per batch. If None, then batch_size = len(data).
         Default to None.
-    input_columns : list[str], `Optional`
-        The input columns names, default to None.
-    known_columns : list[str], `Optional`
+    input_columns : list[str, ...]
+        The input columns names.
+    label_columns : list[str, ...]
+        The label columns names.
+    known_columns : list[str, ...] or None, `Optional`
         The known columns names, default to None.
-    label_columns : list[str], `Optional`
-        The label columns names, default to None.
-    date_columns : list[str], `Optional`
+    date_columns : list[str, ...]or None, `Optional`
         The date columns names, default to None.
         Date columns will be cast to string and join by
-        '-' delimiter to be used as xticks. Default to None.
-    preprocessing : callable, `Optional`
+        '-' delimiter to be used as xticks.
+    preprocessing : callable or None, `Optional`
         Preprocessing function to use on the data.
         This function will to take input of shape ((inputs, known, date_inputs, date_labels), labels).
         Default to None.
@@ -72,7 +76,8 @@ class WindowGenerator:
     -----
     *Output shape*:
     tuple ((inputs, known, date_inputs, date_labels), labels)
-    with tensors of shape: (batch_size, time_steps, units) or (batch_size, time_steps * units).
+    with tensors of shape: (batch_size, time_steps, units) or (batch_size, time_steps * units) depending on strategy,
+    respectively `auto_regressive` or `one_shot`.
 
     Examples
     --------
@@ -101,12 +106,12 @@ class WindowGenerator:
     ...                             strategy='one_shot',
     ...                             batch_size=None,
     ...                             input_columns=['values'],
-    ...                             known_columns=None,
     ...                             label_columns=['values'],
-    ...                             date_columns=None,
+    ...                             known_columns=[],
+    ...                             date_columns=[],
     ...                             preprocessing=None)
     >>> w_oneshot.train
-    <PrefetchDataset shapes: (((None, 3), NoneTensorSpec(), (None, 1), (None, 0)), (None, 2)), types: ((tf.float32, NoneTensorSpec(), tf.int32, tf.int32), tf.float32)>
+    <PrefetchDataset element_spec=((TensorSpec(shape=(None, 3), dtype=tf.float32, name=None), TensorSpec(shape=(None, 0), dtype=tf.float32, name=None), TensorSpec(shape=(None, 3), dtype=tf.string, name=None), TensorSpec(shape=(None, 2), dtype=tf.string, name=None)), TensorSpec(shape=(None, 2), dtype=tf.float32, name=None))>
     """
 
     def __init__(
@@ -118,19 +123,49 @@ class WindowGenerator:
         test_size: int,
         valid_size: int,
         strategy: str,
+        input_columns: List[Union[str, None]],
+        label_columns: List[Union[str, None]],
+        known_columns: List[Union[str, None]] = [],
+        date_columns: List[Union[str, None]] = [],
         batch_size: Union[int, None] = None,
-        input_columns: Union[list, None] = None,
-        known_columns: Union[list, None] = None,
-        label_columns: Union[list, None] = None,
-        date_columns: Union[list, None] = None,
-        preprocessing: Union[list, None] = None,
+        preprocessing: Union[tf.keras.layers.Layer, None] = None,
     ):
 
-        # Work out the window parameters.
-        self.input_width = int(input_width)
-        self.label_width = int(label_width)
-        self.shift = int(shift)
+        # User Attributes
+        self._data = data.copy()
 
+        self.input_width = input_width
+        self.label_width = label_width
+        self.shift = shift
+
+        self.valid_size = valid_size
+        self.test_size = test_size
+        self.batch_size = batch_size
+
+        self.strategy = strategy
+
+        # We separate init functions in order to perfom validation with `__validation` method.
+        self._compute_window_parameters(
+            input_columns, label_columns, known_columns, date_columns
+        )
+
+        self._filtered_data = self._compute_filtered_data(date_columns)
+
+        self._compute_train_valid_test_split()
+
+        self._compute_columns_indices()
+
+        # Preprocessing layers
+        self._preprocessing = preprocessing
+
+    def _compute_window_parameters(
+        self,
+        input_columns: List[Union[str, None]],
+        label_columns: List[Union[str, None]],
+        known_columns: List[Union[str, None]],
+        date_columns: List[Union[str, None]],
+    ) -> None:
+        """Calculate the window parameters"""
         self.total_window_size = self.input_width + self.shift
 
         self.input_slice = slice(0, self.input_width)
@@ -140,58 +175,76 @@ class WindowGenerator:
         self.label_slice = slice(self.label_start, None)
         self.label_indices = np.arange(self.total_window_size)[self.label_slice]
 
-        self.valid_size = int(valid_size)
-        self.test_size = int(test_size)
+        self.test_start = self.data.shape[0] - bool(self.test_size) * (
+            self.total_window_size + self.test_size - 1
+        )
+        self.valid_start = self.test_start - bool(self.valid_size) * (
+            self.total_window_size + self.valid_size - 2
+        )
 
-        self.batch_size = batch_size
+        # Use columns defined by the `*_columns` parameters
+        # Used here and not in `_compute_filtered_data` because we need to
+        # verify that columns are inside data fist.
+        self.input_columns = input_columns
+        self.label_columns = label_columns
+        self.known_columns = known_columns
+        self.date_columns = date_columns
 
-        test_start = data.shape[0] - (self.total_window_size + self.test_size - 1)
-        valid_start = test_start - (self.total_window_size + self.valid_size - 2)
+    def _compute_filtered_data(
+        self,
+        date_columns: List[Union[str, None]],
+    ) -> pd.DataFrame:
+        """Return the data filtered by the input, known, label and date columns."""
 
-        self.strategy = strategy
-
-        # Filter the columns
-        self.known_columns = known_columns or []
-        self.input_columns = input_columns or []
-        self.label_columns = label_columns or []
-        self.date_columns = date_columns or []
-
-        data = data.loc[
+        filtered_data = self.data.loc[
             :,
             set(
                 self.input_columns
+                + self.label_columns
                 + self.known_columns
                 + self.date_columns
-                + self.label_columns
             ),
         ]
 
-        # Work out the datasets.
-        self.train_ds = data
-        if (self.test_size + self.valid_size) != 0:
-            self.train_ds = data.iloc[: (valid_start + self.input_width)]
+        # Default creation of a date column
+        if not date_columns:
+            filtered_data["date"] = range(len(filtered_data))
+            self.date_columns = ["date"]
 
-        self.valid_ds = None
-        if valid_size != 0:
-            self.valid_ds = data.iloc[valid_start : (test_start + self.input_width)]
+        return filtered_data
 
-        self.test_ds = None
-        if test_size != 0:
-            self.test_ds = data.iloc[test_start:]
+    def _compute_train_valid_test_split(
+        self,
+    ) -> None:
+        """Split the data to create train, valid and test datasets"""
 
-        # Work out the column indices.
-        # label indices according to the label dataset
-        if label_columns is not None:
-            self.label_columns_indices = {
+        self._train_ds = self.filtered_data.iloc[
+            : (self.valid_start + self.input_width)
+        ]
+
+        self._valid_ds = self.filtered_data.iloc[
+            self.valid_start : (
+                self.test_start + self.input_width * bool(self.valid_size)
+            )
+        ]
+
+        self._test_ds = self.filtered_data.iloc[self.test_start :]
+
+    def _compute_columns_indices(
+        self
+    ) -> None:
+        """Work out columns indices."""
+        # labels indices according to the label dataset
+        self.label_columns_indices = {
                 name: i for i, name in enumerate(self.label_columns)
             }
 
-        # Column indices according to the input dataset
+        # inputs indices according to the input dataset
         self.inputs_columns_indices = {
             name: i for i, name in enumerate(self.input_columns)
         }
 
-        # label indices according to the input dataset
+        # labels indices according to the input dataset
         self.labels_in_inputs_indices = {
             key: value
             for key, value in self.inputs_columns_indices.items()
@@ -201,10 +254,10 @@ class WindowGenerator:
         # Columns indices according to train_ds
         self.column_indices = {name: i for i, name in enumerate(self.train_ds)}
 
-        self._preprocessing = preprocessing
-
     def _make_dataset(
-        self, data: Union[pd.DataFrame, np.array, tf.Tensor], batch_size: int
+        self,
+        data: Union[pd.DataFrame, np.array, tf.Tensor],
+        batch_size: Union[int, None],
     ) -> tf.data.Dataset:
         """
         Compute the tensorflow dataset object.
@@ -228,7 +281,7 @@ class WindowGenerator:
         # Necessary because ML model need all values
         data = tf.convert_to_tensor(data, dtype=floatx())
 
-        ds = tf.keras.preprocessing.timeseries_dataset_from_array(
+        dataset = tf.keras.preprocessing.timeseries_dataset_from_array(
             data=data,
             targets=None,
             sequence_length=self.total_window_size,
@@ -237,12 +290,14 @@ class WindowGenerator:
             batch_size=batch_size,
         )
 
-        ds = ds.map(self._split_window, num_parallel_calls=tf.data.AUTOTUNE)
+        dataset = dataset.map(self._split_window, num_parallel_calls=tf.data.AUTOTUNE)
 
         if self._preprocessing is not None:
-            ds = ds.map(self._preprocessing, num_parallel_calls=tf.data.AUTOTUNE)
+            dataset = dataset.map(
+                self._preprocessing, num_parallel_calls=tf.data.AUTOTUNE
+            )
 
-        return ds.prefetch(1)
+        return dataset.prefetch(1)
 
     def _split_window(self, features: tf.Tensor) -> Tuple[tf.Tensor]:
         """
@@ -269,22 +324,18 @@ class WindowGenerator:
         labels : `tensor of shape (batch_size, label_width, variables)`
             The Output variables.
         """
+        # We can't use self.batch_size here because the last batch could be truncated
+        batch_size = tf.shape(features)[0]
 
         # Workout Date
-        if self.date_columns:
-            date = tf.stack(
-                [
-                    features[:, :, self.column_indices[name]]
-                    for name in self.date_columns
-                ],
-                axis=-1,
-            )
-            date.set_shape([None, self.total_window_size, None])
-            date = tf.cast(date, tf.int32)
-            date = tf.strings.as_string(date)
-            date = tf.strings.reduce_join(date, separator="-", axis=2)
-        else:
-            date = range_dims(tf.shape(features)[1], shape=(-1, 1), dtype=tf.int32)
+        date = tf.stack(
+            [features[:, :, self.column_indices[name]] for name in self.date_columns],
+            axis=-1,
+        )
+        date.set_shape([None, self.total_window_size, None])
+        date = tf.cast(date, tf.int32)
+        date = tf.strings.as_string(date)
+        date = tf.strings.reduce_join(date, separator="-", axis=-1)
 
         date_inputs = date[..., self.input_slice]
         date_labels = date[..., self.label_slice]
@@ -300,7 +351,10 @@ class WindowGenerator:
             )
             known.set_shape([None, self.label_width, None])
         else:
-            known = None
+            known = tf.repeat(
+                tf.constant([[]]), repeats=batch_size, axis=0
+            )  # Repeat to fit with batch
+            known.set_shape(shape=(None, 0))
 
         # Workout inputs and labels
         inputs = features[:, self.input_slice, :]
@@ -315,6 +369,7 @@ class WindowGenerator:
             axis=-1,
         )
 
+        # transform this `if` into class strategy
         if self.strategy == "one_shot":
             inputs = tf.reshape(
                 inputs, shape=(-1, self.input_width * len(self.input_columns))
@@ -322,11 +377,26 @@ class WindowGenerator:
             labels = tf.reshape(
                 labels, shape=(-1, self.label_width * len(self.label_columns))
             )
+            known = tf.reshape(
+                known, shape=(-1, self.input_width * len(self.known_columns))
+            )
         else:
             inputs.set_shape([None, self.input_width, len(self.input_columns)])
             labels.set_shape([None, self.label_width, len(self.label_columns)])
 
         return (inputs, known, date_inputs, date_labels), labels
+
+    @property
+    def train_ds(self) -> pd.DataFrame:
+        return getattr(self, "_train_ds", pd.DataFrame())
+
+    @property
+    def valid_ds(self) -> pd.DataFrame:
+        return getattr(self, "_valid_ds", pd.DataFrame())
+
+    @property
+    def test_ds(self) -> pd.DataFrame:
+        return getattr(self, "_test_ds", pd.DataFrame())
 
     @property
     def train(self) -> tf.data.Dataset:
@@ -336,14 +406,24 @@ class WindowGenerator:
     @property
     def valid(self) -> tf.data.Dataset:
         """Build the valid dataset."""
+        if self.valid_ds.empty:
+            raise AttributeError(
+                "The validation dataset is empty. Try a positive value for `valid_size`."
+            )
         return self._make_dataset(self.valid_ds, self.batch_size)
 
     @property
     def test(self) -> tf.data.Dataset:
         """Build the test dataset."""
-        return self._make_dataset(self.test_ds, None)
+        if self.test_ds.empty:
+            raise AttributeError(
+                "The test dataset is empty. Try a positive value for `test_size`."
+            )
+        return self._make_dataset(self.test_ds, self.batch_size)
 
-    def forecast(self, data: pd.DataFrame, batch_size: int) -> tf.data.Dataset:
+    def forecast(
+        self, data: pd.DataFrame, batch_size: Union[int, None]
+    ) -> tf.data.Dataset:
         """
         Build the production dataset.
 
@@ -360,9 +440,91 @@ class WindowGenerator:
             ((inputs, known, date_inputs, date_labels), labels).
         """
 
+        assert all(
+            self._filtered_data.columns.isin(data.columns)
+        ), f"Data columns doesn't match the expected columns, got {data.columns}. Expected at least {self.filtered_data.columns}"
         data = data.loc[:, self.column_indices]
         data = self._make_dataset(data, batch_size)
         return data
+
+    @property
+    def data(self):
+        """Return the original data"""
+        return self._data
+
+    @property
+    def filtered_data(self):
+        """Return the data filtered by columns"""
+        return self._filtered_data
+
+    def __validate__(
+        self, method_name, args, kwargs
+    ):  # pylint: disable=unused-argument
+        """Validates attributes and args."""
+        getattr(self, '_val' + method_name, lambda args, kwargs: True)(args, kwargs)
+    
+    def _val_compute_window_parameters(self, args, kwargs): # pylint: disable=unused-argument
+        """Validates attributes and args of _compute_window_parameters method."""
+        assert all(
+            [col in self.data.columns for col in self.input_columns]
+            + [True if len(self.input_columns) > 0 else False]
+        ), f"The input columns are not found inside data, got {self.input_columns}, expected one or multiple choices of {self.data.columns}."
+        assert all(
+            [
+                col in self.data.columns if len(self.label_columns) > 0 else False
+                for col in self.label_columns
+            ]
+            + [True if len(self.label_columns) > 0 else False]
+        ), f"""The label columns are not found inside data, got {self.label_columns}, expected one or multiple choices of {self.data.columns}."""
+        assert all(
+            [col in self.data.columns for col in self.known_columns]
+        ), f"The known columns are not found inside data, got {self.known_columns}, expected one or multiple choices of {self.data.columns}."
+        assert all(
+            [col in self.data.columns for col in self.date_columns]
+        ), f"The date columns are not found inside data, got {self.date_columns}, expected one or multiple choices of {self.data.columns}."
+        assert (
+            self.valid_start > 0
+            and (self.valid_start - self.total_window_size + self.input_width)
+            > 0  # self.input_width because we count the input width of the validation dataset
+        ), f"""Not enough data for training dataset because valid dataset start at {self.valid_start}. Try to reduce valid size, test size or input width and label width."""
+
+    def _val__init__(self, args, kwargs): # pylint: disable=unused-argument
+        """Validates attributes and args of __init__ method."""
+        assert (
+            not self.data.empty
+        ), f"The given parameter `data` is an empty DataFrame."
+        assert (
+            self.input_width > 0
+        ), f"The input width has to be strictly positive, got {self.input_width}."
+        assert (
+            self.label_width > 0
+        ), f"The label width has to be strictly positive, got {self.label_width}."
+        assert (
+            self.shift > 0
+        ), f"The shift has to be strictly positive, got {self.shift}."
+        assert (
+            self.input_width <= self.data.shape[0] - self.shift
+        ), f"The input width has to be equal or lower than {self.data.shape[0] - self.shift}, got {self.input_width}."
+        assert (
+            self.label_width < self.total_window_size
+        ), f"The label width has to be equal or lower than {self.total_window_size}, got {self.label_width}"
+        assert (
+            self.test_size >= 0
+        ), f"The test size has to be positive or null, got {self.test_size}."
+        assert (
+            self.valid_size >= 0
+        ), f"The valid size has to be positive or null, got {self.valid_size}."
+        assert (
+            self.strategy in STRATEGIES
+        ), f"Invalid strategy, got {self.strategy}, expected one of {STRATEGIES}."
+        if self.batch_size:
+            assert (
+                self.batch_size > 0
+            ), f"The batch size has to be strictly positive, got {self.batch_size}."
+
+        assert not self.train_ds.empty, f"""The training dataset is empty, please redefine the test size or valid size.
+                                        Got {self.test_size}, {self.valid_size} which lead
+                                        to a test start: {self.test_start} and a valid start: {self.valid_size}."""
 
     def __repr__(self):
         """Display some explanations."""

@@ -26,6 +26,7 @@ INSTALL_REQUIRES = [
     "scipy",
     "scikit-learn",
     "tensorflow",
+    "tensorflow-probability",
     "matplotlib",
     "plotly",
 ]

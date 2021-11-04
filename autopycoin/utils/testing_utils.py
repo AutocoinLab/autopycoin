@@ -166,20 +166,21 @@ def layer_test(
     computed_output_signatures = create_list(computed_output_signatures)
 
     for (
-        y,
+        idx,
+        (y,
         expected_output,
         expected_output_dtype,
         expected_output_shape,
         computed_output_shape,
-        computed_output_signature,
-    ) in zip(
+        computed_output_signature)
+    ) in enumerate(zip(
         ys,
         expected_outputs,
         expected_output_dtypes,
         expected_output_shapes,
         computed_output_shapes,
         computed_output_signatures,
-    ):
+    )):
 
         if tf.dtypes.as_dtype(expected_output_dtype) == tf.dtypes.string:
             if test_harness:
@@ -229,6 +230,9 @@ def layer_test(
             actual_output = layer.predict(input_data)
         else:
             actual_output = model.predict(input_data)
+        
+        # Handle multiple outputs 
+        actual_output = actual_output[idx] if isinstance(actual_output, tuple) else actual_output
         actual_output_shape = actual_output.shape
         assert_shapes_equal(computed_output_shape, actual_output_shape)
         assert_shapes_equal(computed_output_signature.shape, actual_output_shape)

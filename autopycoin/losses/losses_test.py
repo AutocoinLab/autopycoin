@@ -15,13 +15,14 @@ from . import losses
 class QuantileLossTest(test.TestCase):
     def test_config(self):
         ql_obj = losses.QuantileLossError(
-            quantiles=[0.1, 0.5, 0.9],
+            quantiles=[0.9],
             reduction=losses_utils.ReductionV2.SUM,
             name="ql_1",
         )
 
         self.assertEqual(ql_obj.name, "ql_1")
         self.assertEqual(ql_obj.reduction, losses_utils.ReductionV2.SUM)
+        self.assertEqual(ql_obj.quantiles, [0.1, 0.5, 0.9])
 
     def test_all_correct_unweighted(self):
         ql_obj = losses.QuantileLossError(quantiles=[0.1, 0.5, 0.9])
@@ -160,6 +161,12 @@ class QuantileLossTest(test.TestCase):
         )
         loss = ql_obj(y_true, y_pred, sample_weight=2.3)
         self.assertAlmostEqual(self.evaluate(loss), 18.975, 2)
+
+    def test_raise_negative_quantiles(self):
+        with self.assertRaises(AssertionError):
+            losses.QuantileLossError(
+                quantiles=[-0.1, 0.5], reduction=losses_utils.ReductionV2.AUTO
+            )
 
 
 @combinations.generate(combinations.combine(mode=["eager", "graph"]))

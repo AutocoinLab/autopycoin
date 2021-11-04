@@ -3,16 +3,21 @@ Functions to assess loss.
 """
 
 import numpy as np
+from typing import Tuple, Union, List
+import pandas as pd
 
 import tensorflow as tf
 from tensorflow.keras.backend import epsilon
 from tensorflow.python.keras.losses import LossFunctionWrapper
 from tensorflow.python.keras.utils import losses_utils
 
-from ..utils import check_infinity
+from ..utils import check_infinity, quantiles_handler
+from .. import AutopycoinBaseClass
 
 
-def smape(y_true, y_pred, mask=False):
+Yannotation = Union[tf.Tensor, pd.DataFrame, np.array, list]
+
+def smape(y_true: Yannotation, y_pred: Yannotation, mask: bool=False):
     """
     Calculate the symmetric mean absolute percentage error between `y_true`and `y_pred`.
 
@@ -66,7 +71,7 @@ def smape(y_true, y_pred, mask=False):
     return error
 
 
-def quantile_loss(y_true, y_pred, quantiles):
+def quantile_loss(y_true: Yannotation, y_pred: Yannotation, quantiles: List[float]) -> tf.Tensor:
     """
     Calculate the quantile loss function, summed across all quantile outputs.
 
@@ -76,8 +81,8 @@ def quantile_loss(y_true, y_pred, quantiles):
         Ground truth values.
     y_pred : array, `dataframe`, list or `tensor of shape (batch_size, d0, .. dN)`
         The predicted values.
-    n_quantiles : array, `dataframe`, list or `tensor of shape (batch_size, d0, .. dN)`
-        The set of quantiles on which is calculated the quantile loss.
+    quantiles : list[float]
+        The set of quantiles on which is calculated the quantile loss. The list is 1 dimension.
 
     Returns
     -------
@@ -98,12 +103,11 @@ def quantile_loss(y_true, y_pred, quantiles):
         y_pred = tf.convert_to_tensor(y_pred)
 
     y_true = tf.cast(y_true, dtype=y_pred.dtype)
-
     quantiles = tf.convert_to_tensor(quantiles)
 
     # Broadcast quantiles to y_true
     shape_broadcast = tf.concat(
-        ([quantiles.shape[0]], tf.ones(tf.rank(y_pred) - 1, dtype=tf.int32)), axis=0
+        ([tf.shape(quantiles)[0]], tf.ones(tf.rank(y_pred) - 1, dtype=tf.int32)), axis=0
     )
     quantiles = tf.reshape(quantiles, shape=shape_broadcast)
 
@@ -112,6 +116,7 @@ def quantile_loss(y_true, y_pred, quantiles):
         1 - quantiles
     ) * tf.clip_by_value(-diff, 0.0, np.inf)
 
+    # Handle ragged tensor
     if isinstance(y_true, tf.RaggedTensor):
         total_samples = tf.cast(y_true.bounding_shape()[1], dtype=y_true.dtype)
     else:
@@ -122,7 +127,7 @@ def quantile_loss(y_true, y_pred, quantiles):
     return tf.reduce_sum(error, axis=[0, -1])
 
 
-class SymetricMeanAbsolutePercentageError(LossFunctionWrapper):
+class SymetricMeanAbsolutePercentageError(LossFunctionWrapper, AutopycoinBaseClass):
     """
     Calculate the symetric mean absolute percentage error between `y_true` and `y_pred`.
 
@@ -178,12 +183,19 @@ class SymetricMeanAbsolutePercentageError(LossFunctionWrapper):
     """
 
     def __init__(
-        self, reduction=losses_utils.ReductionV2.AUTO, name="smape", mask=False
+        self,
+        reduction: str = losses_utils.ReductionV2.AUTO,
+        name: str = "smape",
+        mask: bool = False,
     ):
         super().__init__(smape, name=name, reduction=reduction, mask=mask)
 
+    def __validate__(self, attribute_name, args, kwargs):
+        """Validates attributes and args."""
+        pass
 
-class QuantileLossError(LossFunctionWrapper):
+
+class QuantileLossError(LossFunctionWrapper, AutopycoinBaseClass):
     """
     Calculate the quantile loss error between `y_true` and `y_pred`
     across all examples.
@@ -246,11 +258,22 @@ class QuantileLossError(LossFunctionWrapper):
     """
 
     def __init__(
-        self, quantiles, reduction=losses_utils.ReductionV2.SUM, name="q_loss"
+        self,
+        quantiles: List[Union[float, int]],
+        reduction: str = losses_utils.ReductionV2.SUM,
+        name: str = "q_loss",
     ):
 
+        self.quantiles = quantiles_handler(quantiles)
+
         super().__init__(
-            quantile_loss, quantiles=quantiles, name=name, reduction=reduction
+            quantile_loss, quantiles=self.quantiles, name=name, reduction=reduction
         )
 
-        self.quantiles = quantiles
+    def __validate__(self, method_name, args, kwargs):
+        """Validates attributes and args."""
+        if method_name == "__init__":
+            quantiles = self._get_parameter(args, kwargs, name="quantiles", position=0)
+            assert quantiles == [
+                abs(quantile) for quantile in quantiles
+            ], f"Negative quantiles are not allowed. got {quantiles}"

@@ -1,3 +1,5 @@
+# pylint: skip-file
+
 """
 Unit tests for generator class
 """
@@ -5,12 +7,13 @@ Unit tests for generator class
 import pandas as pd
 import numpy as np
 import pytest
+from absl.testing import parameterized
 
 import tensorflow as tf
 from tensorflow.python.keras import keras_parameterized
 from tensorflow.keras.backend import floatx
 
-from .generator import WindowGenerator
+from .generator import WindowGenerator, STRATEGIES
 from ..models.nbeats import create_interpretable_nbeats
 from ..losses.losses import QuantileLossError
 
@@ -35,7 +38,7 @@ def prepare_generator(request):
             [41, 42, 43, 44, 103, 2013, 17],
             [51, 52, 53, 54, 104, 2014, 19],
         ],
-        columns=["data1", "data2", "data3", "data4", "known", "annee", "label"],
+        columns=["data1", "data2", "data3", "data4", "known", "year", "label"],
     )
 
     forecast = 3  # number of predict step
@@ -49,15 +52,15 @@ def prepare_generator(request):
         "data3",
         "data4",
         "known",
-        "annee",
+        "year",
         "label",
     ]
 
     window = 2
 
-    known_columns = ["annee", "known"]
+    known_columns = ["year", "known"]
     label_columns = ["label"]
-    date_columns = ["annee"]
+    date_columns = ["year"]
 
     request.cls.w_autoreg = WindowGenerator(
         data=request.cls.data,
@@ -94,7 +97,7 @@ def prepare_generator(request):
         strategy="one_shot",
         batch_size=2,
         input_columns=input_columns,
-        known_columns=None,
+        known_columns=[],
         label_columns=label_columns,
         date_columns=date_columns,
     )
@@ -110,7 +113,7 @@ def prepare_generator(request):
 
 @keras_parameterized.run_all_keras_modes
 @pytest.mark.usefixtures("prepare_generator")
-class TestGenerator(keras_parameterized.TestCase):
+class TestGenerator(tf.test.TestCase, parameterized.TestCase):
     def test_frames_train_valid_test_ds(self):
         ds = pd.concat([self.w_autoreg.train_ds, self.w_autoreg.valid_ds])
         ds = pd.concat([ds, self.w_autoreg.test_ds])
@@ -190,7 +193,7 @@ class TestGenerator(keras_parameterized.TestCase):
             "data3": 2,
             "data4": 3,
             "known": 4,
-            "annee": 5,
+            "year": 5,
             "label": 6,
         }
 
@@ -204,7 +207,7 @@ class TestGenerator(keras_parameterized.TestCase):
             "data3": 2,
             "data4": 3,
             "known": 4,
-            "annee": 5,
+            "year": 5,
             "label": 6,
         }
 
@@ -333,3 +336,156 @@ class TestGenerator(keras_parameterized.TestCase):
         model.compile(loss=QuantileLossError(quantiles=[0.5]))
         model.fit(self.w_oneshot.train, validation_data=self.w_oneshot.valid)
         model.evaluate(self.w_oneshot.test)
+
+    @parameterized.parameters(
+        [
+            ( 2, 2, 2, 0, 2, "one_shot", ["data1"], ["data1"], ["label"], ["year"], 1, ['train','valid','test'], (1, 2), (1, 2), (1, 2)),
+            ( 2, 2, 2, 2, 0, "one_shot", ["data1"], ["data1"], ["label"], ["year"], 1, ['train','valid','test'], (1, 2), (1, 2), (1, 2)),
+            ( 2, 2, 2, 0, 0, "one_shot", ["data1"], ["data1"], ["label"], ["year"], 1, ['train','valid','test'], (1, 2), (1, 2), (1, 2)),
+            ( 2, 2, 2, 2, 2, "one_shot", ["data1"], ["data1"], ["label"], ["year"], 1, ['train','valid','test'], (1, 2), (1, 2), (1, 2)),
+            ( 2, 2, 2, 2, 2, "one_shot", ["data1"], ["data1"], [], ["year"], 1, ['train','valid','test'], (1, 2), (1, 2), (1, 0)),
+            ( 2, 2, 2, 2, 2, "one_shot", ["data1"], ["data1"], ["label"], [], 1, ['train','valid','test'], (1, 2), (1, 2), (1, 2)),
+            ( 2, 2, 2, 2, 2, "one_shot", ["data1"], ["data1"], ["label"], [], 1, ['train','valid','test'], (1, 2), (1, 2), (1, 2)),
+            ( 2, 2, 2, 2, 2, "auto_regressive", ["data1"], ["data1"], ["label"], [], 1, ['train','valid','test'], (1, 2, 1), (1, 2, 1), (1, 2, 1)),
+            ( 2, 2, 2, 2, 2, "one_shot", ["data1", "data1"], ["data1"], ["label"], [], 1, ['train','valid','test'], (1, 4), (1, 2), (1, 2)),
+            ( 2, 2, 2, 2, 2, "auto_regressive", ["data1", "data1"], ["data1"], ["label"], [], 1, ['train','valid','test'], (1, 2, 2), (1, 2, 1), (1, 2, 1)),
+        ]
+    )
+    def test_train_validation_and_test_shape(self,
+                                    input_width,
+                                    label_width,
+                                    shift,
+                                    test_size,
+                                    valid_size,
+                                    strategy,
+                                    input_columns,
+                                    label_columns,
+                                    known_columns,
+                                    date_columns,
+                                    batch_size,
+                                    attributes,
+                                    expected_input_shape,
+                                    expected_label_shape,
+                                    expected_known_shape,
+                                    ):
+        w = WindowGenerator(
+                self.data,
+                input_width,
+                label_width,
+                shift,
+                test_size,
+                valid_size,
+                strategy,
+                input_columns,
+                label_columns,
+                known_columns,
+                date_columns,
+                batch_size,
+            )
+
+        for attr in attributes:
+            try:
+                x, y = iter(getattr(w, attr)).get_next()
+                self.assertEqual(x[0].shape, expected_input_shape)
+                self.assertEqual(x[2].shape, (1, 2))
+                self.assertEqual(x[3].shape, (1, 2))
+                self.assertEqual(y.shape, expected_label_shape)
+                if len(known_columns) == 0:
+                    self.assertEqual(x[1].shape, expected_known_shape)
+                else:
+                    self.assertEqual(x[1].shape, expected_known_shape)
+            except AttributeError:
+                with self.assertRaises(AttributeError):
+                    getattr(w, attr)
+
+    @parameterized.parameters(
+        [
+            ( 2, 2, 2, 0, 2, "one_shot", ["data1"], ["data1"], ["label"], ["year"], 1, pd.DataFrame([1], columns=['test'])),
+        ])
+    def test_forecast(self,
+                      input_width,
+                    label_width,
+                    shift,
+                    test_size,
+                    valid_size,
+                    strategy,
+                    input_columns,
+                    label_columns,
+                    known_columns,
+                    date_columns,
+                    batch_size,
+                    data):
+
+        w = WindowGenerator(
+                self.data,
+                input_width,
+                label_width,
+                shift,
+                test_size,
+                valid_size,
+                strategy,
+                input_columns,
+                label_columns,
+                known_columns,
+                date_columns,
+                batch_size,
+            )
+
+        with self.assertRaises(AssertionError):
+            w.forecast(data, None)
+
+
+    @parameterized.parameters(
+        [
+            ( -2, 2, 2, 2, 2, "one_shot", ["data1"], ["label"], ["data1"], ["year"], 1, "The input width has to be strictly positive, got -2.",),
+            ( 2, -2, 2, 2, 2, "one_shot", ["data1"], ["label"], ["data1"], ["year"], 1, "The label width has to be strictly positive, got -2.",),
+            ( 2, 2, -2, 2, 2, "one_shot", ["data1"], ["label"], ["data1"], ["year"], 1, "The shift has to be strictly positive, got -2.",),
+            ( 2, 2, 2, -2, 2, "one_shot", ["data1"], ["label"], ["data1"], ["year"], 1, "The test size has to be positive or null, got -2.",),
+            ( 2, 2, 2, 2, -2, "one_shot", ["data1"], ["label"], ["data1"], ["year"], 1, "The valid size has to be positive or null, got -2.",),
+            ( 2, 2, 2, 2, 2, "regressive", ["data1"], ["label"], ["data1"], ["year"], 1, "Invalid strategy",),
+            ( 2, 2, 2, 2, 2, "one_shot", ["data1"], ["label"], ["data1"], ["year"], -1, "The batch size has to be strictly positive, got -1.",),
+            ( 2, 2, 2, 2, 2, "one_shot", ["data15"], ["label"], ["data1"], ["year"], 1, "The input columns are not found inside data,",),
+            ( 2, 2, 2, 2, 2, "one_shot", ["data1"], ["data15"], ["data1"], ["year"], 1, "The label columns are not found inside data,",),
+            ( 2, 2, 2, 2, 2, "one_shot", ["data1"], ["label"], ["data15"], ["year"], 1, "The known columns are not found inside data,",),
+            ( 2, 2, 2, 2, 2, "one_shot", ["data1"], ["label"], ["data1"], ["data15"], 1, "The date columns are not found inside data,",),
+            ( 2, 2, 2, 2, 2, "one_shot", [], ["data1"], [], [], 1, "The input columns are not found inside data",),
+            ( 2, 2, 2, 2, 2, "one_shot", ["data1"], [], [], [], 1, "The label columns are not found inside data",),
+            ( 100, 2, 2, 2, 2, "one_shot", ["data1"], ["data1"], [], [], 1, "Not enough data for training dataset because valid dataset start at -190",),
+            ( 2, 100, 2, 2, 2, "one_shot", ["data1"], ["data1"], [], [], 1, "The label width has to be equal or lower than 4, got 100",),
+            (2, 2, 100, 2, 2, "one_shot", ["data1"], ["data1"], [], [], 1, "Not enough data for training dataset because valid dataset start at -190",),
+            (2, 2, 2, 100, 2, "one_shot", ["data1"], ["data1"], [], [], 1, "Not enough data for training dataset because valid dataset start at -92",),
+            (2, 2, 2, 2, 100, "one_shot", ["data1"], ["data1"], [], [], 1, "Not enough data for training dataset because valid dataset start at -92",),
+        ]
+    )
+    def test_raise_error(
+        self,
+        input_width,
+        label_width,
+        shift,
+        test_size,
+        valid_size,
+        strategy,
+        input_columns,
+        label_columns,
+        known_columns,
+        date_columns,
+        batch_size,
+        error,
+    ):
+
+        with self.assertRaisesRegex(AssertionError, error):
+            print(input_width)
+            WindowGenerator(
+                self.data,
+                input_width,
+                label_width,
+                shift,
+                test_size,
+                valid_size,
+                strategy,
+                input_columns,
+                label_columns,
+                known_columns,
+                date_columns,
+                batch_size,
+            )
