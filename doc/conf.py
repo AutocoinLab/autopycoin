@@ -265,6 +265,7 @@ intersphinx_mapping = {
     "numpy": ("https://numpy.org/devdocs/", None),
     "sklearn": ("https://scikit-learn.org/stable/", None),
     "pandas": ("https://pandas.pydata.org/docs/dev/", None),
+    "matplotlib": ("https://matplotlib.org/stable/", None),
 }
 
 # sphinx-gallery configuration

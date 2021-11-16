@@ -1,12 +1,15 @@
+# pylint: skip-file
+
 """
 Test for generate functions.
 """
 
 import pytest
 import numpy as np
+from absl.testing import parameterized
 
 import tensorflow as tf
-from tensorflow.python.keras import keras_parameterized
+from tensorflow.keras.backend import floatx
 
 from .generate import random_ts
 
@@ -43,51 +46,6 @@ def prepare_ts(request):
         seed=42,
     )
 
-    request.cls.time_serie_noise = random_ts(
-        n_steps=100,
-        trend_degree=1,
-        periods=[10],
-        fourier_orders=[10],
-        trend_mean=0,
-        trend_std=1,
-        seasonality_mean=0,
-        seasonality_std=1,
-        batch_size=1,
-        n_variables=1,
-        noise=True,
-        seed=42,
-    )
-
-    request.cls.time_serie_batch = random_ts(
-        n_steps=100,
-        trend_degree=1,
-        periods=[10],
-        fourier_orders=[10],
-        trend_mean=0,
-        trend_std=1,
-        seasonality_mean=0,
-        seasonality_std=1,
-        batch_size=2,
-        n_variables=1,
-        noise=True,
-        seed=42,
-    )
-
-    request.cls.time_serie_variables = random_ts(
-        n_steps=100,
-        trend_degree=1,
-        periods=[10],
-        fourier_orders=[10],
-        trend_mean=0,
-        trend_std=1,
-        seasonality_mean=0,
-        seasonality_std=1,
-        batch_size=2,
-        n_variables=2,
-        noise=True,
-        seed=42,
-    )
-
     request.cls.time_serie_periods = random_ts(
         n_steps=100,
         trend_degree=1,
@@ -105,23 +63,94 @@ def prepare_ts(request):
 
 
 @pytest.mark.usefixtures("prepare_ts")
-class TestGenerate(keras_parameterized.TestCase):
-    def test_output_shape(self):
-        self.assertEqual(self.time_serie.shape, (1, 100, 1))
+class TestGenerate(tf.test.TestCase, parameterized.TestCase):
+    @parameterized.parameters(
+        [
+            (100, 1, [10], [10], 0, 1, 0, 1, 1, 1, False),
+            (50, 1, [10], [10], 0, 1, 0, 1, 1, 3, False),
+            (50, 1, [10, 10], [10, 10], 0, 1, 0, 1, 1, 3, False),
+            (50, 1, [10], [10], 0, 1, 0, 1, 10, 3, False),
+            (50, 1, [10], [10], 0, 1, 0, 1, [10, 10], 3, False),
+        ]
+    )
+    def test_output_shape(
+        self,
+        n_steps,
+        trend_degree,
+        periods,
+        fourier_orders,
+        trend_mean,
+        trend_std,
+        seasonality_mean,
+        seasonality_std,
+        batch_size,
+        n_variables,
+        noise,
+    ):
 
-    def test_noise(self):
-        np.testing.assert_raises(
-            AssertionError,
-            np.testing.assert_array_equal,
-            self.time_serie,
-            self.time_serie_noise,
+        time_serie = random_ts(
+            n_steps,
+            trend_degree,
+            periods,
+            fourier_orders,
+            trend_mean,
+            trend_std,
+            seasonality_mean,
+            seasonality_std,
+            batch_size,
+            n_variables,
+            noise,
+            seed=42,
         )
 
-    def test_batch(self):
-        self.assertEqual(self.time_serie_batch.shape, (2, 100, 1))
+        batch_size = [batch_size] if not isinstance(batch_size, list) else batch_size
+        expected_shape = batch_size + [n_steps, n_variables]
+        self.assertEqual(time_serie.shape, expected_shape)
 
-    def test_columns(self):
-        self.assertEqual(self.time_serie_variables.shape, (2, 100, 2))
+    @parameterized.parameters(
+        [
+            (100, 1, [10], [10], 0, 1, 0, 1, 1, 1, False),
+            (50, 1, [10], [10], 0, 1, 0, 1, 1, 3, False),
+            (50, 1, [10, 10], [10, 10], 0, 1, 0, 1, 1, 3, False),
+            (50, 1, [10], [10], 0, 1, 0, 1, 10, 3, False),
+            (50, 1, [10], [10], 0, 1, 0, 1, [10, 10], 3, False),
+        ]
+    )
+    def test_output_type(
+        self,
+        n_steps,
+        trend_degree,
+        periods,
+        fourier_orders,
+        trend_mean,
+        trend_std,
+        seasonality_mean,
+        seasonality_std,
+        batch_size,
+        n_variables,
+        noise,
+    ):
+
+        time_serie = random_ts(
+            n_steps,
+            trend_degree,
+            periods,
+            fourier_orders,
+            trend_mean,
+            trend_std,
+            seasonality_std,
+            seasonality_mean,
+            batch_size,
+            n_variables,
+            noise,
+            seed=42,
+        )
+
+        self.assertEqual(time_serie.dtype, floatx())
+
+    def test_noise(self):
+        with self.assertRaises(AssertionError):
+            np.testing.assert_array_equal(self.time_serie, self.time_serie_noise)
 
     def test_multi_periods(self):
         np.testing.assert_raises(

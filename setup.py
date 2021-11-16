@@ -12,7 +12,7 @@ with open(ver_file) as f:
     exec(f.read())
 
 DISTNAME = "autopycoin"
-DESCRIPTION = "Deep learning models for forecasting."
+DESCRIPTION = "Deep learning models for forecasting purposes."
 with codecs.open("README.rst", encoding="utf-8-sig") as f:
     LONG_DESCRIPTION = f.read()
 MAINTAINER = "G. Dubuc"
@@ -23,8 +23,7 @@ DOWNLOAD_URL = "https://github.com/GaetanDu/autopycoin"
 VERSION = __version__
 INSTALL_REQUIRES = [
     "numpy",
-    "scipy",
-    "scikit-learn",
+    "pandas",
     "tensorflow",
     "matplotlib",
     "plotly",
