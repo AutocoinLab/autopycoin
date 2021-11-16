@@ -120,7 +120,7 @@ class WindowGenerator(AutopycoinBaseClass):
     ...     known_columns=[],
     ...     date_columns=[])
     >>> w_oneshot.train
-    <PrefetchDataset element_spec=((TensorSpec(shape=(None, 3), dtype=tf.float32, name=None), TensorSpec(shape=(None, 0), dtype=tf.float32, name=None), TensorSpec(shape=(None, 3), dtype=tf.string, name=None), TensorSpec(shape=(None, 2), dtype=tf.string, name=None)), TensorSpec(shape=(None, 2), dtype=tf.float32, name=None))>
+    <PrefetchDataset shapes: (((None, 3), (None, 0), (None, 3), (None, 2)), (None, 2)), types: ((tf.float32, tf.float32, tf.string, tf.string), tf.float32)>
     """
 
     def __init__(
