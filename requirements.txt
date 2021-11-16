@@ -3,5 +3,5 @@ pandas
 tensorflow
 tensorflow-probability
 matplotlib
-plotly
 pylint
+python-dateutil >= 2.7.3
