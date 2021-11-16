@@ -57,7 +57,6 @@ def prepare_data(request):
     request.cls.data = pd.DataFrame(data[0].numpy(), columns=["test"])
 
     request.cls.w = WindowGenerator(
-        data=request.cls.data,
         input_width=50,
         label_width=20,
         shift=20,
@@ -65,12 +64,14 @@ def prepare_data(request):
         valid_size=10,
         strategy="one_shot",
         batch_size=32,
-        input_columns=["test"],
-        known_columns=None,
-        label_columns=["test"],
-        date_columns=None,
     )
 
+    request.cls.w = request.cls.w.from_dataframe(
+            data=request.cls.data,
+            input_columns=["test"],
+            known_columns=[],
+            label_columns=["test"],
+            date_columns=[])
 
 @pytest.mark.usefixtures("prepare_data")
 class ExampleHandlerTest(test.TestCase):
@@ -107,15 +108,15 @@ class ExampleHandlerTest(test.TestCase):
         self.assertEqual(
             ([output.shape for output in outputs[0]] + [outputs[1].shape]),
             [
-                tf.TensorShape([32, 50]),
-                tf.TensorShape([32, 0]),
-                (32, 50),
-                (32, 20),
-                tf.TensorShape([32, 20]),
+                tf.TensorShape([10, 50]),
+                tf.TensorShape([10, 0]),
+                (10, 50),
+                (10, 20),
+                tf.TensorShape([10, 20]),
             ],
         )
 
-        outputs = example_handler(self.w.forecast(self.data, None))
+        outputs = example_handler(self.w.production(self.data, None))
         self.assertEqual(
             ([output.shape for output in outputs[0]] + [outputs[1].shape]),
             [
@@ -164,7 +165,7 @@ class ExampleHandlerTest(test.TestCase):
             [tf.float32, tf.float32, np.dtype("<U3"), np.dtype("<U3"), tf.float32],
         )
 
-        outputs = example_handler(self.w.forecast(self.data, None))
+        outputs = example_handler(self.w.production(self.data, None))
         self.assertEqual(
             ([output.dtype for output in outputs[0]] + [outputs[1].dtype]),
             [tf.float32, tf.float32, np.dtype("<U3"), np.dtype("<U3"), tf.float32],

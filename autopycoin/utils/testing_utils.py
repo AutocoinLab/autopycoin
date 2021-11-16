@@ -6,6 +6,7 @@ Customized Tools from keras API.
 
 import numpy as np
 import threading
+import pandas as pd
 
 import tensorflow as tf
 from tensorflow.compat.v1 import Dimension
@@ -342,3 +343,14 @@ def should_run_eagerly():
         )
 
     return _thread_local_data.run_eagerly and context.executing_eagerly()
+
+def check_attributes(instance, cls, attributes, expected_values):
+    for attr, expected_value in zip(attributes, expected_values):
+            value = getattr(cls, attr)
+            if isinstance(expected_value, dict):
+                instance.assertDictEqual(value, expected_value, f"{attr} not equal to the expected value, got {value} != {expected_value}")
+            elif isinstance(expected_value, (list, tuple)):
+                for v, el in zip(value, expected_value):
+                    instance.assertIsInstance(v, type(el))
+            else:
+                np.testing.assert_array_equal(value, expected_value, f"{attr} not equal to the expected value, got {value} != {expected_value}")

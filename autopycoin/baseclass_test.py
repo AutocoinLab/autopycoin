@@ -15,9 +15,10 @@ from . import AutopycoinBaseClass
 class ExampleClass(AutopycoinBaseClass):
     """Example subclass of AutopycoinBaseClass, used for testing."""
 
-    def __init__(self, input1: int, input2: tf.Tensor):
+    def __init__(self, input1: int, input2: tf.Tensor, input3: int=4):
         self._input1 = input1
         self._input2 = input2
+        self.input3 = input3
 
     @property
     def input1(self):
@@ -36,14 +37,19 @@ class ExampleClass(AutopycoinBaseClass):
     def doc_link():
         return "http://example.com/ExampleClass"
 
-    def __validate__(self, method_name, args, kwargs):
-        if method_name == "__init__":
-            assert self.input1 > 2
-            self._input2.shape.assert_is_compatible_with(self._input2.shape)
+    def _val___init__(self, output, method_name, *args, **kwargs):
+        assert self.input1 > 2
+        self._input2.shape.assert_is_compatible_with(self._input2.shape)
 
 
 @test_util.run_all_in_graph_and_eager_modes
 class ExtensionTypeTest(tf.test.TestCase, parameterized.TestCase):
+
+    def testValueWhenDefaultProvided(self):
+        with self.assertRaisesRegexp(TypeError, "value for input3 in __init__: expected int, got None"):
+            ExampleClass(3, tf.constant([1]), None)
+            ExampleClass(3, tf.constant([1]), input3=None)
+
     def testAttributeAccessors(self):
         mt1 = ExampleClass(3, tf.constant([1]))
 

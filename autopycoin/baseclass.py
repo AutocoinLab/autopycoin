@@ -7,12 +7,17 @@ import abc
 import typing
 from inspect import signature, _empty
 
+import tensorflow as tf
 from tensorflow.python.util import tf_decorator
 
-from .baseclass_field import AutopycoinField, _convert_value, Sentinel
+from .baseclass_field import AutopycoinField, _convert_value
 
 
 NOT_SUPPORTED_FIELDS = ['return', 'kwargs', 'args']
+
+def dummy_callable(*args, **kwargs):
+    """dummy callable"""
+    pass
 
 class AutopycoinMetaClass(abc.ABCMeta):
     """Metaclass for autopycoin objects."""
@@ -93,9 +98,8 @@ class AutopycoinBaseClass(metaclass=AutopycoinMetaClass):
 
         return list_fields
 
-    @abc.abstractmethod
-    def __validate__(self):
-        raise NotImplementedError("Attributes validations have to be implemented.")
+    def __validate__(self, cls, output, method_name, *args, **kwargs):
+        getattr(cls, '_val_' + method_name, dummy_callable)(self, output, *args, **kwargs)
 
     def _get_parameter(self, args: list, kwargs: dict, name: str, position: int):
         param = kwargs.get(name, None)
@@ -115,9 +119,9 @@ def _wrap_user_constructor(cls, attribute_name, attribute_value):
         list_fields = cls._type_fields(  # pylint: disable=protected-access
             attribute_name, attribute_value
         )
-        args, kwargs = convert_value(list_fields[f"{cls}_{attribute_name}"], attribute_name, args, kwargs)
+        args, kwargs = convert_value(list_fields[f"{cls}_{attribute_name}"], attribute_name, *args, **kwargs)
         output = attribute_value(self, *args, **kwargs)
-        self.__validate__(attribute_name, args, kwargs)
+        self.__validate__(cls, output, attribute_name, *args, **kwargs)
 
         return output
 
@@ -128,18 +132,19 @@ def _wrap_user_constructor(cls, attribute_name, attribute_value):
     )
 
 
-def convert_value(list_fields, attribute_name, args, kwargs):
+def convert_value(list_fields, attribute_name, *args, **kwargs):
     """check type parameters to the expected types for no default parameters."""
     args = list(args)
     for idx, field in enumerate(list_fields):
-        if isinstance(field.default, Sentinel) and not field.name in kwargs:
-            args[idx] = _convert_value(args[idx], field.value_type, (f"default value for {attribute_name}",))
-        elif isinstance(field.default, Sentinel) and field.name in kwargs:
+        if not field.name in kwargs and idx <= len(args)-1:
+            args[idx] = _convert_value(args[idx], field.value_type, (f"value for {field.name} in {attribute_name}",))
+        elif field.name in kwargs:
             kwargs[field.name] = _convert_value(
             kwargs[field.name],
             field.value_type,
-            (f"default value for {attribute_name}",),
+            (f"value for {field.name} in {attribute_name}",),
         )
+
     return args, kwargs
 
 def _methods_to_inspect(cls):
@@ -148,7 +153,7 @@ def _methods_to_inspect(cls):
         attribute_value = getattr(cls, attribute_name)
         # Check that it is callable
         if (
-            callable(attribute_value) and not attribute_name in cls.NOT_INSPECT 
+            callable(attribute_value) and not attribute_name in cls.NOT_INSPECT
             and not attribute_name.startswith("__")
             and not attribute_name.endswith("__")
             and not attribute_name.startswith("_abc_")

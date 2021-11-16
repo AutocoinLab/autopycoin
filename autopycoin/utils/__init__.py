@@ -2,7 +2,7 @@
 """
 
 from .data_utils import check_infinity, range_dims, quantiles_handler, example_handler
-from .testing_utils import layer_test
+from .testing_utils import layer_test, check_attributes
 
 __ALL__ = [
     "check_infinity",
@@ -10,4 +10,5 @@ __ALL__ = [
     "layer_test",
     "quantiles_handler",
     "range_dims",
+    "check_attributes"
 ]

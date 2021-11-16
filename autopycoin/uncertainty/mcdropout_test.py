@@ -1,3 +1,5 @@
+# pylint: skip-file
+
 """
 Unit test for MCDropout method.
 """
@@ -34,7 +36,6 @@ def prepare_data(request):
     data = pd.DataFrame(data[0].numpy(), columns=["test"])
 
     w = WindowGenerator(
-        data=data,
         input_width=50,
         label_width=20,
         shift=20,
@@ -42,15 +43,19 @@ def prepare_data(request):
         valid_size=10,
         strategy="one_shot",
         batch_size=32,
-        input_columns=["test"],
-        known_columns=None,
-        label_columns=["test"],
-        date_columns=None,
     )
 
+    w = w.from_dataframe(
+            data=data,
+            input_columns=["test"],
+            known_columns=[],
+            label_columns=["test"],
+            date_columns=[],
+            )
+
     model_params = {
-        "horizon": 20,
-        "back_horizon": 50,
+        "input_width": 20,
+        "label_width": 50,
         "periods": [10],
         "back_periods": [10],
         "forecast_fourier_order": [10],
@@ -117,13 +122,13 @@ class MCDropoutEstimatorTest(tf.test.TestCase):
         outputs = self.estimator_ql.mc_dropout_estimation(
             self.inputs, self.model_ql, self.estimator_ql.n_preds
         )
-        self.assertEqual(outputs.shape, (10, 5, 224, 20))
+        self.assertEqual(outputs.shape, (10, 5, 273, 20))
 
     def test_call_ql(self):
         outputs = self.estimator_ql(self.inputs, self.model_ql)
-        self.assertEqual(outputs[0].shape, (5, 224, 20))
-        self.assertEqual(outputs[1].shape, (5, 224, 20))
-        self.assertEqual(outputs[2].shape, (5, 224, 20))
+        self.assertEqual(outputs[0].shape, (5, 273, 20))
+        self.assertEqual(outputs[1].shape, (5, 273, 20))
+        self.assertEqual(outputs[2].shape, (5, 273, 20))
 
     def test_attributes_mse(self):
         self.assertEqual(self.estimator_mse.n_preds, 10)
@@ -133,10 +138,10 @@ class MCDropoutEstimatorTest(tf.test.TestCase):
         outputs = self.estimator_mse.mc_dropout_estimation(
             self.inputs, self.model_mse, self.estimator_mse.n_preds
         )
-        self.assertEqual(outputs.shape, (10, 224, 20))
+        self.assertEqual(outputs.shape, (10, 273, 20))
 
     def test_call_mse(self):
         outputs = self.estimator_mse(self.inputs, self.model_mse)
-        self.assertEqual(outputs[0].shape, (224, 20))
-        self.assertEqual(outputs[1].shape, (224, 20))
-        self.assertEqual(outputs[2].shape, (224, 20))
+        self.assertEqual(outputs[0].shape, (273, 20))
+        self.assertEqual(outputs[1].shape, (273, 20))
+        self.assertEqual(outputs[2].shape, (273, 20))

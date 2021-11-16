@@ -5,7 +5,6 @@
 import typing
 from absl.testing import parameterized
 import pandas as pd
-import inspect
 
 import tensorflow as tf
 from tensorflow.python.util import type_annotations

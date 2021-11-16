@@ -3,7 +3,7 @@ Functions to assess loss.
 """
 
 import numpy as np
-from typing import Tuple, Union, List
+from typing import Union, List, Optional
 import pandas as pd
 
 import tensorflow as tf
@@ -17,7 +17,7 @@ from .. import AutopycoinBaseClass
 
 Yannotation = Union[tf.Tensor, pd.DataFrame, np.array, list]
 
-def smape(y_true: Yannotation, y_pred: Yannotation, mask: bool=False):
+def smape(y_true: Yannotation, y_pred: Yannotation, mask: Optional[bool]=False):
     """
     Calculate the symmetric mean absolute percentage error between `y_true`and `y_pred`.
 
@@ -184,15 +184,11 @@ class SymetricMeanAbsolutePercentageError(LossFunctionWrapper, AutopycoinBaseCla
 
     def __init__(
         self,
-        reduction: str = losses_utils.ReductionV2.AUTO,
-        name: str = "smape",
-        mask: bool = False,
+        reduction: Optional[str] = losses_utils.ReductionV2.AUTO,
+        name: Optional[str] = "smape",
+        mask: Optional[bool] = False,
     ):
         super().__init__(smape, name=name, reduction=reduction, mask=mask)
-
-    def __validate__(self, attribute_name, args, kwargs):
-        """Validates attributes and args."""
-        pass
 
 
 class QuantileLossError(LossFunctionWrapper, AutopycoinBaseClass):
@@ -260,8 +256,8 @@ class QuantileLossError(LossFunctionWrapper, AutopycoinBaseClass):
     def __init__(
         self,
         quantiles: List[Union[float, int]],
-        reduction: str = losses_utils.ReductionV2.SUM,
-        name: str = "q_loss",
+        reduction: Optional[str] = losses_utils.ReductionV2.SUM,
+        name: Optional[str] = "q_loss",
     ):
 
         self.quantiles = quantiles_handler(quantiles)
@@ -270,10 +266,9 @@ class QuantileLossError(LossFunctionWrapper, AutopycoinBaseClass):
             quantile_loss, quantiles=self.quantiles, name=name, reduction=reduction
         )
 
-    def __validate__(self, method_name, args, kwargs):
-        """Validates attributes and args."""
-        if method_name == "__init__":
-            quantiles = self._get_parameter(args, kwargs, name="quantiles", position=0)
-            assert quantiles == [
-                abs(quantile) for quantile in quantiles
-            ], f"Negative quantiles are not allowed. got {quantiles}"
+    def _val___init__(self, output, *args, **kwargs):
+        """Validates attributes and args for the init method."""
+        quantiles = self._get_parameter(args, kwargs, name="quantiles", position=0)
+        assert quantiles == [
+            abs(quantile) for quantile in quantiles
+        ], f"Negative quantiles are not allowed. got {quantiles}"

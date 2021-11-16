@@ -22,7 +22,7 @@ class UncertaintyEstimator:
     """
 
     def __init__(self, quantile):
-        self.quantile = quantile
+        self._quantile = quantile
 
     @abstractmethod
     def call(self, inputs, model):
@@ -34,6 +34,10 @@ class UncertaintyEstimator:
 
     def __call__(self, *args, **kwargs):
         return self.call(*args, **kwargs)
+
+    @property
+    def quantile(self):
+        return self._quantile
 
 
 class MCDropoutEstimator(UncertaintyEstimator):
@@ -87,9 +91,7 @@ class MCDropoutEstimator(UncertaintyEstimator):
     ... )
     ...
     >>> data = pd.DataFrame(data[0].numpy(), columns=['test'])
-    ...
     >>> w = WindowGenerator(
-    ...    data=data,
     ...    input_width=50,
     ...    label_width=20,
     ...    shift=20,
@@ -97,15 +99,16 @@ class MCDropoutEstimator(UncertaintyEstimator):
     ...    valid_size=10,
     ...    strategy="one_shot",
     ...    batch_size=32,
-    ...    input_columns=["test"],
-    ...    known_columns=None,
-    ...    label_columns=["test"],
-    ...    date_columns=None,
     ... )
-    ...
+    >>> w = w.from_dataframe(
+    ...    data=data,
+    ...    input_columns=["test"],
+    ...    known_columns=[],
+    ...    label_columns=["test"],
+    ...    date_columns=[])
     >>> model = create_interpretable_nbeats(
-    ...    horizon=20,
-    ...    back_horizon=50,
+    ...    input_width=20,
+    ...    label_width=50,
     ...    periods=[10],
     ...    back_periods=[10],
     ...    forecast_fourier_order=[10],
@@ -134,7 +137,7 @@ class MCDropoutEstimator(UncertaintyEstimator):
     ...    n_preds=10, quantile=0.99
     ... )
     >>> [tensor.shape for tensor in estimator(w.train, model)]
-    [TensorShape([5, 224, 20]), TensorShape([5, 224, 20]), TensorShape([5, 224, 20])]
+    [TensorShape([5, 273, 20]), TensorShape([5, 273, 20]), TensorShape([5, 273, 20])]
 
     Notes
     -----

@@ -2,58 +2,38 @@
 Overloading Model tensorflow object
 """
 
+import warnings
 
 import tensorflow.compat.v2 as tf
-
-import copy
-import itertools
-import json
-import os
-import warnings
-import weakref
 from tensorflow.python.eager import context
 from keras import backend
 from keras import callbacks as callbacks_module
-from keras import optimizer_v1
-from keras import optimizers
 from keras.engine import base_layer
-from keras.engine import base_layer_utils
-from keras.engine import compile_utils
 from keras.engine import data_adapter
-from keras.engine import training_utils
-from keras.mixed_precision import loss_scale_optimizer as lso
-from keras.mixed_precision import policy
-from keras.saving import hdf5_format
-from keras.saving import save
-from keras.saving import saving_utils
-from keras.saving.saved_model import json_utils
-from keras.saving.saved_model import model_serialization
-from keras.utils import generic_utils
-from keras.utils import layer_utils
-from keras.utils import object_identity
 from keras.utils import tf_utils
 from keras.utils import version_utils
-from keras.utils.io_utils import ask_to_proceed_with_overwrite
-from keras.utils.io_utils import path_to_string
-from keras.utils.mode_keys import ModeKeys
-from tensorflow.python.platform import tf_logging as logging
-from tensorflow.python.util.tf_export import keras_export
-from tensorflow.tools.docs import doc_controls
 
 
 class Model(tf.keras.Model):
-
+    """
+    Overloading tensorflow Model class to integrate a `quantiles` attribute which is `None`
+    if the Model is not computing prediction and confidence intervals.
+    It checks during compiling if the loss function has quantiles attribute, hnce it defines
+    its internal `quantiles` attribute to fit the loss `quantiles` one.
+    """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._quantiles = None
 
     @property
     def quantiles(self):
+        """Return quantiles attribute."""
         return self._quantiles
 
     def _set_quantiles(self, value):
+        """Modify the quantiles for the layers too."""
         self.built = False
-        for idx in range(len(self.layers)):
+        for idx, _ in enumerate(self.layers):
             self.layers[idx]._set_quantiles(value) # pylint: disable=protected-access
         self._quantiles = value
 
@@ -67,9 +47,10 @@ class Model(tf.keras.Model):
         run_eagerly=None,
         steps_per_execution=None,
         **kwargs,
-    ):
+        ):
+        """Compile method from tensorflow. When compiling with uncertainty loss defining quantiles
+        it defines `quantiles` attribute in thz model and sublayers."""
 
-        ################# a tester #############################
         if hasattr(loss, "quantiles"):
             self._set_quantiles(loss.quantiles)
 
@@ -240,9 +221,9 @@ class Model(tf.keras.Model):
 
         # Avoid concat on quantiles when there are multiple batches
         if self.quantiles and len(outputs) > 1:
-            all_outputs = tf.__internal__.nest.map_structure_up_to(batch_outputs, stack, outputs)
+            all_outputs = tf.__internal__.nest.map_structure_up_to(batch_outputs, concat(axis=1), outputs)
         else:
-            all_outputs = tf.__internal__.nest.map_structure_up_to(batch_outputs, concat, outputs)
+            all_outputs = tf.__internal__.nest.map_structure_up_to(batch_outputs, concat(axis=0), outputs)
 
         # If originally PSS strategy was used, then replace it back since predict
         # is running under `OneDeviceStrategy` after the swap and once its done
@@ -252,21 +233,19 @@ class Model(tf.keras.Model):
 
         return tf_utils.sync_to_numpy_or_python_type(all_outputs)
 
+
 def _is_tpu_multi_host(strategy):
     return (backend.is_tpu_strategy(strategy) and
             strategy.extended.num_hosts > 1)
 
-def concat(tensors, axis=0):
+def concat(axis):
     """Concats `tensor`s along `axis`."""
-    if isinstance(tensors[0], tf.SparseTensor):
-        return tf.sparse.concat(axis=axis, sp_inputs=tensors)
-    return tf.concat(tensors, axis=axis)
-
-def stack(tensors, axis=0):
-    """Concats `tensor`s along `axis`."""
-    if isinstance(tensors[0], tf.SparseTensor):
-        return tf.sparse.stack(axis=axis, sp_inputs=tensors)
-    return tf.stack(tensors, axis=axis)
+    def new_concat(tensors):
+        """Concats `tensor`s along `axis`."""
+        if isinstance(tensors[0], tf.SparseTensor):
+            return tf.sparse.concat(axis=axis, sp_inputs=tensors)
+        return tf.concat(tensors, axis=axis)
+    return new_concat
 
 def _disallow_inside_tf_function(method_name):
     if tf.inside_function():

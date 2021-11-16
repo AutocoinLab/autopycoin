@@ -139,7 +139,7 @@ def example_handler(dataset):
     labels = outputs
 
     # date_inputs and date_labels are bytes and need to be decoded to feed matplotlib plot
-    date_inputs = np.char.decode(date_inputs.numpy().astype("bytes"))
-    date_labels = np.char.decode(date_labels.numpy().astype("bytes"))
+    date_inputs = date_inputs.numpy().astype("str")
+    date_labels = date_labels.numpy().astype("str")
 
     return (inputs, known, date_inputs, date_labels), labels
