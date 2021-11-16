@@ -18,13 +18,14 @@ with codecs.open("README.rst", encoding="utf-8-sig") as f:
 MAINTAINER = "G. Dubuc"
 MAINTAINER_EMAIL = "gaet.dub1@gmail.com"
 URL = "https://github.com/GaetanDu/autopycoin"
-LICENSE = "new BSD"
+LICENSE = "Apache license 2.0"
 DOWNLOAD_URL = "https://github.com/GaetanDu/autopycoin"
 VERSION = __version__
 INSTALL_REQUIRES = [
     "numpy",
     "pandas",
     "tensorflow",
+    "tensorflow-probability",
     "matplotlib",
     "plotly",
 ]
@@ -39,7 +40,6 @@ CLASSIFIERS = [
     "Operating System :: POSIX",
     "Operating System :: Unix",
     "Operating System :: MacOS",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
 ]
 EXTRAS_REQUIRE = {

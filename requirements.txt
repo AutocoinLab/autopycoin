@@ -1,6 +1,7 @@
 numpy
 pandas
 tensorflow
+tensorflow-probability
 matplotlib
 plotly
 pylint
