@@ -12,6 +12,7 @@ class Layer(tf.keras.layers.Layer):
     It checks during compiling if the loss function has quantiles attribute, hence it defines
     its internal `quantiles` attribute to fit the loss `quantiles` one.
     """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._quantiles = None

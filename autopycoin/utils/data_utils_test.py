@@ -67,11 +67,13 @@ def prepare_data(request):
     )
 
     request.cls.w = request.cls.w.from_dataframe(
-            data=request.cls.data,
-            input_columns=["test"],
-            known_columns=[],
-            label_columns=["test"],
-            date_columns=[])
+        data=request.cls.data,
+        input_columns=["test"],
+        known_columns=[],
+        label_columns=["test"],
+        date_columns=[],
+    )
+
 
 @pytest.mark.usefixtures("prepare_data")
 class ExampleHandlerTest(test.TestCase):

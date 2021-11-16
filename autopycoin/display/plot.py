@@ -14,7 +14,6 @@ from ..uncertainty import MCDropoutEstimator
 from ..utils import example_handler
 
 
-
 class PlotTs(AutopycoinBaseClass):
     """
     Display a model results with matplotlib.
@@ -61,17 +60,17 @@ class PlotTs(AutopycoinBaseClass):
             self._dataset = self.window_generator.production(dataset, None)
         else:
             self._dataset = getattr(self.window_generator, dataset)
-        
+
         self.window_generator.batch_size = self.window_generator.batch_size_cached
 
     def plot_from_index(
         self,
         index: Union[str, List[str]],
         plot_col: str,
-        plot_labels: bool=True,
-        plot_history: np.array=None,
-        plot_interval: bool=True,
-        max_subplots: int=3,
+        plot_labels: bool = True,
+        plot_history: np.array = None,
+        plot_interval: bool = True,
+        max_subplots: int = 3,
     ):
         """Plot the results starting at the index provided."""
 
@@ -114,9 +113,7 @@ class PlotTs(AutopycoinBaseClass):
 
             if self.model is not None:
                 if plot_interval:
-                    self._plot_intervals(
-                        inputs, date_labels, plot
-                    )
+                    self._plot_intervals(inputs, date_labels, plot)
 
                 # If we don't want to plot interval then plot only the quantile 0.5 if it exists else just the output
                 else:
@@ -149,18 +146,31 @@ class PlotTs(AutopycoinBaseClass):
         fig.tight_layout()
         plt.xlabel("Time")
 
-    def _filtering_by_index(self, index: Union[str, List[str]]) -> Tuple[Tuple[tf.Tensor, ...], tf.Tensor]:
+    def _filtering_by_index(
+        self, index: Union[str, List[str]]
+    ) -> Tuple[Tuple[tf.Tensor, ...], tf.Tensor]:
         """Return the dataset filtered by the index in `Tensor` format."""
-        (inputs, known, date_inputs, date_labels), labels = example_handler(self._dataset)
+        (inputs, known, date_inputs, date_labels), labels = example_handler(
+            self._dataset
+        )
         idx = np.where(date_labels[..., :, 0] == index)
         assert np.size(idx), f"""index {index} not found inside the dataset."""
         idx = np.squeeze(idx)
-        return (inputs[..., idx:], known[..., idx:], date_inputs[..., idx:], date_labels[..., idx:]), labels[..., idx:]
+        return (
+            inputs[..., idx:],
+            known[..., idx:],
+            date_inputs[..., idx:],
+            date_labels[..., idx:],
+        ), labels[..., idx:]
 
-    def _plot_intervals(self, inputs: tf.Tensor, date_labels: np.ndarray, instance: int) -> None:
+    def _plot_intervals(
+        self, inputs: tf.Tensor, date_labels: np.ndarray, instance: int
+    ) -> None:
         # If interval_estimator is not defined then we plot only one instance of prediction
         if self.interval_estimator:
-            mean, min_interval, max_interval = self.interval_estimator(inputs, model=self.model)
+            mean, min_interval, max_interval = self.interval_estimator(
+                inputs, model=self.model
+            )
             # quantile 0.5 is taken as reference
             n_quantiles = mean.shape[0]
             middle = int(np.ceil(n_quantiles / 2))

@@ -15,7 +15,7 @@ from . import AutopycoinBaseClass
 class ExampleClass(AutopycoinBaseClass):
     """Example subclass of AutopycoinBaseClass, used for testing."""
 
-    def __init__(self, input1: int, input2: tf.Tensor, input3: int=4):
+    def __init__(self, input1: int, input2: tf.Tensor, input3: int = 4):
         self._input1 = input1
         self._input2 = input2
         self.input3 = input3
@@ -44,9 +44,10 @@ class ExampleClass(AutopycoinBaseClass):
 
 @test_util.run_all_in_graph_and_eager_modes
 class ExtensionTypeTest(tf.test.TestCase, parameterized.TestCase):
-
     def testValueWhenDefaultProvided(self):
-        with self.assertRaisesRegexp(TypeError, "value for input3 in __init__: expected int, got None"):
+        with self.assertRaisesRegexp(
+            TypeError, "value for input3 in __init__: expected int, got None"
+        ):
             ExampleClass(3, tf.constant([1]), None)
             ExampleClass(3, tf.constant([1]), input3=None)
 

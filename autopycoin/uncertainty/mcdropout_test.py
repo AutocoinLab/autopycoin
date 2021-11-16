@@ -46,12 +46,12 @@ def prepare_data(request):
     )
 
     w = w.from_dataframe(
-            data=data,
-            input_columns=["test"],
-            known_columns=[],
-            label_columns=["test"],
-            date_columns=[],
-            )
+        data=data,
+        input_columns=["test"],
+        known_columns=[],
+        label_columns=["test"],
+        date_columns=[],
+    )
 
     model_params = {
         "input_width": 20,

@@ -21,6 +21,7 @@ class Model(tf.keras.Model):
     It checks during compiling if the loss function has quantiles attribute, hnce it defines
     its internal `quantiles` attribute to fit the loss `quantiles` one.
     """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._quantiles = None
@@ -34,7 +35,7 @@ class Model(tf.keras.Model):
         """Modify the quantiles for the layers too."""
         self.built = False
         for idx, _ in enumerate(self.layers):
-            self.layers[idx]._set_quantiles(value) # pylint: disable=protected-access
+            self.layers[idx]._set_quantiles(value)  # pylint: disable=protected-access
         self._quantiles = value
 
     def compile(
@@ -47,7 +48,7 @@ class Model(tf.keras.Model):
         run_eagerly=None,
         steps_per_execution=None,
         **kwargs,
-        ):
+    ):
         """Compile method from tensorflow. When compiling with uncertainty loss defining quantiles
         it defines `quantiles` attribute in thz model and sublayers."""
 
@@ -65,15 +66,17 @@ class Model(tf.keras.Model):
             **kwargs,
         )
 
-    def predict(self,
-              x,
-              batch_size=None,
-              verbose=0,
-              steps=None,
-              callbacks=None,
-              max_queue_size=10,
-              workers=1,
-              use_multiprocessing=False):
+    def predict(
+        self,
+        x,
+        batch_size=None,
+        verbose=0,
+        steps=None,
+        callbacks=None,
+        max_queue_size=10,
+        workers=1,
+        use_multiprocessing=False,
+    ):
         """Generates output predictions for the input samples.
         Computation is done in batches. This method is designed for performance in
         large scale inputs. For small amount of inputs that fit in one batch,
@@ -134,16 +137,18 @@ class Model(tf.keras.Model):
                 or in case a stateful model receives a number of samples
                 that is not a multiple of the batch size.
         """
-        base_layer.keras_api_gauge.get_cell('predict').set(True)
-        version_utils.disallow_legacy_graph('Model', 'predict')
-        self._check_call_args('predict')
-        _disallow_inside_tf_function('predict')
+        base_layer.keras_api_gauge.get_cell("predict").set(True)
+        version_utils.disallow_legacy_graph("Model", "predict")
+        self._check_call_args("predict")
+        _disallow_inside_tf_function("predict")
 
         # TODO(yashkatariya): Cache model on the coordinator for faster prediction.
         # If running under PSS, then swap it with OneDeviceStrategy so that
         # execution will run on the coordinator.
         original_pss_strategy = None
-        if self.distribute_strategy._should_use_with_coordinator:  # pylint: disable=protected-access
+        if (
+            self.distribute_strategy._should_use_with_coordinator
+        ):  # pylint: disable=protected-access
             original_pss_strategy = self.distribute_strategy
         self._distribution_strategy = None
 
@@ -157,18 +162,22 @@ class Model(tf.keras.Model):
         with self.distribute_strategy.scope():
             # Creates a `tf.data.Dataset` and handles batch and epoch iteration.
             dataset_types = (tf.compat.v1.data.Dataset, tf.data.Dataset)
-            if (self._in_multi_worker_mode() or _is_tpu_multi_host(
-                self.distribute_strategy)) and isinstance(x, dataset_types):
+            if (
+                self._in_multi_worker_mode()
+                or _is_tpu_multi_host(self.distribute_strategy)
+            ) and isinstance(x, dataset_types):
                 try:
                     options = tf.data.Options()
                     data_option = tf.data.experimental.AutoShardPolicy.DATA
                     options.experimental_distribute.auto_shard_policy = data_option
                     x = x.with_options(options)
                 except ValueError:
-                    warnings.warn('Using Model.predict with '
-                                'MultiWorkerDistributionStrategy or TPUStrategy and '
-                                'AutoShardPolicy.FILE might lead to out-of-order result'
-                                '. Consider setting it to AutoShardPolicy.DATA.')
+                    warnings.warn(
+                        "Using Model.predict with "
+                        "MultiWorkerDistributionStrategy or TPUStrategy and "
+                        "AutoShardPolicy.FILE might lead to out-of-order result"
+                        ". Consider setting it to AutoShardPolicy.DATA."
+                    )
 
             data_handler = data_adapter.get_data_handler(
                 x=x,
@@ -180,7 +189,8 @@ class Model(tf.keras.Model):
                 workers=workers,
                 use_multiprocessing=use_multiprocessing,
                 model=self,
-                steps_per_execution=self._steps_per_execution)
+                steps_per_execution=self._steps_per_execution,
+            )
 
             # Container that configures and calls `tf.keras.Callback`s.
             if not isinstance(callbacks, callbacks_module.CallbackList):
@@ -191,7 +201,8 @@ class Model(tf.keras.Model):
                     model=self,
                     verbose=verbose,
                     epochs=1,
-                    steps=data_handler.inferred_steps)
+                    steps=data_handler.inferred_steps,
+                )
 
             self.predict_function = self.make_predict_function()
             self._predict_counter.assign(0)
@@ -204,26 +215,39 @@ class Model(tf.keras.Model):
                         tmp_batch_outputs = self.predict_function(iterator)
                         if data_handler.should_sync:
                             context.async_wait()
-                        batch_outputs = tmp_batch_outputs  # No error, now safe to assign.
+                        batch_outputs = (
+                            tmp_batch_outputs  # No error, now safe to assign.
+                        )
                         if outputs is None:
-                            outputs = tf.nest.map_structure(lambda batch_output: [batch_output],
-                                                    batch_outputs)
+                            outputs = tf.nest.map_structure(
+                                lambda batch_output: [batch_output], batch_outputs
+                            )
                         else:
                             tf.__internal__.nest.map_structure_up_to(
                                 batch_outputs,
-                                lambda output, batch_output: output.append(batch_output),
-                                outputs, batch_outputs)
+                                lambda output, batch_output: output.append(
+                                    batch_output
+                                ),
+                                outputs,
+                                batch_outputs,
+                            )
                         end_step = step + data_handler.step_increment
-                        callbacks.on_predict_batch_end(end_step, {'outputs': batch_outputs})
+                        callbacks.on_predict_batch_end(
+                            end_step, {"outputs": batch_outputs}
+                        )
             if batch_outputs is None:
-                raise ValueError('Expect x to be a non-empty array or dataset.')
+                raise ValueError("Expect x to be a non-empty array or dataset.")
             callbacks.on_predict_end()
 
         # Avoid concat on quantiles when there are multiple batches
         if self.quantiles and len(outputs) > 1:
-            all_outputs = tf.__internal__.nest.map_structure_up_to(batch_outputs, concat(axis=1), outputs)
+            all_outputs = tf.__internal__.nest.map_structure_up_to(
+                batch_outputs, concat(axis=1), outputs
+            )
         else:
-            all_outputs = tf.__internal__.nest.map_structure_up_to(batch_outputs, concat(axis=0), outputs)
+            all_outputs = tf.__internal__.nest.map_structure_up_to(
+                batch_outputs, concat(axis=0), outputs
+            )
 
         # If originally PSS strategy was used, then replace it back since predict
         # is running under `OneDeviceStrategy` after the swap and once its done
@@ -235,25 +259,28 @@ class Model(tf.keras.Model):
 
 
 def _is_tpu_multi_host(strategy):
-    return (backend.is_tpu_strategy(strategy) and
-            strategy.extended.num_hosts > 1)
+    return backend.is_tpu_strategy(strategy) and strategy.extended.num_hosts > 1
+
 
 def concat(axis):
     """Concats `tensor`s along `axis`."""
+
     def new_concat(tensors):
         """Concats `tensor`s along `axis`."""
         if isinstance(tensors[0], tf.SparseTensor):
             return tf.sparse.concat(axis=axis, sp_inputs=tensors)
         return tf.concat(tensors, axis=axis)
+
     return new_concat
+
 
 def _disallow_inside_tf_function(method_name):
     if tf.inside_function():
         error_msg = (
-            'Detected a call to `Model.{method_name}` inside a `tf.function`. '
-            '`Model.{method_name} is a high-level endpoint that manages its own '
-            '`tf.function`. Please move the call to `Model.{method_name}` outside '
-            'of all enclosing `tf.function`s. Note that you can call a `Model` '
-            'directly on `Tensor`s inside a `tf.function` like: `model(x)`.'
+            "Detected a call to `Model.{method_name}` inside a `tf.function`. "
+            "`Model.{method_name} is a high-level endpoint that manages its own "
+            "`tf.function`. Please move the call to `Model.{method_name}` outside "
+            "of all enclosing `tf.function`s. Note that you can call a `Model` "
+            "directly on `Tensor`s inside a `tf.function` like: `model(x)`."
         ).format(method_name=method_name)
         raise RuntimeError(error_msg)

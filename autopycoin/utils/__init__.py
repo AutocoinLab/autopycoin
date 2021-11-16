@@ -10,5 +10,5 @@ __ALL__ = [
     "layer_test",
     "quantiles_handler",
     "range_dims",
-    "check_attributes"
+    "check_attributes",
 ]

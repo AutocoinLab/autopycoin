@@ -13,11 +13,13 @@ from tensorflow.python.util import tf_decorator
 from .baseclass_field import AutopycoinField, _convert_value
 
 
-NOT_SUPPORTED_FIELDS = ['return', 'kwargs', 'args']
+NOT_SUPPORTED_FIELDS = ["return", "kwargs", "args"]
+
 
 def dummy_callable(*args, **kwargs):
     """dummy callable"""
     pass
+
 
 class AutopycoinMetaClass(abc.ABCMeta):
     """Metaclass for autopycoin objects."""
@@ -78,7 +80,7 @@ class AutopycoinBaseClass(metaclass=AutopycoinMetaClass):
             ok_to_cache = False
         fields = []
         signatures = signature(attribute_value)  # To get default values
-        _pop_field(type_hints) # pop not supported fields
+        _pop_field(type_hints)  # pop not supported fields
         for (name, value_type) in type_hints.items():
             default = signatures.parameters[name].default
             if callable(default):
@@ -99,7 +101,9 @@ class AutopycoinBaseClass(metaclass=AutopycoinMetaClass):
         return list_fields
 
     def __validate__(self, cls, output, method_name, *args, **kwargs):
-        getattr(cls, '_val_' + method_name, dummy_callable)(self, output, *args, **kwargs)
+        getattr(cls, "_val_" + method_name, dummy_callable)(
+            self, output, *args, **kwargs
+        )
 
     def _get_parameter(self, args: list, kwargs: dict, name: str, position: int):
         param = kwargs.get(name, None)
@@ -107,10 +111,12 @@ class AutopycoinBaseClass(metaclass=AutopycoinMetaClass):
             param = args[position]
         return param
 
+
 def _pop_field(type_hints):
     """Field not currently supported."""
     for hint in NOT_SUPPORTED_FIELDS:
         type_hints.pop(hint, None)
+
 
 def _wrap_user_constructor(cls, attribute_name, attribute_value):
     """Wraps a user-defined constructor for autopycoin subclass `cls`."""
@@ -119,7 +125,9 @@ def _wrap_user_constructor(cls, attribute_name, attribute_value):
         list_fields = cls._type_fields(  # pylint: disable=protected-access
             attribute_name, attribute_value
         )
-        args, kwargs = convert_value(list_fields[f"{cls}_{attribute_name}"], attribute_name, *args, **kwargs)
+        args, kwargs = convert_value(
+            list_fields[f"{cls}_{attribute_name}"], attribute_name, *args, **kwargs
+        )
         output = attribute_value(self, *args, **kwargs)
         self.__validate__(cls, output, attribute_name, *args, **kwargs)
 
@@ -136,16 +144,21 @@ def convert_value(list_fields, attribute_name, *args, **kwargs):
     """check type parameters to the expected types for no default parameters."""
     args = list(args)
     for idx, field in enumerate(list_fields):
-        if not field.name in kwargs and idx <= len(args)-1:
-            args[idx] = _convert_value(args[idx], field.value_type, (f"value for {field.name} in {attribute_name}",))
+        if not field.name in kwargs and idx <= len(args) - 1:
+            args[idx] = _convert_value(
+                args[idx],
+                field.value_type,
+                (f"value for {field.name} in {attribute_name}",),
+            )
         elif field.name in kwargs:
             kwargs[field.name] = _convert_value(
-            kwargs[field.name],
-            field.value_type,
-            (f"value for {field.name} in {attribute_name}",),
-        )
+                kwargs[field.name],
+                field.value_type,
+                (f"value for {field.name} in {attribute_name}",),
+            )
 
     return args, kwargs
+
 
 def _methods_to_inspect(cls):
     """Filter each method to inspect of autopycoin subclass `cls`."""
@@ -153,7 +166,8 @@ def _methods_to_inspect(cls):
         attribute_value = getattr(cls, attribute_name)
         # Check that it is callable
         if (
-            callable(attribute_value) and not attribute_name in cls.NOT_INSPECT
+            callable(attribute_value)
+            and not attribute_name in cls.NOT_INSPECT
             and not attribute_name.startswith("__")
             and not attribute_name.endswith("__")
             and not attribute_name.startswith("_abc_")

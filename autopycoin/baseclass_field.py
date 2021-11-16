@@ -107,7 +107,11 @@ def validate_field_value_type(
         tf.Tensor,
     ):
         return
-    elif is_generic_tuple(value_type) or is_generic_union(value_type) or is_generic_list(value_type):
+    elif (
+        is_generic_tuple(value_type)
+        or is_generic_union(value_type)
+        or is_generic_list(value_type)
+    ):
         type_args = get_generic_type_args(value_type)
         if (
             len(type_args) == 2
@@ -130,7 +134,9 @@ def validate_field_value_type(
         raise TypeError(f"Unsupported type annotation {value_type!r}")
 
 
-def _convert_value(value, expected_type, path, context=_ConversionContext.VALUE, convert=True):
+def _convert_value(
+    value, expected_type, path, context=_ConversionContext.VALUE, convert=True
+):
     """Type-checks value.
 
     Parameters
@@ -161,7 +167,9 @@ def _convert_value(value, expected_type, path, context=_ConversionContext.VALUE,
     except (ValueError, TypeError):
         pass
 
-    raise TypeError(f'{"".join(path)}: expected {expected_type.__name__}, got {value!r}')
+    raise TypeError(
+        f'{"".join(path)}: expected {expected_type.__name__}, got {value!r}'
+    )
 
 
 def _check_tuple(value, expected_type, path, context):
@@ -172,7 +180,9 @@ def _check_tuple(value, expected_type, path, context):
     if len(element_types) == 2 and element_types[1] is Ellipsis:
         return tuple(
             [
-                _convert_value(v, element_types[0], path + (f"[{i}]",), context, convert=False)
+                _convert_value(
+                    v, element_types[0], path + (f"[{i}]",), context, convert=False
+                )
                 for (i, v) in enumerate(value)
             ]
         )
@@ -199,7 +209,9 @@ def _check_mapping(value, expected_type, path, context):
         [
             (
                 _convert_value(k, key_type, path + ("[<key>]",), context, convert=True),
-                _convert_value(v, value_type, path + (f"[{k!r}]",), context, convert=True),
+                _convert_value(
+                    v, value_type, path + (f"[{k!r}]",), context, convert=True
+                ),
             )
             for (k, v) in value.items()
         ]
@@ -213,7 +225,9 @@ def _check_union(value, expected_type, path, context):
             return _convert_value(value, type_option, path, context, convert=False)
         except TypeError:
             pass
-    return _convert_value(value, get_generic_type_args(expected_type)[-1], path, context, convert=True)
+    return _convert_value(
+        value, get_generic_type_args(expected_type)[-1], path, context, convert=True
+    )
 
 
 def _check_list(value, expected_type, path, context):
@@ -222,9 +236,9 @@ def _check_list(value, expected_type, path, context):
         raise TypeError(f'{"".join(path)}: expected list, got {value!r}')
     element_type = get_generic_type_args(expected_type)[0]
     return [
-                _convert_value(v, element_type, path + (f"[{i}]",), context, convert=True)
-                for (i, v) in enumerate(value)
-            ]
+        _convert_value(v, element_type, path + (f"[{i}]",), context, convert=True)
+        for (i, v) in enumerate(value)
+    ]
 
 
 def is_generic_union(tp):

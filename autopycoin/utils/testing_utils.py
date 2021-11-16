@@ -168,20 +168,24 @@ def layer_test(
 
     for (
         idx,
-        (y,
-        expected_output,
-        expected_output_dtype,
-        expected_output_shape,
-        computed_output_shape,
-        computed_output_signature)
-    ) in enumerate(zip(
-        ys,
-        expected_outputs,
-        expected_output_dtypes,
-        expected_output_shapes,
-        computed_output_shapes,
-        computed_output_signatures,
-    )):
+        (
+            y,
+            expected_output,
+            expected_output_dtype,
+            expected_output_shape,
+            computed_output_shape,
+            computed_output_signature,
+        ),
+    ) in enumerate(
+        zip(
+            ys,
+            expected_outputs,
+            expected_output_dtypes,
+            expected_output_shapes,
+            computed_output_shapes,
+            computed_output_signatures,
+        )
+    ):
 
         if tf.dtypes.as_dtype(expected_output_dtype) == tf.dtypes.string:
             if test_harness:
@@ -231,9 +235,11 @@ def layer_test(
             actual_output = layer.predict(input_data)
         else:
             actual_output = model.predict(input_data)
-        
-        # Handle multiple outputs 
-        actual_output = actual_output[idx] if isinstance(actual_output, tuple) else actual_output
+
+        # Handle multiple outputs
+        actual_output = (
+            actual_output[idx] if isinstance(actual_output, tuple) else actual_output
+        )
         actual_output_shape = actual_output.shape
         assert_shapes_equal(computed_output_shape, actual_output_shape)
         assert_shapes_equal(computed_output_signature.shape, actual_output_shape)
@@ -344,13 +350,22 @@ def should_run_eagerly():
 
     return _thread_local_data.run_eagerly and context.executing_eagerly()
 
+
 def check_attributes(instance, cls, attributes, expected_values):
     for attr, expected_value in zip(attributes, expected_values):
-            value = getattr(cls, attr)
-            if isinstance(expected_value, dict):
-                instance.assertDictEqual(value, expected_value, f"{attr} not equal to the expected value, got {value} != {expected_value}")
-            elif isinstance(expected_value, (list, tuple)):
-                for v, el in zip(value, expected_value):
-                    instance.assertIsInstance(v, type(el))
-            else:
-                np.testing.assert_array_equal(value, expected_value, f"{attr} not equal to the expected value, got {value} != {expected_value}")
+        value = getattr(cls, attr)
+        if isinstance(expected_value, dict):
+            instance.assertDictEqual(
+                value,
+                expected_value,
+                f"{attr} not equal to the expected value, got {value} != {expected_value}",
+            )
+        elif isinstance(expected_value, (list, tuple)):
+            for v, el in zip(value, expected_value):
+                instance.assertIsInstance(v, type(el))
+        else:
+            np.testing.assert_array_equal(
+                value,
+                expected_value,
+                f"{attr} not equal to the expected value, got {value} != {expected_value}",
+            )

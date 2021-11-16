@@ -27,5 +27,5 @@ __ALL__ = [
     "create_interpretable_nbeats",
     "create_generic_nbeats",
     "Model",
-    "Layer"
+    "Layer",
 ]

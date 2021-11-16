@@ -34,7 +34,7 @@ class ModelTest(tf.test.TestCase, parameterized.TestCase):
             trend_n_neurons=5,
             seasonality_n_neurons=5,
             drop_rate=0.5,
-            share=True
+            share=True,
         )
 
         self.assertEqual(model.quantiles, None)

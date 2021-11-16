@@ -17,7 +17,8 @@ from .. import AutopycoinBaseClass
 
 Yannotation = Union[tf.Tensor, pd.DataFrame, np.array, list]
 
-def smape(y_true: Yannotation, y_pred: Yannotation, mask: Optional[bool]=False):
+
+def smape(y_true: Yannotation, y_pred: Yannotation, mask: Optional[bool] = False):
     """
     Calculate the symmetric mean absolute percentage error between `y_true`and `y_pred`.
 
@@ -71,7 +72,9 @@ def smape(y_true: Yannotation, y_pred: Yannotation, mask: Optional[bool]=False):
     return error
 
 
-def quantile_loss(y_true: Yannotation, y_pred: Yannotation, quantiles: List[float]) -> tf.Tensor:
+def quantile_loss(
+    y_true: Yannotation, y_pred: Yannotation, quantiles: List[float]
+) -> tf.Tensor:
     """
     Calculate the quantile loss function, summed across all quantile outputs.
 

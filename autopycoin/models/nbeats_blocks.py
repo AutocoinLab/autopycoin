@@ -4,7 +4,8 @@ import abc
 
 import tensorflow as tf
 from tensorflow.keras.layers import Dropout, InputSpec
-#from tensorflow.keras import Model
+
+# from tensorflow.keras import Model
 from tensorflow.keras.backend import floatx
 
 from .base_layer import Layer
@@ -61,9 +62,9 @@ class BaseBlock(Layer, AutopycoinBaseClass):
         output_first_dim_backcast: int,
         n_neurons: int,
         drop_rate: float,
-        g_trainable: bool=False,
-        interpretable: bool=False,
-        block_type: str='BaseBlock',
+        g_trainable: bool = False,
+        interpretable: bool = False,
+        block_type: str = "BaseBlock",
         **kwargs: dict,
     ):
 
@@ -145,7 +146,7 @@ class BaseBlock(Layer, AutopycoinBaseClass):
 
     def call(
         self, inputs: tf.Tensor
-        ) -> Tuple[tf.Tensor]:  # pylint: disable=arguments-differ
+    ) -> Tuple[tf.Tensor]:  # pylint: disable=arguments-differ
         """Call method from tensorflow."""
         for kernel, bias in self.fc_stack:
             # shape: (Batch_size, n_neurons)
@@ -167,7 +168,9 @@ class BaseBlock(Layer, AutopycoinBaseClass):
 
         return outputs, inputs_reconstruction
 
-    def compute_output_shape(self, input_shape: tf.TensorShape) -> Tuple[tf.TensorShape]:
+    def compute_output_shape(
+        self, input_shape: tf.TensorShape
+    ) -> Tuple[tf.TensorShape]:
         """output method from tensoflow"""
         if isinstance(input_shape, tuple):
             input_shape = input_shape[0]
@@ -249,7 +252,7 @@ class BaseBlock(Layer, AutopycoinBaseClass):
         -------
         coefficients
             `Tensor` of shape (d0, ..., output_first_dim_forecast, input_width)
-        
+
         Raises
         ------
         ValueError
@@ -272,7 +275,7 @@ class BaseBlock(Layer, AutopycoinBaseClass):
         -------
         coefficients
             `Tensor` of shape (d0, ..., output_first_dim_backcast, label_width)
-        
+
         Raises
         ------
         ValueError
@@ -284,14 +287,16 @@ class BaseBlock(Layer, AutopycoinBaseClass):
             "implement a `_get_backcast_coefficients` method."
         )
 
-    def _val___init__(self, output: None, *args: list, **kwargs: dict) -> None: # pylint: disable=unused-argument
+    def _val___init__(
+        self, output: None, *args: list, **kwargs: dict
+    ) -> None:  # pylint: disable=unused-argument
         if self.input_width <= 0 or self.label_width <= 0:
             raise ValueError(
                 f"Received an invalid values for `input_width` or `label_width`, expected "
                 f"strictly positive integers, got {self.input_width} and {self.label_width}."
             )
 
-        if not (self.drop_rate >= 0. and self.drop_rate <= 1.0):
+        if not (self.drop_rate >= 0.0 and self.drop_rate <= 1.0):
             raise ValueError(
                 f"Received an invalid value for `drop_rate`, expected "
                 f"a float between 0 and 1, got {self.drop_rate}."
@@ -302,24 +307,30 @@ class BaseBlock(Layer, AutopycoinBaseClass):
                 f"a strictly positive integer, got {self._n_neurons}."
             )
 
-        if 'Block' not in self.block_type:
-            raise ValueError(
-            f"`name` has to contain `Block`. Got {self.name}"
-            )
+        if "Block" not in self.block_type:
+            raise ValueError(f"`name` has to contain `Block`. Got {self.name}")
 
-    def _val__get_backcast_coefficients(self, output: tf.Tensor, *args: list, **kwargs: dict) -> None: # pylint: disable=unused-argument
+    def _val__get_backcast_coefficients(
+        self, output: tf.Tensor, *args: list, **kwargs: dict
+    ) -> None:  # pylint: disable=unused-argument
         msg_error = f"""The forecast layer doesn't match the desired shape. Got {output.shape},
                 expected (..., { self._output_first_dim_forecast}, {self.input_width}"""
         assert tf.rank(output) >= 2, msg_error
-        assert (output.shape[-1] == self.label_width or
-            output.shape[-2] == self._output_first_dim_backcast), msg_error
+        assert (
+            output.shape[-1] == self.label_width
+            or output.shape[-2] == self._output_first_dim_backcast
+        ), msg_error
 
-    def _val__get_forecast_coefficients(self, output: tf.Tensor, *args: list, **kwargs: dict) -> None: # pylint: disable=unused-argument
+    def _val__get_forecast_coefficients(
+        self, output: tf.Tensor, *args: list, **kwargs: dict
+    ) -> None:  # pylint: disable=unused-argument
         msg_error = f"""The forecast layer doesn't match the desired shape. Got {output.shape},
                 expected (..., { self._output_first_dim_forecast}, {self.input_width}"""
         assert tf.rank(output) >= 2, msg_error
-        assert (output.shape[-1] == self.input_width or
-            output.shape[-2] == self._output_first_dim_forecast), msg_error
+        assert (
+            output.shape[-1] == self.input_width
+            or output.shape[-2] == self._output_first_dim_forecast
+        ), msg_error
 
     def __repr__(self) -> str:
         """Return the representation."""
@@ -415,7 +426,7 @@ class TrendBlock(BaseBlock, AutopycoinBaseClass):
         label_width: int,
         p_degree: int,
         n_neurons: int,
-        drop_rate: float = 0.,
+        drop_rate: float = 0.0,
         **kwargs: dict,
     ):
 
@@ -428,7 +439,7 @@ class TrendBlock(BaseBlock, AutopycoinBaseClass):
             drop_rate=drop_rate,
             g_trainable=False,
             interpretable=True,
-            block_type='TrendBlock',
+            block_type="TrendBlock",
             **kwargs,
         )
 
@@ -466,7 +477,7 @@ class TrendBlock(BaseBlock, AutopycoinBaseClass):
         -------
         coefficients
             `Tensor` of shape (d0, ..., output_first_dim_forecast, input_width)
-        
+
         Raises
         ------
         ValueError
@@ -474,9 +485,10 @@ class TrendBlock(BaseBlock, AutopycoinBaseClass):
             (d0, ..., output_first_dim_forecast, input_width).
         """
         # Set weights with calculated coef
-        forecast_coef = self.coefficient_factory(self.input_width, tf.expand_dims(
-            tf.range(self.p_degree, dtype=floatx()), axis=-1
-        ))
+        forecast_coef = self.coefficient_factory(
+            self.input_width,
+            tf.expand_dims(tf.range(self.p_degree, dtype=floatx()), axis=-1),
+        )
         return self.add_weight(
             shape=forecast_coef.shape,
             initializer=tf.constant_initializer(forecast_coef.numpy()),
@@ -495,9 +507,10 @@ class TrendBlock(BaseBlock, AutopycoinBaseClass):
         """
 
         # Set weights with calculated coef
-        backcast_coef = self.coefficient_factory(self.label_width, tf.expand_dims(
-            tf.range(self.p_degree, dtype=floatx()), axis=-1
-        ))
+        backcast_coef = self.coefficient_factory(
+            self.label_width,
+            tf.expand_dims(tf.range(self.p_degree, dtype=floatx()), axis=-1),
+        )
         return self.add_weight(
             shape=backcast_coef.shape,
             initializer=tf.constant_initializer(backcast_coef.numpy()),
@@ -519,7 +532,9 @@ class TrendBlock(BaseBlock, AutopycoinBaseClass):
         )
         return config
 
-    def _val___init__(self, output: None, *args: list, **kwargs: dict) -> None: # pylint: disable=unused-argument
+    def _val___init__(
+        self, output: None, *args: list, **kwargs: dict
+    ) -> None:  # pylint: disable=unused-argument
         if self.p_degree < 0:
             raise ValueError(
                 f"Received an invalid value for `p_degree`, expected "
@@ -634,7 +649,7 @@ class SeasonalityBlock(BaseBlock, AutopycoinBaseClass):
         forecast_fourier_order: List[int],
         backcast_fourier_order: List[int],
         n_neurons: int,
-        drop_rate: float = 0.,
+        drop_rate: float = 0.0,
         **kwargs: dict,
     ):
 
@@ -652,7 +667,7 @@ class SeasonalityBlock(BaseBlock, AutopycoinBaseClass):
             drop_rate=drop_rate,
             g_trainable=False,
             interpretable=True,
-            block_type='SeasonalityBlock',
+            block_type="SeasonalityBlock",
             **kwargs,
         )
 
@@ -682,8 +697,11 @@ class SeasonalityBlock(BaseBlock, AutopycoinBaseClass):
         return self._backcast_fourier_order
 
     def coefficient_factory(
-        self, input_width: float, periods: Tuple[int, ...], fourier_orders: Tuple[int, ...]
-        ) -> tf.Tensor:
+        self,
+        input_width: float,
+        periods: Tuple[int, ...],
+        fourier_orders: Tuple[int, ...],
+    ) -> tf.Tensor:
         """
         Compute the coefficients used in the last layer a.k.a g constrained layer.
 
@@ -780,10 +798,15 @@ class SeasonalityBlock(BaseBlock, AutopycoinBaseClass):
         )
         return config
 
-    def _val___init__(self, output: None, *args: list, **kwargs: dict) -> None: # pylint: disable=unused-argument
-        if not (all(period==abs(period) for period in self.periods) and len(self.periods) > 0):
+    def _val___init__(
+        self, output: None, *args: list, **kwargs: dict
+    ) -> None:  # pylint: disable=unused-argument
+        if not (
+            all(period == abs(period) for period in self.periods)
+            and len(self.periods) > 0
+        ):
             raise ValueError(
-            f"""`periods` have to be a non-empty list and all elements have to be strictly positives values.
+                f"""`periods` have to be a non-empty list and all elements have to be strictly positives values.
             Got {self.periods}."""
             )
 
@@ -794,9 +817,12 @@ class SeasonalityBlock(BaseBlock, AutopycoinBaseClass):
                 f"{len(self.periods)} and {len(self.forecast_fourier_order)} respectively."
             )
 
-        if not (all(back_period==abs(back_period) for back_period in self.back_periods) and len(self.back_periods) > 0):
+        if not (
+            all(back_period == abs(back_period) for back_period in self.back_periods)
+            and len(self.back_periods) > 0
+        ):
             raise ValueError(
-            f"""`back_periods` have to be a non-empty list and all elements inside have to be strictly positives values.
+                f"""`back_periods` have to be a non-empty list and all elements inside have to be strictly positives values.
             Got {self.back_periods}."""
             )
 
@@ -806,7 +832,6 @@ class SeasonalityBlock(BaseBlock, AutopycoinBaseClass):
                 f"to have the same length, got "
                 f"{len(self.back_periods)} and {len(self.backcast_fourier_order)} respectively."
             )
-
 
 
 class GenericBlock(BaseBlock, AutopycoinBaseClass):
@@ -895,13 +920,11 @@ class GenericBlock(BaseBlock, AutopycoinBaseClass):
             drop_rate=drop_rate,
             g_trainable=True,
             interpretable=False,
-            block_type='GenericBlock',
+            block_type="GenericBlock",
             **kwargs,
         )
 
-    def coefficient_factory(
-        self, input_width: int, neurons: int
-    ) -> tf.Tensor:
+    def coefficient_factory(self, input_width: int, neurons: int) -> tf.Tensor:
         """
         Compute the coefficients used in the last layer a.k.a g layer.
         This function is used in `_get_forecast_coefficients` and
@@ -985,7 +1008,11 @@ class GenericBlock(BaseBlock, AutopycoinBaseClass):
         )
         return config
 
-    def _val___init__(self, output: None, *args: list, **kwargs: dict) -> None: # pylint: disable=unused-argument
+    def _val___init__(
+        self, output: None, *args: list, **kwargs: dict
+    ) -> None:  # pylint: disable=unused-argument
         if self._output_first_dim_backcast <= 0 or self._output_first_dim_forecast <= 0:
-            raise ValueError(f"""Received an invalid value for `forecast_neurons` or `backcast_neurons`,
-                expected strictly postive integers, got {self._output_first_dim_backcast} and {self._output_first_dim_forecast}""")
+            raise ValueError(
+                f"""Received an invalid value for `forecast_neurons` or `backcast_neurons`,
+                expected strictly postive integers, got {self._output_first_dim_backcast} and {self._output_first_dim_forecast}"""
+            )

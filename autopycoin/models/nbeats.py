@@ -5,7 +5,8 @@ N-BEATS implementation
 from typing import Union, Tuple, List
 
 import tensorflow as tf
-#from tensorflow.keras import Model
+
+# from tensorflow.keras import Model
 from tensorflow.keras.backend import floatx
 
 from .training import Model
@@ -80,7 +81,9 @@ class Stack(Model, AutopycoinBaseClass):
         self._stack_type = self._set_type()
         self._is_interpretable = self._set_interpretability()
 
-    def call(self, inputs: Union[tuple, dict, list, tf.Tensor]) -> Tuple[tf.Tensor, ...]:
+    def call(
+        self, inputs: Union[tuple, dict, list, tf.Tensor]
+    ) -> Tuple[tf.Tensor, ...]:
         """Call method from tensorflow."""
 
         outputs = tf.constant(0.0)
@@ -110,11 +113,10 @@ class Stack(Model, AutopycoinBaseClass):
         It can be `CustomStack` if the blocks are all differents or
         `...Stack` with `...` the first part of the block types."""
         return self._stack_type
-    
+
     @property
     def is_interpretable(self) -> bool:
-        """Return True if the stack is interpretable.
-        """
+        """Return True if the stack is interpretable."""
         return self._is_interpretable
 
     def _set_type(self) -> str:
@@ -123,14 +125,14 @@ class Stack(Model, AutopycoinBaseClass):
         block_type = self.blocks[0].block_type
         for block in self.blocks:
             if block.block_type != block_type:
-                return 'CustomStack'
-        return block_type.replace('Block', '') + 'Stack'
+                return "CustomStack"
+        return block_type.replace("Block", "") + "Stack"
 
     def _set_interpretability(self) -> bool:
         """Defines if the stack is interpretable."""
 
         interpretable = all([block.is_interpretable for block in self.blocks])
-        if 'Custom' not in self.stack_type and interpretable:
+        if "Custom" not in self.stack_type and interpretable:
             return True
         return False
 
@@ -234,7 +236,7 @@ class NBEATS(Model, AutopycoinBaseClass):
         # Stock trend and seasonality curves during inference
         self._output_residuals = tf.TensorArray(floatx(), size=len(self.stacks))
 
-        outputs = tf.constant(0.)
+        outputs = tf.constant(0.0)
         for idx, stack in enumerate(self.stacks):
             # outputs_residual is (quantiles, Batch_size, forecast)
             # inputs is (Batch_size, backcast)
@@ -262,8 +264,8 @@ class NBEATS(Model, AutopycoinBaseClass):
             return self._output_residuals
         except AttributeError as error:
             raise AttributeError(
-                '`stack_outputs`is not defined unless you call `predict` or `call` methods'
-                ) from error
+                "`stack_outputs`is not defined unless you call `predict` or `call` methods"
+            ) from error
 
     @property
     def seasonality(self) -> tf.Tensor:
@@ -289,15 +291,15 @@ class NBEATS(Model, AutopycoinBaseClass):
         preceding a `SeasonalityStack` are not `TrendStack`. Got {self.stacks},
         expected at least (`TrendStack`, `SeasonalityStack`, ...)."""
 
-        if self.stacks[0].stack_type != 'TrendStack':
+        if self.stacks[0].stack_type != "TrendStack":
             raise AttributeError(msg_error)
         start = 0
         for idx, stack in enumerate(self.stacks):
-            if stack.stack_type == 'SeasonalityStack':
+            if stack.stack_type == "SeasonalityStack":
                 start = idx
-            elif stack.stack_type != 'TrendStack' and start == 0:
+            elif stack.stack_type != "TrendStack" and start == 0:
                 raise AttributeError(msg_error)
-            elif stack.stack_type == 'TrendStack':
+            elif stack.stack_type == "TrendStack":
                 continue
             else:
                 return self._output_residuals[start:idx]
@@ -318,12 +320,12 @@ class NBEATS(Model, AutopycoinBaseClass):
         AttributeError
             Raises an error if the first block is not a `TrendBlock`."""
 
-        if self.stacks[0].stack_type != 'TrendStack':
+        if self.stacks[0].stack_type != "TrendStack":
             raise AttributeError(
                 f"trend doesn't exists if the firsts stacks are not `TrendStack`. Got {self.stacks}."
-                )
+            )
         for idx, stack in enumerate(self.stacks):
-            if stack.stack_type != 'TrendStack':
+            if stack.stack_type != "TrendStack":
                 return self._output_residuals[:idx]
         return self._output_residuals
 
@@ -343,8 +345,8 @@ class NBEATS(Model, AutopycoinBaseClass):
     def _set_type(self):
         """Defines the type of Nbeats."""
         if self.is_interpretable:
-            return 'InterpretableNbeats'
-        return 'Nbeats'
+            return "InterpretableNbeats"
+        return "Nbeats"
 
     def __repr__(self):
         return self._nbeats_type
@@ -357,13 +359,13 @@ def create_interpretable_nbeats(
     back_periods: List[int],
     forecast_fourier_order: List[int],
     backcast_fourier_order: List[int],
-    p_degree: int=1,
-    trend_n_neurons: int=16,
-    seasonality_n_neurons: int=16,
-    drop_rate: float=0.,
-    share: bool=True,
+    p_degree: int = 1,
+    trend_n_neurons: int = 16,
+    seasonality_n_neurons: int = 16,
+    drop_rate: float = 0.0,
+    share: bool = True,
     **kwargs: dict,
-    ):
+):
     """
     Wrapper to create an interpretable model using recommendations of the paper.
     Two stacks are created with 3 blocks each. The fisrt entirely composed by trend blocks,
@@ -476,7 +478,9 @@ def create_interpretable_nbeats(
 
     trend_stacks = Stack(trend_blocks, name="trend_stack")
     seasonality_stacks = Stack(seasonality_blocks, name="seasonality_stack")
-    model = NBEATS([trend_stacks, seasonality_stacks], name="interpretable_NBEATS", **kwargs)
+    model = NBEATS(
+        [trend_stacks, seasonality_stacks], name="interpretable_NBEATS", **kwargs
+    )
 
     return model
 
@@ -489,10 +493,10 @@ def create_generic_nbeats(
     n_neurons: int,
     n_blocks: int,
     n_stacks: int,
-    drop_rate: float=0.,
-    share: bool=True,
+    drop_rate: float = 0.0,
+    share: bool = True,
     **kwargs: dict,
-    ):
+):
     """
     Wrapper to create a generic model.
 
@@ -571,9 +575,5 @@ def create_generic_nbeats(
 
             generic_stacks.append(Stack(generic_blocks, name="generic_stack"))
 
-    model = NBEATS(
-        generic_stacks,
-        name="generic_NBEATS",
-        **kwargs
-    )
+    model = NBEATS(generic_stacks, name="generic_NBEATS", **kwargs)
     return model

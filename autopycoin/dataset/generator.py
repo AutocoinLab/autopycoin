@@ -133,7 +133,7 @@ class WindowGenerator(AutopycoinBaseClass):
         strategy: str,
         batch_size: Optional[int] = None,
         preprocessing: Union[tf.keras.layers.Layer, None] = None,
-    ): # pylint: disable=dangerous-default-value
+    ):  # pylint: disable=dangerous-default-value
 
         self._input_width = input_width
         self._label_width = label_width
@@ -170,7 +170,8 @@ class WindowGenerator(AutopycoinBaseClass):
         input_columns: List[str],
         label_columns: List[str],
         known_columns: List[str] = [],
-        date_columns: List[str] = []):
+        date_columns: List[str] = [],
+    ):
         """
         Feed `WindowGenerator` with a dataframe. This method
         has to be called before using `train,, `test` or `valid` methods
@@ -206,7 +207,7 @@ class WindowGenerator(AutopycoinBaseClass):
         # Avoid replacing original dataframe
         data = data.copy()
         # Default creation of a date column
-        if not date_columns and 'date' in data.columns:
+        if not date_columns and "date" in data.columns:
             date_columns = ["date"]
         elif not date_columns:
             data, date_columns = self._date_columns_handler(data)
@@ -217,16 +218,24 @@ class WindowGenerator(AutopycoinBaseClass):
 
         # Get index for each columns
         try:
-            self._input_columns = [self._data_columns.get_loc(col) for col in input_columns]
-            self._label_columns = [self._data_columns.get_loc(col) for col in label_columns]
-            self._known_columns = [self._data_columns.get_loc(col) for col in known_columns]
-            self._date_columns = [self._data_columns.get_loc(col) for col in date_columns]
+            self._input_columns = [
+                self._data_columns.get_loc(col) for col in input_columns
+            ]
+            self._label_columns = [
+                self._data_columns.get_loc(col) for col in label_columns
+            ]
+            self._known_columns = [
+                self._data_columns.get_loc(col) for col in known_columns
+            ]
+            self._date_columns = [
+                self._data_columns.get_loc(col) for col in date_columns
+            ]
         except KeyError as error:
             raise KeyError(
                 f"""Columns are not found inside data, got input_columns: {input_columns},
                 label_columns: {label_columns}, known_columns: {known_columns} and date_columns: {date_columns}.
                 Expected {self._data_columns}."""
-                ) from error
+            ) from error
 
         self._compute_train_valid_test_split()
 
@@ -234,12 +243,12 @@ class WindowGenerator(AutopycoinBaseClass):
 
     def _date_columns_handler(self, data: pd.DataFrame) -> Tuple[pd.DataFrame, list]:
         """Handle the case data has no date columns."""
-        date_columns = data.index.names if data.index.names[0] else ['date']
+        date_columns = data.index.names if data.index.names[0] else ["date"]
         # We have to rearrange columns
         columns = data.columns
         data = data.reset_index()
-        if date_columns == ['date']:
-            data = data.rename(columns={'index':"date"})
+        if date_columns == ["date"]:
+            data = data.rename(columns={"index": "date"})
         return data[columns.tolist() + date_columns], date_columns
 
     def from_array(
@@ -248,7 +257,8 @@ class WindowGenerator(AutopycoinBaseClass):
         input_columns: List[Union[slice, int]],
         label_columns: List[Union[slice, int]],
         known_columns: List[Union[slice, int]] = [],
-        date_columns: List[Union[slice, int]] = []):
+        date_columns: List[Union[slice, int]] = [],
+    ):
         """
         Feed `WindowGenerator` with a tensor or an array. This method
         has to be called before using `train,, `test` or `valid` methods
@@ -285,15 +295,11 @@ class WindowGenerator(AutopycoinBaseClass):
         if not date_columns:
             # Last not -1
             date_columns = [data.shape[1]]
-            data = np.concatenate(
-                (data,
-                np.arange(len(data)).reshape(-1, 1)),
-                axis=1
-            )
+            data = np.concatenate((data, np.arange(len(data)).reshape(-1, 1)), axis=1)
 
         # Converting data into array
         self._data = data
-        self._data_columns = None # Used in `production`
+        self._data_columns = None  # Used in `production`
 
         self._input_columns = input_columns
         self._label_columns = label_columns
@@ -312,13 +318,13 @@ class WindowGenerator(AutopycoinBaseClass):
         self._test_start = self.data.shape[0] - bool(self.test_size) * (
             self._total_window_size + self.test_size - 1
         )
-        self._valid_start = self._test_start + bool(self.test_size) * self.input_width - bool(self.valid_size) * (
-            self._total_window_size + self.valid_size - 1
+        self._valid_start = (
+            self._test_start
+            + bool(self.test_size) * self.input_width
+            - bool(self.valid_size) * (self._total_window_size + self.valid_size - 1)
         )
 
-        self._train_data = self.data[
-            : (self._valid_start + self.input_width)
-        ]
+        self._train_data = self.data[: (self._valid_start + self.input_width)]
 
         self._valid_data = self.data[
             self._valid_start : (
@@ -331,7 +337,7 @@ class WindowGenerator(AutopycoinBaseClass):
     def _make_dataset(
         self,
         data: Union[pd.DataFrame, np.ndarray, tf.Tensor],
-        batch_size: Optional[int]=None,
+        batch_size: Optional[int] = None,
     ) -> tf.data.Dataset:
         """
         Compute the tensorflow dataset object.
@@ -461,17 +467,15 @@ class WindowGenerator(AutopycoinBaseClass):
             known = tf.reshape(
                 known, shape=(-1, self.input_width * len(self.known_columns))
             )
-            date_inputs = tf.reshape(
-                date_inputs, shape=(-1, self.input_width)
-            )
-            date_labels = tf.reshape(
-                date_labels, shape=(-1, self.label_width)
-            )
+            date_inputs = tf.reshape(date_inputs, shape=(-1, self.input_width))
+            date_labels = tf.reshape(date_labels, shape=(-1, self.label_width))
 
         return (inputs, known, date_inputs, date_labels), labels
 
     def production(
-        self, data: Union[pd.DataFrame, np.array, tf.Tensor], batch_size: Optional[int]=None
+        self,
+        data: Union[pd.DataFrame, np.array, tf.Tensor],
+        batch_size: Optional[int] = None,
     ) -> tf.data.Dataset:
         """
         Build the production dataset.
@@ -492,12 +496,19 @@ class WindowGenerator(AutopycoinBaseClass):
         # If `from_dataframe` is used then variables columns from the provided
         # dataframe doesn't need to perfectly match self._data_columns.
         if isinstance(data, pd.DataFrame) and self._data_columns is not None:
-            assert data.shape[0] >= self._total_window_size, f"The given dataframe doesn't contain enough values, got {data.shape[0]} values, expected at least {self._total_window_size} values."
-            
+            assert (
+                data.shape[0] >= self._total_window_size
+            ), f"The given dataframe doesn't contain enough values, got {data.shape[0]} values, expected at least {self._total_window_size} values."
+
             if not all(self._data_columns[self.date_columns].isin(data.columns)):
                 data, _ = self._date_columns_handler(data)
-            
-            columns = self._data_columns[self.input_columns + self.label_columns + self.known_columns + self.date_columns]
+
+            columns = self._data_columns[
+                self.input_columns
+                + self.label_columns
+                + self.known_columns
+                + self.date_columns
+            ]
             assert all(
                 columns.isin(data.columns)
             ), f"The given data columns doesn't match the expected columns, got {data.columns}. Expected at least {columns}"
@@ -505,7 +516,9 @@ class WindowGenerator(AutopycoinBaseClass):
         else:
             # If an array is provided or a dataframe but `from_dataframe` was not used previously then
             # Data shape has to match the specs saved from the methods `from_array` or `from_dataframe`.
-            assert (data.shape[0] >= self._total_window_size and data.shape[1:] == self.data.shape[1:]
+            assert (
+                data.shape[0] >= self._total_window_size
+                and data.shape[1:] == self.data.shape[1:]
             ), f"""The given array doesn't contain enough data, got data of shape {data.shape}.
             Expected at least shape {(self._total_window_size, *self.data.shape[1:])}."""
 
@@ -515,14 +528,16 @@ class WindowGenerator(AutopycoinBaseClass):
     def get_config(self):
         """Return the config values."""
 
-        return {'input_width': self.input_width,
-                'label_width': self.label_width,
-                'shift': self.shift,
-                'valid_size': self.valid_size,
-                'test_size': self.test_size,
-                'strategy': self.strategy,
-                'batch_size': self.batch_size,
-                'preprocessing': self._preprocessing,}
+        return {
+            "input_width": self.input_width,
+            "label_width": self.label_width,
+            "shift": self.shift,
+            "valid_size": self.valid_size,
+            "test_size": self.test_size,
+            "strategy": self.strategy,
+            "batch_size": self.batch_size,
+            "preprocessing": self._preprocessing,
+        }
 
     @property
     def train(self) -> tf.data.Dataset:
@@ -576,8 +591,10 @@ class WindowGenerator(AutopycoinBaseClass):
             It cannot be empty."""
         if self._initialized:
             return self._train_data
-        raise AttributeError("""The instance is not initialized.
-            Call `from_dataframe` or `from_array` to initialize it.""")
+        raise AttributeError(
+            """The instance is not initialized.
+            Call `from_dataframe` or `from_array` to initialize it."""
+        )
 
     @property
     def valid_data(self) -> np.ndarray:
@@ -585,30 +602,38 @@ class WindowGenerator(AutopycoinBaseClass):
         It could be an empty DataFrame depending of your parameters."""
         if self._initialized:
             return self._valid_data
-        raise AttributeError("""The instance is not initialized.
-            Call `from_dataframe` or `from_array` to initialize it.""")
+        raise AttributeError(
+            """The instance is not initialized.
+            Call `from_dataframe` or `from_array` to initialize it."""
+        )
 
     @property
     def test_data(self) -> np.ndarray:
-        """Return the DataFrame or array associated to the test dataset. 
+        """Return the DataFrame or array associated to the test dataset.
         It could be an empty DataFrame depending of your parameters."""
         if self._initialized:
             return self._test_data
-        raise AttributeError("""The instance is not initialized.
-            Call `from_dataframe` or `from_array` to initialize it.""")
+        raise AttributeError(
+            """The instance is not initialized.
+            Call `from_dataframe` or `from_array` to initialize it."""
+        )
 
     @property
     def data(self) -> np.ndarray:
         """Return the original data."""
         if self._initialized:
             return self._data
-        raise AttributeError("""The instance is not initialized.
-            Call `from_dataframe` or `from_array` to initialize it.""")
+        raise AttributeError(
+            """The instance is not initialized.
+            Call `from_dataframe` or `from_array` to initialize it."""
+        )
 
     @data.setter
     def data(self, _) -> None:
         """Set the new data."""
-        raise AttributeError("You cannot modify `data`, use `from_dataframe` or `from_array` instead.")
+        raise AttributeError(
+            "You cannot modify `data`, use `from_dataframe` or `from_array` instead."
+        )
 
     @property
     def input_width(self) -> int:
@@ -668,7 +693,7 @@ class WindowGenerator(AutopycoinBaseClass):
         return self._test_size
 
     @test_size.setter
-    def test_size(self, value)-> None:
+    def test_size(self, value) -> None:
         """Return the new test_size."""
         self._test_size = value
         self._compute_window_parameters()
@@ -680,54 +705,72 @@ class WindowGenerator(AutopycoinBaseClass):
         """Return the input_width."""
         if self._initialized:
             return self._input_columns
-        raise AttributeError("""The instance is not initialized.
-            Call `from_dataframe` or `from_array` to initialize it.""")
+        raise AttributeError(
+            """The instance is not initialized.
+            Call `from_dataframe` or `from_array` to initialize it."""
+        )
 
     @input_columns.setter
     def input_columns(self, _) -> None:
         """Set the new data."""
-        raise AttributeError("You cannot modify `input_columns`, use `from_dataframe` or `from_array` instead.")
+        raise AttributeError(
+            "You cannot modify `input_columns`, use `from_dataframe` or `from_array` instead."
+        )
 
     @property
     def label_columns(self) -> List[Union[int, slice]]:
         """Return the label_columns."""
         if self._initialized:
             return self._label_columns
-        raise AttributeError("""The instance is not initialized.
-            Call `from_dataframe` or `from_array` to initialize it.""")
+        raise AttributeError(
+            """The instance is not initialized.
+            Call `from_dataframe` or `from_array` to initialize it."""
+        )
 
     @label_columns.setter
     def label_columns(self, _) -> None:
         """Set the new data."""
-        raise AttributeError("You cannot modify `label_columns`, use `from_dataframe` or `from_array` instead.")
+        raise AttributeError(
+            "You cannot modify `label_columns`, use `from_dataframe` or `from_array` instead."
+        )
 
     @property
     def known_columns(self) -> List[Union[int, slice]]:
         """Return the known_columns."""
         if self._initialized:
             return self._known_columns
-        raise AttributeError("""The instance is not initialized.
-            Call `from_dataframe` or `from_array` to initialize it.""")
+        raise AttributeError(
+            """The instance is not initialized.
+            Call `from_dataframe` or `from_array` to initialize it."""
+        )
 
     @known_columns.setter
     def known_columns(self, _) -> None:
         """Set the new data."""
-        raise AttributeError("You cannot modify `known_columns`, use `from_dataframe` or `from_array` instead.")
+        raise AttributeError(
+            "You cannot modify `known_columns`, use `from_dataframe` or `from_array` instead."
+        )
 
     @property
     def date_columns(self) -> List[Union[int, slice]]:
         """Return date_columns."""
         if self._initialized:
             return self._date_columns
-        raise AttributeError("""The instance is not initialized.
-            Call `from_dataframe` or `from_array` to initialize it.""")
+        raise AttributeError(
+            """The instance is not initialized.
+            Call `from_dataframe` or `from_array` to initialize it."""
+        )
 
     @date_columns.setter
     def date_columns(self, _) -> None:
         """Set the new data."""
-        raise AttributeError("You cannot modify `date_columns`, use `from_dataframe` or `from_array` instead.")
+        raise AttributeError(
+            "You cannot modify `date_columns`, use `from_dataframe` or `from_array` instead."
+        )
 
-    def _val___init__(self, output: None, *args: list, **kwargs: dict) -> None: # pylint: disable=unused-argument
+    def _val___init__(
+        self, output: None, *args: list, **kwargs: dict
+    ) -> None:  # pylint: disable=unused-argument
         """Validates attributes and args of __init__ method."""
         assert (
             self.input_width > 0
@@ -755,33 +798,45 @@ class WindowGenerator(AutopycoinBaseClass):
                 self.batch_size > 0
             ), f"The batch size has to be strictly positive, got {self.batch_size}."
 
-    def _val__compute_train_valid_test_split(self, output: None, *args: list, **kwargs: dict) -> None: # pylint: disable=unused-argument
+    def _val__compute_train_valid_test_split(
+        self, output: None, *args: list, **kwargs: dict
+    ) -> None:  # pylint: disable=unused-argument
         """Validates attributes and args of `_compute_train_valid_test_split` method."""
 
         assert len(self.label_columns) > 0, "The label columns list is empty."
         assert len(self.input_columns) > 0, "The input columns list is empty."
-        assert (
-            np.size(self.data)
-        ), "The given parameter `data` is an empty DataFrame."
+        assert np.size(self.data), "The given parameter `data` is an empty DataFrame."
 
         assert (
             self.input_width + self.shift <= self.data.shape[0]
         ), f"The input width and shift has to be equal or lower than {self.data.shape[0]}, got {self.input_width} and {self.shift}."
 
-        assert np.size(self.train_data), f"""The training dataframe is empty, please redefine the test size or valid size.
+        assert np.size(
+            self.train_data
+        ), f"""The training dataframe is empty, please redefine the test size or valid size.
                                         Got a test size with {self.test_size} examples and a valid size with {self.valid_size} examples
                                         which lead to a test start at {self._test_start} and a valid start at {self.valid_size}."""
 
-    def _val_from_array(self, output: None, *args: list, **kwargs: dict) -> None: # pylint: disable=unused-argument
+    def _val_from_array(
+        self, output: None, *args: list, **kwargs: dict
+    ) -> None:  # pylint: disable=unused-argument
         """Validates attributes and args of `_val_from_array` method."""
 
-        assert max(self.input_columns) < self.data.shape[1], f"""Indice {max(self.input_columns)} superior to data shape {self.data.shape}."""
-        assert max(self.label_columns) < self.data.shape[1], f"""Indice {max(self.label_columns)} superior to data shape {self.data.shape}."""
+        assert (
+            max(self.input_columns) < self.data.shape[1]
+        ), f"""Indice {max(self.input_columns)} superior to data shape {self.data.shape}."""
+        assert (
+            max(self.label_columns) < self.data.shape[1]
+        ), f"""Indice {max(self.label_columns)} superior to data shape {self.data.shape}."""
         if self.known_columns:
-            assert max(self.known_columns) < self.data.shape[1], f"""Indice {max(self.known_columns)} superior to data shape {self.data.shape}."""
+            assert (
+                max(self.known_columns) < self.data.shape[1]
+            ), f"""Indice {max(self.known_columns)} superior to data shape {self.data.shape}."""
         if self.date_columns:
-            assert max(self.date_columns) < self.data.shape[1], f"""Indice {max(self.date_columns)} superior to data shape {self.data.shape}."""
-        
+            assert (
+                max(self.date_columns) < self.data.shape[1]
+            ), f"""Indice {max(self.date_columns)} superior to data shape {self.data.shape}."""
+
     def __repr__(self):
         """Display some explanations."""
 

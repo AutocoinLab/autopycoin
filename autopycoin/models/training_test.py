@@ -34,7 +34,7 @@ class ModelTest(tf.test.TestCase, parameterized.TestCase):
             trend_n_neurons=5,
             seasonality_n_neurons=5,
             drop_rate=0.5,
-            share=True
+            share=True,
         )
 
         self.assertEqual(model.quantiles, None)
@@ -76,12 +76,12 @@ class ModelTest(tf.test.TestCase, parameterized.TestCase):
         )
 
         w = w.from_dataframe(
-                data=data,
-                input_columns=["test"],
-                known_columns=[],
-                label_columns=["test"],
-                date_columns=[]
-                )
+            data=data,
+            input_columns=["test"],
+            known_columns=[],
+            label_columns=["test"],
+            date_columns=[],
+        )
 
         model = create_interpretable_nbeats(
             input_width=20,
@@ -94,7 +94,7 @@ class ModelTest(tf.test.TestCase, parameterized.TestCase):
             trend_n_neurons=5,
             seasonality_n_neurons=5,
             drop_rate=0.5,
-            share=True
+            share=True,
         )
 
         model.compile(
