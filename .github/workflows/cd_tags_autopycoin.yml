@@ -4,6 +4,7 @@
 name: Python pre-release
 on:
   push:
+    branches: [ main ]
     tags:
       - "v*.*.*"
 jobs:
