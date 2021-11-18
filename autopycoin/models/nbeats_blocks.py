@@ -20,10 +20,10 @@ class BaseBlock(Layer, AutopycoinBaseClass):
 
     Parameters
     ----------
-    input_width : int
-        Horizon time to forecast.
     label_width : int
-        Past to rebuild. Usually, label_width is 1 to 7 times longer than input_width.
+        Horizon time to forecast.
+    input_width : int
+        Past to rebuild. Usually, input_width is 1 to 7 times longer than label_width.
     output_first_dim_forecast : int
         First dimension of the last layer.
         It is equal to p_degree in case of `TrendBlock`.
@@ -40,8 +40,8 @@ class BaseBlock(Layer, AutopycoinBaseClass):
 
     Attributes
     ----------
-    input_width : int
     label_width : int
+    input_width : int
     n_neurons : int
     drop_rate : float
 
@@ -56,8 +56,8 @@ class BaseBlock(Layer, AutopycoinBaseClass):
 
     def __init__(
         self,
-        input_width: int,
         label_width: int,
+        input_width: int,
         output_first_dim_forecast: int,
         output_first_dim_backcast: int,
         n_neurons: int,
@@ -70,8 +70,8 @@ class BaseBlock(Layer, AutopycoinBaseClass):
 
         super().__init__(**kwargs)
 
-        self._input_width = input_width
         self._label_width = label_width
+        self._input_width = input_width
         self._drop_rate = drop_rate
         self._n_neurons = n_neurons
         self._output_first_dim_forecast = output_first_dim_forecast
@@ -186,24 +186,24 @@ class BaseBlock(Layer, AutopycoinBaseClass):
         # reshape the output to take into account this uncertainty.
         if self._n_quantiles:
             return [
-                tf.TensorShape((self._n_quantiles, input_shape[0], self.input_width)),
-                tf.TensorShape((input_shape[0], self.label_width)),
+                tf.TensorShape((self._n_quantiles, input_shape[0], self.label_width)),
+                tf.TensorShape((input_shape[0], self.input_width)),
             ]
 
         return [
-            tf.TensorShape((input_shape[0], self.input_width)),
             tf.TensorShape((input_shape[0], self.label_width)),
+            tf.TensorShape((input_shape[0], self.input_width)),
         ]
 
     @property
-    def input_width(self):
-        """Return the input_width."""
-        return self._input_width
+    def label_width(self):
+        """Return the label_width."""
+        return self._label_width
 
     @property
-    def label_width(self):
-        """Return the back input_width."""
-        return self._label_width
+    def input_width(self):
+        """Return the back label_width."""
+        return self._input_width
 
     @property
     def drop_rate(self):
@@ -251,13 +251,13 @@ class BaseBlock(Layer, AutopycoinBaseClass):
         Returns
         -------
         coefficients
-            `Tensor` of shape (d0, ..., output_first_dim_forecast, input_width)
+            `Tensor` of shape (d0, ..., output_first_dim_forecast, label_width)
 
         Raises
         ------
         ValueError
             Raise an error if the coefficients tensor shape is not equal to
-            (d0, ..., output_first_dim_forecast, input_width).
+            (d0, ..., output_first_dim_forecast, label_width).
         """
         raise NotImplementedError(
             "When subclassing the `BaseBlock` class, you should "
@@ -274,13 +274,13 @@ class BaseBlock(Layer, AutopycoinBaseClass):
         Returns
         -------
         coefficients
-            `Tensor` of shape (d0, ..., output_first_dim_backcast, label_width)
+            `Tensor` of shape (d0, ..., output_first_dim_backcast, input_width)
 
         Raises
         ------
         ValueError
             Raise an error if the coefficients tensor shape is not equal to
-            (d0, ..., output_first_dim_backcast, label_width).
+            (d0, ..., output_first_dim_backcast, input_width).
         """
         raise NotImplementedError(
             "When subclassing the `BaseBlock` class, you should "
@@ -290,10 +290,10 @@ class BaseBlock(Layer, AutopycoinBaseClass):
     def _val___init__(
         self, output: None, *args: list, **kwargs: dict
     ) -> None:  # pylint: disable=unused-argument
-        if self.input_width <= 0 or self.label_width <= 0:
+        if self.label_width <= 0 or self.input_width <= 0:
             raise ValueError(
-                f"Received an invalid values for `input_width` or `label_width`, expected "
-                f"strictly positive integers, got {self.input_width} and {self.label_width}."
+                f"Received an invalid values for `label_width` or `input_width`, expected "
+                f"strictly positive integers, got {self.label_width} and {self.input_width}."
             )
 
         if not (self.drop_rate >= 0.0 and self.drop_rate <= 1.0):
@@ -314,10 +314,10 @@ class BaseBlock(Layer, AutopycoinBaseClass):
         self, output: tf.Tensor, *args: list, **kwargs: dict
     ) -> None:  # pylint: disable=unused-argument
         msg_error = f"""The forecast layer doesn't match the desired shape. Got {output.shape},
-                expected (..., { self._output_first_dim_forecast}, {self.input_width}"""
+                expected (..., { self._output_first_dim_forecast}, {self.label_width}"""
         assert tf.rank(output) >= 2, msg_error
         assert (
-            output.shape[-1] == self.label_width
+            output.shape[-1] == self.input_width
             or output.shape[-2] == self._output_first_dim_backcast
         ), msg_error
 
@@ -325,10 +325,10 @@ class BaseBlock(Layer, AutopycoinBaseClass):
         self, output: tf.Tensor, *args: list, **kwargs: dict
     ) -> None:  # pylint: disable=unused-argument
         msg_error = f"""The forecast layer doesn't match the desired shape. Got {output.shape},
-                expected (..., { self._output_first_dim_forecast}, {self.input_width}"""
+                expected (..., { self._output_first_dim_forecast}, {self.label_width}"""
         assert tf.rank(output) >= 2, msg_error
         assert (
-            output.shape[-1] == self.input_width
+            output.shape[-1] == self.label_width
             or output.shape[-2] == self._output_first_dim_forecast
         ), msg_error
 
@@ -347,10 +347,10 @@ class TrendBlock(BaseBlock, AutopycoinBaseClass):
 
     Parameters
     ----------
-    input_width : int
-        Horizon time to forecast.
     label_width : int
-        Past to rebuild. Usually, label_width is 1 to 7 times longer than input_width.
+        Horizon time to forecast.
+    input_width : int
+        Past to rebuild. Usually, input_width is 1 to 7 times longer than label_width.
     p_degree : int
         Degree of the polynomial function.
     n_neurons : int
@@ -362,8 +362,8 @@ class TrendBlock(BaseBlock, AutopycoinBaseClass):
     Attributes
     ----------
     p_degree : int
-    input_width : int
     label_width : int
+    input_width : int
     drop_rate : float
 
     Raises
@@ -376,15 +376,15 @@ class TrendBlock(BaseBlock, AutopycoinBaseClass):
     --------
     >>> from autopycoin.models import TrendBlock, SeasonalityBlock, Stack, NBEATS
     >>> from autopycoin.losses import QuantileLossError
-    >>> trend_block = TrendBlock(input_width=10,
-    ...                          label_width=20,
+    >>> trend_block = TrendBlock(label_width=10,
+    ...                          input_width=20,
     ...                          p_degree=2,
     ...                          n_neurons=16,
     ...                          drop_rate=0.1,
     ...                          name="trend_block")
     >>>
-    >>> seasonality_block = SeasonalityBlock(input_width=10,
-    ...                                      label_width=20,
+    >>> seasonality_block = SeasonalityBlock(label_width=10,
+    ...                                      input_width=20,
     ...                                      periods=[10],
     ...                                      back_periods=[20],
     ...                                      forecast_fourier_order=[10],
@@ -422,8 +422,8 @@ class TrendBlock(BaseBlock, AutopycoinBaseClass):
 
     def __init__(
         self,
-        input_width: int,
         label_width: int,
+        input_width: int,
         p_degree: int,
         n_neurons: int,
         drop_rate: float = 0.0,
@@ -431,8 +431,8 @@ class TrendBlock(BaseBlock, AutopycoinBaseClass):
     ):
 
         super().__init__(
-            input_width=input_width,
             label_width=label_width,
+            input_width=input_width,
             output_first_dim_forecast=p_degree,
             output_first_dim_backcast=p_degree,
             n_neurons=n_neurons,
@@ -443,7 +443,7 @@ class TrendBlock(BaseBlock, AutopycoinBaseClass):
             **kwargs,
         )
 
-        # Shape (-1, 1) in order to broadcast input_width to all p degrees
+        # Shape (-1, 1) in order to broadcast label_width to all p degrees
         self._p_degree = p_degree
 
     @property
@@ -462,7 +462,7 @@ class TrendBlock(BaseBlock, AutopycoinBaseClass):
 
         Returns
         -------
-        coefficients : `tensor with shape (p_degree, input_width)`
+        coefficients : `tensor with shape (p_degree, label_width)`
             Coefficients of the g layer.
         """
         coefficients = (tf.range(input_width) / input_width) ** p_degree
@@ -476,17 +476,17 @@ class TrendBlock(BaseBlock, AutopycoinBaseClass):
         Returns
         -------
         coefficients
-            `Tensor` of shape (d0, ..., output_first_dim_forecast, input_width)
+            `Tensor` of shape (d0, ..., output_first_dim_forecast, label_width)
 
         Raises
         ------
         ValueError
             Raise an error if the coefficients tensor shape is not equal to
-            (d0, ..., output_first_dim_forecast, input_width).
+            (d0, ..., output_first_dim_forecast, label_width).
         """
         # Set weights with calculated coef
         forecast_coef = self.coefficient_factory(
-            self.input_width,
+            self.label_width,
             tf.expand_dims(tf.range(self.p_degree, dtype=floatx()), axis=-1),
         )
         return self.add_weight(
@@ -503,12 +503,12 @@ class TrendBlock(BaseBlock, AutopycoinBaseClass):
         Returns
         -------
         coefficients
-            `Tensor` of shape (d0, ..., output_first_dim_backcast, label_width)
+            `Tensor` of shape (d0, ..., output_first_dim_backcast, input_width)
         """
 
         # Set weights with calculated coef
         backcast_coef = self.coefficient_factory(
-            self.label_width,
+            self.input_width,
             tf.expand_dims(tf.range(self.p_degree, dtype=floatx()), axis=-1),
         )
         return self.add_weight(
@@ -524,8 +524,8 @@ class TrendBlock(BaseBlock, AutopycoinBaseClass):
         config.update(
             {
                 "p_degree": self.p_degree,
-                "input_width": self.input_width,
                 "label_width": self.label_width,
+                "input_width": self.input_width,
                 "n_neurons": self._n_neurons,
                 "drop_rate": self.drop_rate,
             }
@@ -556,9 +556,9 @@ class SeasonalityBlock(BaseBlock, AutopycoinBaseClass):
 
     Parameters
     ----------
-    input_width : int
-        Horizon time to forecast.
     label_width : int
+        Horizon time to forecast.
+    input_width : int
         Past to rebuild.
     periods : List[int]
         Compute the fourier serie period in the forecasting equation.
@@ -578,8 +578,8 @@ class SeasonalityBlock(BaseBlock, AutopycoinBaseClass):
 
     Attributes
     ----------
-    input_width : int
     label_width : int
+    input_width : int
     periods : List[int]
     back_periods : List[int]
     forecast_fourier_order : List[int]
@@ -598,14 +598,14 @@ class SeasonalityBlock(BaseBlock, AutopycoinBaseClass):
     --------
     >>> from autopycoin.models import TrendBlock, SeasonalityBlock, Stack, NBEATS
     >>> from autopycoin.losses import QuantileLossError
-    >>> trend_block = TrendBlock(input_width=10,
-    ...                          label_width=20,
+    >>> trend_block = TrendBlock(label_width=10,
+    ...                          input_width=20,
     ...                          p_degree=2,
     ...                          n_neurons=16,
     ...                          drop_rate=0.1,
     ...                          name="trend_block")
-    >>> seasonality_block = SeasonalityBlock(input_width=10,
-    ...                                      label_width=20,
+    >>> seasonality_block = SeasonalityBlock(label_width=10,
+    ...                                      input_width=20,
     ...                                      periods=[10],
     ...                                      back_periods=[20],
     ...                                      forecast_fourier_order=[10],
@@ -642,8 +642,8 @@ class SeasonalityBlock(BaseBlock, AutopycoinBaseClass):
 
     def __init__(
         self,
-        input_width: int,
         label_width: int,
+        input_width: int,
         periods: List[int],
         back_periods: List[int],
         forecast_fourier_order: List[int],
@@ -659,8 +659,8 @@ class SeasonalityBlock(BaseBlock, AutopycoinBaseClass):
         backcast_neurons = tf.reduce_sum(2 * backcast_fourier_order)
 
         super(SeasonalityBlock, self).__init__(
-            input_width=input_width,
             label_width=label_width,
+            input_width=input_width,
             output_first_dim_forecast=forecast_neurons,
             output_first_dim_backcast=backcast_neurons,
             n_neurons=n_neurons,
@@ -713,7 +713,7 @@ class SeasonalityBlock(BaseBlock, AutopycoinBaseClass):
 
         Returns
         -------
-        coefficients : `tensor with shape (periods * fourier_orders, input_width)`
+        coefficients : `tensor with shape (periods * fourier_orders, label_width)`
             Coefficients of the g layer.
         """
 
@@ -742,17 +742,17 @@ class SeasonalityBlock(BaseBlock, AutopycoinBaseClass):
         Returns
         -------
         coefficients
-            `Tensor` of shape (d0, ..., output_first_dim_forecast, input_width)
+            `Tensor` of shape (d0, ..., output_first_dim_forecast, label_width)
 
         Raises
         ------
         ValueError
             Raise an error if the coefficients tensor shape is not equal to
-            (d0, ..., output_first_dim_forecast, input_width).
+            (d0, ..., output_first_dim_forecast, label_width).
         """
         # Set weights with calculated coef
         forecast_coef = self.coefficient_factory(
-            self.input_width, self.periods, self.forecast_fourier_order
+            self.label_width, self.periods, self.forecast_fourier_order
         )
         return self.add_weight(
             shape=forecast_coef.shape,
@@ -768,11 +768,11 @@ class SeasonalityBlock(BaseBlock, AutopycoinBaseClass):
         Returns
         -------
         coefficients
-            `Tensor` of shape (d0, ..., output_first_dim_backcast, label_width)
+            `Tensor` of shape (d0, ..., output_first_dim_backcast, input_width)
         """
         # Set weights with calculated coef
         backcast_coef = self.coefficient_factory(
-            self.label_width, self.back_periods, self.backcast_fourier_order
+            self.input_width, self.back_periods, self.backcast_fourier_order
         )
         return self.add_weight(
             shape=backcast_coef.shape,
@@ -786,8 +786,8 @@ class SeasonalityBlock(BaseBlock, AutopycoinBaseClass):
         config = super().get_config()
         config.update(
             {
-                "input_width": self.input_width,
                 "label_width": self.label_width,
+                "input_width": self.input_width,
                 "n_neurons": self._n_neurons,
                 "periods": self.periods,
                 "back_periods": self.back_periods,
@@ -844,9 +844,9 @@ class GenericBlock(BaseBlock, AutopycoinBaseClass):
 
     Parameters
     ----------
-    input_width : int
-        Horizon time to forecast.
     label_width : int
+        Horizon time to forecast.
+    input_width : int
         Past to rebuild.
     forecast_neurons : int
         First dimensionality of the last layer.
@@ -860,16 +860,16 @@ class GenericBlock(BaseBlock, AutopycoinBaseClass):
 
     Attributes
     ----------
-    input_width : int
     label_width : int
+    input_width : int
     drop_rate : float
 
     Examples
     --------
     >>> from autopycoin.models import GenericBlock, Stack, NBEATS
     >>> from autopycoin.losses import QuantileLossError
-    >>> generic_block = GenericBlock(input_width=10,
-    ...                          label_width=20,
+    >>> generic_block = GenericBlock(label_width=10,
+    ...                          input_width=20,
     ...                          n_neurons=16,
     ...                          forecast_neurons=16,
     ...                          backcast_neurons=16,
@@ -902,8 +902,8 @@ class GenericBlock(BaseBlock, AutopycoinBaseClass):
 
     def __init__(
         self,
-        input_width: int,
         label_width: int,
+        input_width: int,
         forecast_neurons: int,
         backcast_neurons: int,
         n_neurons: int,
@@ -912,8 +912,8 @@ class GenericBlock(BaseBlock, AutopycoinBaseClass):
     ):
 
         super().__init__(
-            input_width=input_width,
             label_width=label_width,
+            input_width=input_width,
             output_first_dim_forecast=forecast_neurons,
             output_first_dim_backcast=backcast_neurons,
             n_neurons=n_neurons,
@@ -937,7 +937,7 @@ class GenericBlock(BaseBlock, AutopycoinBaseClass):
 
         Returns
         -------
-        coefficients : `tensor with shape (input_width, neurons)`
+        coefficients : `tensor with shape (label_width, neurons)`
             Coefficients of the g layer.
         """
 
@@ -954,17 +954,17 @@ class GenericBlock(BaseBlock, AutopycoinBaseClass):
         Returns
         -------
         coefficients
-            `Tensor` of shape (d0, ..., output_first_dim_forecast, input_width)
+            `Tensor` of shape (d0, ..., output_first_dim_forecast, label_width)
 
         Raises
         ------
         ValueError
             Raise an error if the coefficients tensor shape is not equal to
-            (d0, ..., output_first_dim_forecast, input_width).
+            (d0, ..., output_first_dim_forecast, label_width).
         """
         # Set weights with calculated coef
         forecast_coef = self.coefficient_factory(
-            self.input_width, self._output_first_dim_forecast
+            self.label_width, self._output_first_dim_forecast
         )
         return self.add_weight(
             shape=forecast_coef.shape,
@@ -980,11 +980,11 @@ class GenericBlock(BaseBlock, AutopycoinBaseClass):
         Returns
         -------
         coefficients
-            `Tensor` of shape (d0, ..., output_first_dim_backcast, label_width)
+            `Tensor` of shape (d0, ..., output_first_dim_backcast, input_width)
         """
         # Set weights with calculated coef
         backcast_coef = self.coefficient_factory(
-            self.label_width, self._output_first_dim_backcast
+            self.input_width, self._output_first_dim_backcast
         )
         return self.add_weight(
             shape=backcast_coef.shape,
@@ -998,8 +998,8 @@ class GenericBlock(BaseBlock, AutopycoinBaseClass):
         config = super().get_config()
         config.update(
             {
-                "input_width": self.input_width,
                 "label_width": self.label_width,
+                "input_width": self.input_width,
                 "forecast_neurons": self._output_first_dim_forecast,
                 "backcast_neurons": self._output_first_dim_backcast,
                 "n_neurons": self._n_neurons,

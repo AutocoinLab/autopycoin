@@ -92,8 +92,8 @@ class MCDropoutEstimator(UncertaintyEstimator):
     ...
     >>> data = pd.DataFrame(data[0].numpy(), columns=['test'])
     >>> w = WindowGenerator(
-    ...    input_width=50,
     ...    label_width=20,
+    ...    input_width=50,
     ...    shift=20,
     ...    test_size=10,
     ...    valid_size=10,
@@ -107,8 +107,8 @@ class MCDropoutEstimator(UncertaintyEstimator):
     ...    label_columns=["test"],
     ...    date_columns=[])
     >>> model = create_interpretable_nbeats(
-    ...    input_width=20,
-    ...    label_width=50,
+    ...    label_width=20,
+    ...    input_width=50,
     ...    periods=[10],
     ...    back_periods=[10],
     ...    forecast_fourier_order=[10],

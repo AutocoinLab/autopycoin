@@ -24,8 +24,8 @@ class ModelTest(tf.test.TestCase, parameterized.TestCase):
 
     def test_attributes(self):
         model = create_interpretable_nbeats(
-            input_width=10,
             label_width=10,
+            input_width=10,
             periods=[10],
             back_periods=[10],
             forecast_fourier_order=[10],
@@ -66,9 +66,9 @@ class ModelTest(tf.test.TestCase, parameterized.TestCase):
         data = pd.DataFrame(data[0].numpy(), columns=["test"])
 
         w = WindowGenerator(
-            input_width=50,
-            label_width=20,
-            shift=20,
+            label_width=50,
+            input_width=20,
+            shift=50,
             test_size=10,
             valid_size=10,
             strategy="one_shot",
@@ -84,8 +84,8 @@ class ModelTest(tf.test.TestCase, parameterized.TestCase):
         )
 
         model = create_interpretable_nbeats(
-            input_width=20,
             label_width=50,
+            input_width=20,
             periods=[10],
             back_periods=[10],
             forecast_fourier_order=[10],
@@ -112,4 +112,4 @@ class ModelTest(tf.test.TestCase, parameterized.TestCase):
         model.fit(w.train, validation_data=w.valid, epochs=1)
         output = model.predict(w.train)
 
-        self.assertEqual(output.shape, (5, 273, 20))
+        self.assertEqual(output.shape, (5, 213, 50))

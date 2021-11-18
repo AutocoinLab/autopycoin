@@ -1,3 +1,5 @@
+Autopycoin - A deep learning package
+
 .. -*- mode: rst -*-
 
 |Codecov|_ |CircleCI|_ |ReadTheDocs|_
@@ -10,8 +12,5 @@
 
 .. |ReadTheDocs| image:: https://readthedocs.org/projects/autopycoin/badge/?version=latest
 .. _ReadTheDocs: https://autopycoin.readthedocs.io/en/latest/?badge=latest
-
-Autopycoin - A deep learning package
-============================================================
 
 .. _documentation: https://autopycoin.readthedocs.io/en/latest/quick_start.html

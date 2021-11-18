@@ -1,7 +1,6 @@
 numpy
-pandas
-tensorflow
-tensorflow-probability
 matplotlib
+pandas
+tensorflow >= 2.6.0
+tensorflow-probability
 pylint
-python-dateutil >= 2.7.3

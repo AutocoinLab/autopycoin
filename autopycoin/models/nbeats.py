@@ -233,42 +233,17 @@ class NBEATS(Model, AutopycoinBaseClass):
         if isinstance(inputs, tuple):
             inputs = inputs[0]
 
-        # Stock trend and seasonality curves during inference
-        self._output_residuals = tf.TensorArray(floatx(), size=len(self.stacks))
-
         outputs = tf.constant(0.0)
-        for idx, stack in enumerate(self.stacks):
+        for stack in self.stacks:
             # outputs_residual is (quantiles, Batch_size, forecast)
             # inputs is (Batch_size, backcast)
             outputs_residual, inputs = stack(inputs)
-            self._output_residuals = self._output_residuals.write(idx, outputs_residual)
             # outputs is (quantiles, Batch_size, forecast)
             outputs = tf.math.add(outputs, outputs_residual)
-
-        self._output_residuals = self._output_residuals.stack()
         return outputs
 
-    def get_config(self) -> dict:
-        """Get_config from tensorflow."""
-        return {"stacks": self.stacks}
-
-    @property
-    def stacks(self) -> List[Stack]:
-        """Return the list of stacks"""
-        return self._stacks
-
-    @property
-    def stack_outputs(self) -> tf.Tensor:
-        """The stack outputs."""
-        try:
-            return self._output_residuals
-        except AttributeError as error:
-            raise AttributeError(
-                "`stack_outputs`is not defined unless you call `predict` or `call` methods"
-            ) from error
-
-    @property
-    def seasonality(self) -> tf.Tensor:
+    
+    def seasonality(self, data: tf.Tensor) -> tf.Tensor:
         """
         Based on the paper, the seasonality component can be only available if
         the previous stacks are composed by trend blocks. Else, it doesn't correspond
@@ -303,10 +278,9 @@ class NBEATS(Model, AutopycoinBaseClass):
                 continue
             else:
                 return self._output_residuals[start:idx]
-        return self._output_residuals[start:]
+        return [stack(data) for stack in self.stacks[start:]]
 
-    @property
-    def trend(self) -> tf.Tensor:
+    def trend(self, data: tf.Tensor) -> tf.Tensor:
         """
         The trend component of the output.
 
@@ -326,8 +300,17 @@ class NBEATS(Model, AutopycoinBaseClass):
             )
         for idx, stack in enumerate(self.stacks):
             if stack.stack_type != "TrendStack":
-                return self._output_residuals[:idx]
-        return self._output_residuals
+                return [stack(data) for stack in self.stacks[:idx]]
+        return [stack(data) for stack in self.stacks]
+
+    def get_config(self) -> dict:
+        """Get_config from tensorflow."""
+        return {"stacks": self.stacks}
+
+    @property
+    def stacks(self) -> List[Stack]:
+        """Return the list of stacks"""
+        return self._stacks
 
     @property
     def is_interpretable(self) -> bool:
@@ -353,18 +336,18 @@ class NBEATS(Model, AutopycoinBaseClass):
 
 
 def create_interpretable_nbeats(
-    input_width: int,
-    label_width: int,
-    periods: List[int],
-    back_periods: List[int],
-    forecast_fourier_order: List[int],
-    backcast_fourier_order: List[int],
-    p_degree: int = 1,
-    trend_n_neurons: int = 16,
-    seasonality_n_neurons: int = 16,
-    drop_rate: float = 0.0,
-    share: bool = True,
-    **kwargs: dict,
+        input_width: int,
+        label_width: int,
+        periods: List[int],
+        back_periods: List[int],
+        forecast_fourier_order: List[int],
+        backcast_fourier_order: List[int],
+        p_degree: int = 1,
+        trend_n_neurons: int = 16,
+        seasonality_n_neurons: int = 16,
+        drop_rate: float = 0.0,
+        share: bool = True,
+        **kwargs: dict,
 ):
     """
     Wrapper to create an interpretable model using recommendations of the paper.
@@ -486,16 +469,16 @@ def create_interpretable_nbeats(
 
 
 def create_generic_nbeats(
-    input_width: int,
-    label_width: int,
-    forecast_neurons: int,
-    backcast_neurons: int,
-    n_neurons: int,
-    n_blocks: int,
-    n_stacks: int,
-    drop_rate: float = 0.0,
-    share: bool = True,
-    **kwargs: dict,
+        input_width: int,
+        label_width: int,
+        forecast_neurons: int,
+        backcast_neurons: int,
+        n_neurons: int,
+        n_blocks: int,
+        n_stacks: int,
+        drop_rate: float = 0.0,
+        share: bool = True,
+        **kwargs: dict,
 ):
     """
     Wrapper to create a generic model.

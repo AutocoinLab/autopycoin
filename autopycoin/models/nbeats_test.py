@@ -41,9 +41,9 @@ def trend_weights(n_neurons, p_degree):
     ]
 
 
-def seasonality_weights(label_width, n_neurons, forecast_neurons, backcast_neurons):
+def seasonality_weights(input_width, n_neurons, forecast_neurons, backcast_neurons):
     return [
-        np.zeros(shape=(label_width, n_neurons)),
+        np.zeros(shape=(input_width, n_neurons)),
         np.ones(shape=(n_neurons,)),
         np.zeros(shape=(n_neurons, n_neurons)),
         np.ones(shape=(n_neurons,)),
@@ -203,8 +203,8 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
     )
     def test_stack(
         self,
-        input_width,
         label_width,
+        input_width,
         n_neurons,
         p_degree,
         periods,
@@ -218,14 +218,14 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
         backcast_neurons = tf.reduce_sum(2 * back_periods)
 
         s_weights = seasonality_weights(
-            label_width, n_neurons, forecast_neurons, backcast_neurons
+            input_width, n_neurons, forecast_neurons, backcast_neurons
         )
 
         t_weights = trend_weights(n_neurons, p_degree)
 
         kwargs_1 = {
-            "input_width": input_width,
             "label_width": label_width,
+            "input_width": input_width,
             "p_degree": p_degree,
             "n_neurons": n_neurons,
             "drop_rate": drop_rate,
@@ -233,8 +233,8 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
         }
 
         kwargs_2 = {
-            "input_width": input_width,
             "label_width": label_width,
+            "input_width": input_width,
             "n_neurons": n_neurons,
             "periods": periods,
             "back_periods": back_periods,
@@ -288,8 +288,8 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
     )
     def test_nbeats(
         self,
-        input_width,
         label_width,
+        input_width,
         n_neurons,
         p_degree,
         periods,
@@ -303,14 +303,14 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
         backcast_neurons = tf.reduce_sum(2 * back_periods)
 
         s_weights = seasonality_weights(
-            label_width, n_neurons, forecast_neurons, backcast_neurons
+            input_width, n_neurons, forecast_neurons, backcast_neurons
         )
 
         t_weights = trend_weights(n_neurons, p_degree)
 
         kwargs_1 = {
-            "input_width": input_width,
             "label_width": label_width,
+            "input_width": input_width,
             "p_degree": p_degree,
             "n_neurons": n_neurons,
             "drop_rate": drop_rate,
@@ -318,8 +318,8 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
         }
 
         kwargs_2 = {
-            "input_width": input_width,
             "label_width": label_width,
+            "input_width": input_width,
             "n_neurons": n_neurons,
             "periods": periods,
             "back_periods": back_periods,
@@ -360,8 +360,8 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
     )
     def test_nbeats_attributes(
         self,
-        input_width,
         label_width,
+        input_width,
         n_neurons,
         p_degree,
         periods,
@@ -375,14 +375,14 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
         backcast_neurons = tf.reduce_sum(2 * back_periods)
 
         s_weights = seasonality_weights(
-            label_width, n_neurons, forecast_neurons, backcast_neurons
+            input_width, n_neurons, forecast_neurons, backcast_neurons
         )
 
         t_weights = trend_weights(n_neurons, p_degree)
 
         kwargs_1 = {
-            "input_width": input_width,
             "label_width": label_width,
+            "input_width": input_width,
             "p_degree": p_degree,
             "n_neurons": n_neurons,
             "drop_rate": drop_rate,
@@ -390,8 +390,8 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
         }
 
         kwargs_2 = {
-            "input_width": input_width,
             "label_width": label_width,
+            "input_width": input_width,
             "n_neurons": n_neurons,
             "periods": periods,
             "back_periods": back_periods,
@@ -406,19 +406,14 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
         stacks = [blocks_1, blocks_2]
 
         model = NBEATS(stacks)
-        inputs = np.array([[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]])
+        inputs = tf.constant([[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]])
 
-        with self.assertRaises(AttributeError):
-            model.seasonality
-            model.trend
-
-        model(inputs)
-        self.assertNotEmpty(model.seasonality)
-        self.assertNotEmpty(model.trend)
+        self.assertNotEmpty(model.seasonality(inputs))
+        self.assertNotEmpty(model.trend(inputs))
 
         kwargs_3 = {
-            "input_width": input_width,
-            "label_width": 2,
+            "label_width": label_width,
+            "input_width": 2,
             "n_neurons": n_neurons,
             "forecast_neurons": 5,
             "backcast_neurons": 5,
@@ -430,18 +425,17 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
         stacks = [blocks_3, blocks_3]
 
         model = NBEATS(stacks)
-        inputs = np.array([[0.0, 0.0], [0.0, 0.0]])
-        model(inputs)
+        inputs = tf.constant([[0.0, 0.0], [0.0, 0.0]])
 
         with self.assertRaises(AttributeError):
-            model.seasonality
-            model.trend
+            model.seasonality(inputs)
+            model.trend(inputs)
 
     @parameterized.parameters([(2, 3, [2], [3], [2], [3], 2, 5, 5, 0.0, True)])
     def test_create_interpretable_nbeats(
         self,
-        input_width,
         label_width,
+        input_width,
         periods,
         back_periods,
         forecast_fourier_order,
@@ -454,17 +448,17 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
     ):
 
         model = create_interpretable_nbeats(
-            input_width,
-            label_width,
-            periods,
-            back_periods,
-            forecast_fourier_order,
-            backcast_fourier_order,
-            p_degree,
-            trend_n_neurons,
-            seasonality_n_neurons,
-            drop_rate,
-            share,
+            label_width=label_width,
+            input_width=input_width,
+            periods=periods,
+            back_periods=back_periods,
+            forecast_fourier_order=forecast_fourier_order,
+            backcast_fourier_order=backcast_fourier_order,
+            p_degree=p_degree,
+            trend_n_neurons=trend_n_neurons,
+            seasonality_n_neurons=seasonality_n_neurons,
+            drop_rate=drop_rate,
+            share=share,
         )
 
         self.assertIsInstance(model, NBEATS)
@@ -504,8 +498,8 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
     @parameterized.parameters([(2, 3, 5, 5, 5, 3, 2, 0.0, True)])
     def test_create_generic_nbeats(
         self,
-        input_width,
         label_width,
+        input_width,
         forecast_neurons,
         backcast_neurons,
         n_neurons,
@@ -516,15 +510,15 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
     ):
 
         model = create_generic_nbeats(
-            input_width,
-            label_width,
-            forecast_neurons,
-            backcast_neurons,
-            n_neurons,
-            n_blocks,
-            n_stacks,
-            drop_rate,
-            share,
+            label_width=label_width,
+            input_width=input_width,
+            forecast_neurons=forecast_neurons,
+            backcast_neurons=backcast_neurons,
+            n_neurons=n_neurons,
+            n_blocks=n_blocks,
+            n_stacks=n_stacks,
+            drop_rate=drop_rate,
+            share=share,
         )
 
         self.assertIsInstance(model, NBEATS)

@@ -13,7 +13,7 @@ with open(ver_file) as f:
 
 DISTNAME = "autopycoin"
 DESCRIPTION = "Deep learning models for forecasting purposes."
-with codecs.open("README.rst", encoding="utf-8-sig") as f:
+with codecs.open("README.rst", encoding="utf-8") as f:
     LONG_DESCRIPTION = f.read()
 MAINTAINER = "G. Dubuc"
 MAINTAINER_EMAIL = "gaet.dub1@gmail.com"
@@ -23,10 +23,10 @@ DOWNLOAD_URL = "https://github.com/GaetanDu/autopycoin"
 VERSION = __version__
 INSTALL_REQUIRES = [
     "numpy",
-    "pandas",
-    "tensorflow",
-    "tensorflow-probability",
     "matplotlib",
+    "pandas",
+    "tensorflow >= 2.6.0",
+    "tensorflow-probability",
     "plotly",
 ]
 CLASSIFIERS = [

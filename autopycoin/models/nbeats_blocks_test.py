@@ -18,8 +18,8 @@ from ..dataset import WindowGenerator
 class ExampleBlock(BaseBlock):
     def __init__(
         self,
-        input_width: int,
         label_width: int,
+        input_width: int,
         output_first_dim_forecast: int,
         output_first_dim_backcast: int,
         n_neurons: int,
@@ -29,8 +29,8 @@ class ExampleBlock(BaseBlock):
         block_type: str = "BaseBlock",
     ):
         super().__init__(
-            input_width=input_width,
             label_width=label_width,
+            input_width=input_width,
             output_first_dim_forecast=output_first_dim_forecast,
             output_first_dim_backcast=output_first_dim_backcast,
             n_neurons=n_neurons,
@@ -62,8 +62,8 @@ class BlocksLayersTest(tf.test.TestCase, parameterized.TestCase):
                 (10, 10, 10, 10, 16, 0.5),
                 BaseBlock,
                 [
-                    "input_width",
                     "label_width",
+                    "input_width",
                     "drop_rate",
                     "is_interpretable",
                     "is_g_trainable",
@@ -76,8 +76,8 @@ class BlocksLayersTest(tf.test.TestCase, parameterized.TestCase):
                 (1, 2, 2, 3, 0.0),
                 TrendBlock,
                 [
-                    "input_width",
                     "label_width",
+                    "input_width",
                     "p_degree",
                     "drop_rate",
                     "is_interpretable",
@@ -91,8 +91,8 @@ class BlocksLayersTest(tf.test.TestCase, parameterized.TestCase):
                 (10, 10, [10], [10], [10], [10], 16, 0.5),
                 SeasonalityBlock,
                 [
-                    "input_width",
                     "label_width",
+                    "input_width",
                     "periods",
                     "back_periods",
                     "forecast_fourier_order",
@@ -109,8 +109,8 @@ class BlocksLayersTest(tf.test.TestCase, parameterized.TestCase):
                 (10, 10, 10, 10, 16, 0.5),
                 GenericBlock,
                 [
-                    "input_width",
                     "label_width",
+                    "input_width",
                     "drop_rate",
                     "is_interpretable",
                     "is_g_trainable",
@@ -134,12 +134,12 @@ class BlocksLayersTest(tf.test.TestCase, parameterized.TestCase):
             (
                 (-10, 10, 10, 10, 16, 0.5),
                 BaseBlock,
-                "Received an invalid values for `input_width` or `label_width`",
+                "Received an invalid values for `label_width` or `input_width`",
             ),
             (
                 (10, -10, 10, 10, 16, 0.5),
                 BaseBlock,
-                "Received an invalid values for `input_width` or `label_width`",
+                "Received an invalid values for `label_width` or `input_width`",
             ),
             (
                 (10, 10, -10, 10, 16, 0.5),
@@ -227,10 +227,10 @@ class BlocksLayersTest(tf.test.TestCase, parameterized.TestCase):
             (1, 2, 2, 3, 0.01),
         ]
     )
-    def test_trendblock(self, input_width, label_width, p_degree, n_neurons, drop_rate):
+    def test_trendblock(self, label_width, input_width, p_degree, n_neurons, drop_rate):
 
         trend_weights = [
-            np.zeros(shape=(label_width, n_neurons)),
+            np.zeros(shape=(input_width, n_neurons)),
             np.ones(shape=(n_neurons,)),
             np.zeros(shape=(n_neurons, n_neurons)),
             np.ones(shape=(n_neurons,)),
@@ -248,9 +248,9 @@ class BlocksLayersTest(tf.test.TestCase, parameterized.TestCase):
             layer_test(
                 TrendBlock,
                 kwargs={
-                    "input_width": input_width,
                     "label_width": label_width,
-                    "p_degree": label_width,
+                    "input_width": input_width,
+                    "p_degree": input_width,
                     "n_neurons": n_neurons,
                     "drop_rate": drop_rate,
                     "weights": trend_weights,
@@ -269,8 +269,8 @@ class BlocksLayersTest(tf.test.TestCase, parameterized.TestCase):
         elif drop_rate > 0:
             model = TrendBlock(
                 n_neurons=30,
-                input_width=input_width,
                 label_width=label_width,
+                input_width=input_width,
                 p_degree=p_degree,
                 drop_rate=drop_rate,
             )
@@ -283,8 +283,8 @@ class BlocksLayersTest(tf.test.TestCase, parameterized.TestCase):
     @parameterized.parameters([(2, 3, [2], [3], [2], [3], 3, 0.0)])
     def test_seasonalityblock(
         self,
-        input_width,
         label_width,
+        input_width,
         periods,
         back_periods,
         forecast_fourier_order,
@@ -297,7 +297,7 @@ class BlocksLayersTest(tf.test.TestCase, parameterized.TestCase):
         backcast_neurons = tf.reduce_sum(2 * back_periods)
 
         seasonality_weights = [
-            np.zeros(shape=(label_width, n_neurons)),
+            np.zeros(shape=(input_width, n_neurons)),
             np.ones(shape=(n_neurons,)),
             np.zeros(shape=(n_neurons, n_neurons)),
             np.ones(shape=(n_neurons,)),
@@ -360,8 +360,8 @@ class BlocksLayersTest(tf.test.TestCase, parameterized.TestCase):
         layer_test(
             SeasonalityBlock,
             kwargs={
-                "input_width": input_width,
                 "label_width": label_width,
+                "input_width": input_width,
                 "n_neurons": n_neurons,
                 "periods": periods,
                 "back_periods": back_periods,
@@ -465,8 +465,8 @@ class BlocksLayersTest(tf.test.TestCase, parameterized.TestCase):
         layer_test(
             SeasonalityBlock,
             kwargs={
-                "input_width": input_width,
                 "label_width": label_width,
+                "input_width": input_width,
                 "n_neurons": n_neurons,
                 "periods": periods,
                 "back_periods": back_periods,
@@ -489,8 +489,8 @@ class BlocksLayersTest(tf.test.TestCase, parameterized.TestCase):
     @parameterized.parameters([(1, 2, 5, 5, 3, 0.0)])
     def test_genericblock(
         self,
-        input_width,
         label_width,
+        input_width,
         forecast_neurons,
         backcast_neurons,
         n_neurons,
@@ -500,8 +500,8 @@ class BlocksLayersTest(tf.test.TestCase, parameterized.TestCase):
         layer_test(
             GenericBlock,
             kwargs={
-                "input_width": input_width,
                 "label_width": label_width,
+                "input_width": input_width,
                 "n_neurons": n_neurons,
                 "forecast_neurons": forecast_neurons,
                 "backcast_neurons": backcast_neurons,

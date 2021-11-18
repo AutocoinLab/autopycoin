@@ -9,7 +9,7 @@ from tensorflow.keras.backend import floatx
 
 def check_infinity(tensor: tf.Tensor) -> tf.Tensor:
     """
-    This funxtion is used to verify infinite values and to mask them.
+    This function is used to verify infinite values and to mask them.
 
     Parameters
     ----------
@@ -28,7 +28,7 @@ def check_infinity(tensor: tf.Tensor) -> tf.Tensor:
     if isinstance(tensor, tf.RaggedTensor):
         new_tensor = tf.ragged.boolean_mask(tensor, mask, name="boolean_mask")
     else:
-        new_tensor = tf.boolean_mask(tensor, mask, axis=None, name="boolean_mask")
+        new_tensor = tf.boolean_mask(tensor, mask, axis=[None], name="boolean_mask")
 
     return new_tensor
 
