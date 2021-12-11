@@ -5,14 +5,11 @@ Unit test for training.
 """
 
 from absl.testing import parameterized
-import pandas as pd
 
 import tensorflow as tf
-from autopycoin.data.generate import random_ts
 from tensorflow.python.keras import keras_parameterized
 
-from . import create_interpretable_nbeats
-from ..dataset.generator import WindowGenerator
+from ..models import create_interpretable_nbeats
 from ..losses.losses import QuantileLossError
 
 
@@ -26,8 +23,8 @@ class ModelTest(tf.test.TestCase, parameterized.TestCase):
         model = create_interpretable_nbeats(
             input_width=10,
             label_width=10,
-            periods=[10],
-            back_periods=[10],
+            forecast_periods=[10],
+            backcast_periods=[10],
             forecast_fourier_order=[10],
             backcast_fourier_order=[10],
             p_degree=2,

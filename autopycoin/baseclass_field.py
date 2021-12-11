@@ -105,6 +105,7 @@ def validate_field_value_type(
         pd.DataFrame,
         np.array,
         tf.Tensor,
+        typing.Callable,
     ):
         return
     elif (

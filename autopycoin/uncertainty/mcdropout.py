@@ -109,8 +109,8 @@ class MCDropoutEstimator(UncertaintyEstimator):
     >>> model = create_interpretable_nbeats(
     ...    label_width=20,
     ...    input_width=50,
-    ...    periods=[10],
-    ...    back_periods=[10],
+    ...    forecast_periods=[10],
+    ...    backcast_periods=[10],
     ...    forecast_fourier_order=[10],
     ...    backcast_fourier_order=[10],
     ...    p_degree=1,

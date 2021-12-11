@@ -16,7 +16,7 @@ class Layer(tf.keras.layers.Layer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._quantiles = None
-        self._n_quantiles = None
+        self._n_quantiles = 0
 
     @property
     def quantiles(self):

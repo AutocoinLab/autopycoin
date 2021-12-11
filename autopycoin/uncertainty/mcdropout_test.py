@@ -56,8 +56,8 @@ def prepare_data(request):
     model_params = {
         "input_width": 50,
         "label_width": 20,
-        "periods": [10],
-        "back_periods": [10],
+        "forecast_periods": [10],
+        "backcast_periods": [10],
         "forecast_fourier_order": [10],
         "backcast_fourier_order": [10],
         "p_degree": 1,

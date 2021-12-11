@@ -26,8 +26,8 @@ class ModelTest(tf.test.TestCase, parameterized.TestCase):
         model = create_interpretable_nbeats(
             label_width=10,
             input_width=10,
-            periods=[10],
-            back_periods=[10],
+            forecast_periods=[10],
+            backcast_periods=[10],
             forecast_fourier_order=[10],
             backcast_fourier_order=[10],
             p_degree=2,
@@ -71,7 +71,7 @@ class ModelTest(tf.test.TestCase, parameterized.TestCase):
             shift=50,
             test_size=10,
             valid_size=10,
-            strategy="one_shot",
+            flat=True,
             batch_size=32,
         )
 
@@ -86,8 +86,8 @@ class ModelTest(tf.test.TestCase, parameterized.TestCase):
         model = create_interpretable_nbeats(
             label_width=50,
             input_width=20,
-            periods=[10],
-            back_periods=[10],
+            forecast_periods=[10],
+            backcast_periods=[10],
             forecast_fourier_order=[10],
             backcast_fourier_order=[10],
             p_degree=2,

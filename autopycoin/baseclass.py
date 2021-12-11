@@ -84,7 +84,10 @@ class AutopycoinBaseClass(metaclass=AutopycoinMetaClass):
         for (name, value_type) in type_hints.items():
             default = signatures.parameters[name].default
             if callable(default):
-                default = default()
+                try:
+                    default = default()
+                except TypeError:
+                    pass
                 if isinstance(default, _empty):
                     default = AutopycoinField.NO_DEFAULT
             fields.append(

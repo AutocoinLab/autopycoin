@@ -2,6 +2,6 @@
 Initialilzation of plot functions.
 """
 
-from .plot import PlotTs
+from .show import ShowTs
 
-__ALL__ = ["PlotTs"]
+__ALL__ = ["ShowTs"]

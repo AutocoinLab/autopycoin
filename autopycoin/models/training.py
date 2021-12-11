@@ -31,8 +31,9 @@ class Model(tf.keras.Model):
         """Return quantiles attribute."""
         return self._quantiles
 
+    # TODO: Avoid to rebuild weights when quantiles of model is not None
     def _set_quantiles(self, value):
-        """Modify the quantiles for the layers too."""
+        """Modify the shape of the layers to match with the new quantile values."""
         self.built = False
         for idx, _ in enumerate(self.layers):
             self.layers[idx]._set_quantiles(value)  # pylint: disable=protected-access

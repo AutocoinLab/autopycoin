@@ -13,14 +13,14 @@ import tensorflow as tf
 
 from ..utils import layer_test, check_attributes
 from ..losses import QuantileLossError
+from ..layers.nbeats_layers import (    GenericBlock,
+    TrendBlock,
+    SeasonalityBlock)
 from . import (
     create_interpretable_nbeats,
     create_generic_nbeats,
     NBEATS,
     Stack,
-    GenericBlock,
-    TrendBlock,
-    SeasonalityBlock,
 )
 
 
@@ -89,6 +89,8 @@ y2 = (
     ).numpy()
 )
 
+trend_args = (1, 2, 2, 3, 0.0)
+
 
 @keras_parameterized.run_all_keras_modes
 class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
@@ -99,13 +101,13 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
     @parameterized.parameters(
         [  # Stack attributes test
             (
-                [(TrendBlock(*(1, 2, 2, 3, 0.0)), TrendBlock(*(1, 2, 2, 3, 0.0)))],
+                [(TrendBlock(*trend_args), TrendBlock(*trend_args))],
                 Stack,
                 ["blocks", "stack_type", "is_interpretable"],
                 [
                     (
-                        TrendBlock(*(1, 2, 2, 3, 0.0)),
-                        TrendBlock(*(1, 2, 2, 3, 0.0)),
+                        TrendBlock(*trend_args),
+                        TrendBlock(*trend_args),
                     ),
                     "TrendStack",
                     True,
@@ -113,13 +115,13 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
             ),
             # Stack attributes test
             (
-                [(GenericBlock(*(1, 2, 2, 2, 3, 0.0)), TrendBlock(*(1, 2, 2, 3, 0.0)))],
+                [(GenericBlock(*(1, 2, 2, 2, 3, 0.0)), TrendBlock(*trend_args))],
                 Stack,
                 ["blocks", "stack_type", "is_interpretable"],
                 [
                     (
                         GenericBlock(*(1, 2, 2, 2, 3, 0.0)),
-                        TrendBlock(*(1, 2, 2, 3, 0.0)),
+                        TrendBlock(*trend_args),
                     ),
                     "CustomStack",
                     False,
@@ -131,8 +133,8 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
                     [
                         Stack(
                             [
-                                TrendBlock(*(1, 2, 2, 3, 0.0)),
-                                TrendBlock(*(1, 2, 2, 3, 0.0)),
+                                TrendBlock(*trend_args),
+                                TrendBlock(*trend_args),
                             ]
                         )
                     ]
@@ -143,8 +145,8 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
                     [
                         Stack(
                             [
-                                TrendBlock(*(1, 2, 2, 3, 0.0)),
-                                TrendBlock(*(1, 2, 2, 3, 0.0)),
+                                TrendBlock(*trend_args),
+                                TrendBlock(*trend_args),
                             ]
                         )
                     ],
@@ -158,7 +160,7 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
                         Stack(
                             [
                                 GenericBlock(*(1, 2, 2, 2, 3, 0.0)),
-                                TrendBlock(*(1, 2, 2, 3, 0.0)),
+                                TrendBlock(*trend_args),
                             ]
                         )
                     ]
@@ -170,7 +172,7 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
                         Stack(
                             [
                                 GenericBlock(*(1, 2, 2, 2, 3, 0.0)),
-                                TrendBlock(*(1, 2, 2, 3, 0.0)),
+                                TrendBlock(*trend_args),
                             ]
                         )
                     ],
@@ -207,15 +209,15 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
         input_width,
         n_neurons,
         p_degree,
-        periods,
-        back_periods,
+        forecast_periods,
+        backcast_periods,
         forecast_fourier_order,
         backcast_fourier_order,
         drop_rate,
     ):
 
-        forecast_neurons = tf.reduce_sum(2 * periods)
-        backcast_neurons = tf.reduce_sum(2 * back_periods)
+        forecast_neurons = tf.reduce_sum(2 * forecast_periods)
+        backcast_neurons = tf.reduce_sum(2 * backcast_periods)
 
         s_weights = seasonality_weights(
             input_width, n_neurons, forecast_neurons, backcast_neurons
@@ -236,8 +238,8 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
             "label_width": label_width,
             "input_width": input_width,
             "n_neurons": n_neurons,
-            "periods": periods,
-            "back_periods": back_periods,
+            "forecast_periods": forecast_periods,
+            "backcast_periods": backcast_periods,
             "forecast_fourier_order": forecast_fourier_order,
             "backcast_fourier_order": backcast_fourier_order,
             "drop_rate": drop_rate,
@@ -292,15 +294,15 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
         input_width,
         n_neurons,
         p_degree,
-        periods,
-        back_periods,
+        forecast_periods,
+        backcast_periods,
         forecast_fourier_order,
         backcast_fourier_order,
         drop_rate,
     ):
 
-        forecast_neurons = tf.reduce_sum(2 * periods)
-        backcast_neurons = tf.reduce_sum(2 * back_periods)
+        forecast_neurons = tf.reduce_sum(2 * forecast_periods)
+        backcast_neurons = tf.reduce_sum(2 * backcast_periods)
 
         s_weights = seasonality_weights(
             input_width, n_neurons, forecast_neurons, backcast_neurons
@@ -321,8 +323,8 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
             "label_width": label_width,
             "input_width": input_width,
             "n_neurons": n_neurons,
-            "periods": periods,
-            "back_periods": back_periods,
+            "forecast_periods": forecast_periods,
+            "backcast_periods": backcast_periods,
             "forecast_fourier_order": forecast_fourier_order,
             "backcast_fourier_order": backcast_fourier_order,
             "drop_rate": drop_rate,
@@ -364,15 +366,15 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
         input_width,
         n_neurons,
         p_degree,
-        periods,
-        back_periods,
+        forecast_periods,
+        backcast_periods,
         forecast_fourier_order,
         backcast_fourier_order,
         drop_rate,
     ):
 
-        forecast_neurons = tf.reduce_sum(2 * periods)
-        backcast_neurons = tf.reduce_sum(2 * back_periods)
+        forecast_neurons = tf.reduce_sum(2 * forecast_periods)
+        backcast_neurons = tf.reduce_sum(2 * backcast_periods)
 
         s_weights = seasonality_weights(
             input_width, n_neurons, forecast_neurons, backcast_neurons
@@ -393,8 +395,8 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
             "label_width": label_width,
             "input_width": input_width,
             "n_neurons": n_neurons,
-            "periods": periods,
-            "back_periods": back_periods,
+            "forecast_periods": forecast_periods,
+            "backcast_periods": backcast_periods,
             "forecast_fourier_order": forecast_fourier_order,
             "backcast_fourier_order": backcast_fourier_order,
             "drop_rate": drop_rate,
@@ -436,8 +438,8 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
         self,
         label_width,
         input_width,
-        periods,
-        back_periods,
+        forecast_periods,
+        backcast_periods,
         forecast_fourier_order,
         backcast_fourier_order,
         p_degree,
@@ -450,8 +452,8 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
         model = create_interpretable_nbeats(
             label_width=label_width,
             input_width=input_width,
-            periods=periods,
-            back_periods=back_periods,
+            forecast_periods=forecast_periods,
+            backcast_periods=backcast_periods,
             forecast_fourier_order=forecast_fourier_order,
             backcast_fourier_order=backcast_fourier_order,
             p_degree=p_degree,

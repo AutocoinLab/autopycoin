@@ -1,8 +1,6 @@
 # pylint: skip-file
 
-import pytest
 import numpy as np
-import pandas as pd
 from absl.testing import parameterized
 
 from tensorflow.python.keras import keras_parameterized
@@ -10,9 +8,7 @@ from tensorflow.keras.backend import floatx
 import tensorflow as tf
 
 from ..utils import layer_test, check_attributes
-from . import NBEATS, Stack, GenericBlock, TrendBlock, SeasonalityBlock, BaseBlock
-from ..data import random_ts
-from ..dataset import WindowGenerator
+from . import GenericBlock, TrendBlock, SeasonalityBlock, BaseBlock
 
 
 class ExampleBlock(BaseBlock):
@@ -40,13 +36,10 @@ class ExampleBlock(BaseBlock):
             block_type=block_type,
         )
 
-    def coefficient_factory(self, *args: list, **kwargs: dict):
+    def _coefficient_factory(self, *args: list, **kwargs: dict):
         pass
 
-    def _get_backcast_coefficients(self):
-        return tf.constant([0])
-
-    def _get_forecast_coefficients(self):
+    def _get_coefficients(self, output_last_dim: int, branch_name: str):
         return tf.constant([0])
 
 
@@ -93,8 +86,8 @@ class BlocksLayersTest(tf.test.TestCase, parameterized.TestCase):
                 [
                     "label_width",
                     "input_width",
-                    "periods",
-                    "back_periods",
+                    "forecast_periods",
+                    "backcast_periods",
                     "forecast_fourier_order",
                     "backcast_fourier_order",
                     "drop_rate",
@@ -179,44 +172,34 @@ class BlocksLayersTest(tf.test.TestCase, parameterized.TestCase):
             (
                 (10, 10, [10, 10], [10], [10], [10], 16, 0.5),
                 SeasonalityBlock,
-                "`periods` and `forecast_fourier_order` are expected",
+                "`forecast_periods` and `forecast_fourier_order` are expected",
             ),
             (
                 (10, 10, [10], [10, 10], [10], [10], 16, 0.5),
                 SeasonalityBlock,
-                "`back_periods` and `backcast_fourier_order` are expected",
-            ),
-            (
-                (10, 10, [], [10], [10], [10], 16, 0.5),
-                SeasonalityBlock,
-                "`periods` have to be a non-empty list and all elements have to be strictly positives values.",
-            ),
-            (
-                (10, 10, [10], [], [10], [10], 16, 0.5),
-                SeasonalityBlock,
-                "`back_periods` have to be a non-empty list",
+                "`backcast_periods` and `backcast_fourier_order` are expected",
             ),
             (
                 (10, 10, [-10], [10], [10], [10], 16, 0.5),
                 SeasonalityBlock,
-                "`periods` have to be a non-empty list and all elements have to be strictly positives values.",
+                "all elements of `forecast_periods` have to",
             ),
             (
                 (10, 10, [10], [-10], [10], [10], 16, 0.5),
                 SeasonalityBlock,
-                "`back_periods` have to be a non-empty list",
+                "all elements of `backcast_periods` have to",
             ),
         ]
     )
     def test_raises_error(self, args, cls, error):
 
         with self.assertRaisesRegexp(ValueError, error):
-            if cls == BaseBlock:
-                obj = ExampleBlock(*args)
-            else:
-                obj = cls(*args)
 
             with self.assertRaisesRegexp(AssertionError, error):
+                if cls == BaseBlock:
+                    obj = ExampleBlock(*args)
+                else:
+                    obj = cls(*args)
                 obj.build(tf.TensorShape((None, args[0])))
 
             raise ValueError(error)
@@ -285,16 +268,16 @@ class BlocksLayersTest(tf.test.TestCase, parameterized.TestCase):
         self,
         label_width,
         input_width,
-        periods,
-        back_periods,
+        forecast_periods,
+        backcast_periods,
         forecast_fourier_order,
         backcast_fourier_order,
         n_neurons,
         drop_rate,
     ):
 
-        forecast_neurons = tf.reduce_sum(2 * periods)
-        backcast_neurons = tf.reduce_sum(2 * back_periods)
+        forecast_neurons = tf.reduce_sum(2 * forecast_periods)
+        backcast_neurons = tf.reduce_sum(2 * backcast_periods)
 
         seasonality_weights = [
             np.zeros(shape=(input_width, n_neurons)),
@@ -363,8 +346,8 @@ class BlocksLayersTest(tf.test.TestCase, parameterized.TestCase):
                 "label_width": label_width,
                 "input_width": input_width,
                 "n_neurons": n_neurons,
-                "periods": periods,
-                "back_periods": back_periods,
+                "forecast_periods": forecast_periods,
+                "backcast_periods": backcast_periods,
                 "forecast_fourier_order": forecast_fourier_order,
                 "backcast_fourier_order": backcast_fourier_order,
                 "drop_rate": drop_rate,
@@ -381,14 +364,14 @@ class BlocksLayersTest(tf.test.TestCase, parameterized.TestCase):
             custom_objects={"SeasonalityBlock": SeasonalityBlock},
         )
 
-        periods = [1, 2]
-        back_periods = [2, 3]
+        forecast_periods = [1, 2]
+        backcast_periods = [2, 3]
 
         forecast_fourier_order = [1, 2]
         backcast_fourier_order = [2, 3]
 
-        forecast_neurons = tf.reduce_sum(2 * periods)
-        backcast_neurons = tf.reduce_sum(2 * back_periods)
+        forecast_neurons = tf.reduce_sum(2 * forecast_periods)
+        backcast_neurons = tf.reduce_sum(2 * backcast_periods)
 
         seasonality_weights[-4:] = [
             np.ones(shape=(n_neurons, forecast_neurons)),
@@ -468,8 +451,8 @@ class BlocksLayersTest(tf.test.TestCase, parameterized.TestCase):
                 "label_width": label_width,
                 "input_width": input_width,
                 "n_neurons": n_neurons,
-                "periods": periods,
-                "back_periods": back_periods,
+                "forecast_periods": forecast_periods,
+                "backcast_periods": backcast_periods,
                 "forecast_fourier_order": forecast_fourier_order,
                 "backcast_fourier_order": backcast_fourier_order,
                 "drop_rate": drop_rate,
