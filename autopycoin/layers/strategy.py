@@ -23,7 +23,6 @@ class BaseStrategy(Layer):
 
         last_dims = []
         shapes = []
-        #self.input_spec = []
         self.input_rank = []
         self.time_steps = []
         for input_shape in input_shapes:
@@ -36,7 +35,6 @@ class BaseStrategy(Layer):
                 )
             last_dims.append(last_dim)
             shapes.append(shape)
-            #self.input_spec.append(InputSpec(min_ndim=2, axes={-1: last_dim}))
             self.input_rank.append(input_shape.rank)
 
             if input_shape.rank > 2:
@@ -66,17 +64,19 @@ class BaseStrategyMultivariate(BaseStrategy):
 
 
 class UniVariate(BaseStrategy):
-    def __init__(self, index=0, **kwargs):
-        super().__init__(**kwargs)
-        self.index = index
+    def build(self, input_shape):
+        super().build(input_shape)
+        self._n_variates = 1
+        if self.input_rank[0] > 2:
+            self._n_variates = input_shape[0][-1]
+            self._new_shape = [self.input_rank[0] - 1] + [i for i in range(self.input_rank[0] - 1)]
 
     def call(self, inputs):
         inputs = super().call(inputs)
         if isinstance(inputs, tuple):
             inputs = inputs[0]
         if self.input_rank[0] > 2:
-            inputs = tf.expand_dims(inputs[..., self.index], axis=-1)
-            inputs.set_shape([None, self.time_steps, 1])
+            inputs = tf.transpose(inputs, perm=self._new_shape)
         return inputs
 
 

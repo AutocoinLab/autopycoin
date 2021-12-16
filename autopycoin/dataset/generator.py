@@ -2,7 +2,7 @@
 This file defines the WindowGenerator model.
 """
 
-from typing import Union, Tuple, List, Optional
+from typing import Callable, Union, Tuple, List, Optional
 import pandas as pd
 import numpy as np
 
@@ -118,8 +118,6 @@ class WindowGenerator(AutopycoinBaseClass):
     ...     label_columns=['values'],
     ...     known_columns=[],
     ...     date_columns=[])
-    >>> w_oneshot.train
-    <PrefetchDataset shapes: (((None, 3), (None, 3), (None, 2)), (None, 2)), types: ((tf.float32, tf.string, tf.string), tf.float32)>
     """
 
     def __init__(
@@ -130,12 +128,12 @@ class WindowGenerator(AutopycoinBaseClass):
         valid_size: Union[int, float],
         test_size: Union[int, float],
         flat: bool,
-        batch_size: Optional[int] = None,
+        batch_size: int = None,
         include_known: bool = True,
         include_date_inputs: bool = True,
         include_date_labels: bool = True,
         include_labels: bool = True,
-        preprocessing: Union[tf.keras.layers.Layer, None] = None,
+        preprocessing: Union[None, Callable] = None,
     ):  # pylint: disable=dangerous-default-value
 
         self._input_width = input_width

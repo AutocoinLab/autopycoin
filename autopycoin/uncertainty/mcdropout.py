@@ -97,7 +97,7 @@ class MCDropoutEstimator(UncertaintyEstimator):
     ...    shift=20,
     ...    test_size=10,
     ...    valid_size=10,
-    ...    strategy="one_shot",
+    ...    flat=True,
     ...    batch_size=32,
     ... )
     >>> w = w.from_dataframe(
@@ -108,7 +108,6 @@ class MCDropoutEstimator(UncertaintyEstimator):
     ...    date_columns=[])
     >>> model = create_interpretable_nbeats(
     ...    label_width=20,
-    ...    input_width=50,
     ...    forecast_periods=[10],
     ...    backcast_periods=[10],
     ...    forecast_fourier_order=[10],
@@ -142,14 +141,14 @@ class MCDropoutEstimator(UncertaintyEstimator):
     Notes
     -----
     *Input shape*:
-    N-D tensor with shape: (batch_size, ..., input_dim).
-    The most common situation would be a 2D input with shape (batch_size, input_dim).
+    N-D tensor with shape: (batch_size, ..., units).
+    The most common situation would be a 2D input with shape (batch_size, units).
 
     *Output shape*:
     3 N-D tensor with shape: (quantiles, batch_size, ..., units) or (batch_size, ..., units).
                              (quantiles, batch_size, ..., units) or (batch_size, ..., units).
                              (quantiles, batch_size, ..., units) or (batch_size, ..., units).
-    For instance, for a 2D input with shape (batch_size, input_dim),
+    For instance, for a 2D input with shape (batch_size, units),
     the outputs would have shapes (batch_size, units).
     With a QuantileLossError with 2 quantiles or higher the outputs
     would have shapes (quantiles, batch_size, units).

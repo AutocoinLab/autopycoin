@@ -1,6 +1,6 @@
 """Checks used to modified inputs."""
 
-from typing import Union, Tuple, List
+from typing import Any, Union, Tuple, List
 import numpy as np
 
 import tensorflow as tf
@@ -180,3 +180,9 @@ def fill_none(
     return tuple(
             None if not index[value] else inputs.pop(0) for value in range(max_value)
         )
+
+
+def convert_to_list(to_convert: Any):
+    """Wrap the object with a list.
+    If a list is provided, it doesn't wrap it."""
+    return [to_convert] if not isinstance(to_convert, list) else to_convert

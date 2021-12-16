@@ -41,7 +41,7 @@ def prepare_data(request):
         shift=20,
         test_size=10,
         valid_size=10,
-        strategy="one_shot",
+        flat=True,
         batch_size=32,
     )
 
@@ -54,7 +54,6 @@ def prepare_data(request):
     )
 
     model_params = {
-        "input_width": 50,
         "label_width": 20,
         "forecast_periods": [10],
         "backcast_periods": [10],

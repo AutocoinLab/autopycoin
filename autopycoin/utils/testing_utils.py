@@ -159,6 +159,7 @@ def layer_test(
     expected_output_shapes = create_list(expected_output_shape)
 
     computed_output_shapes = layer.compute_output_shape(tf.TensorShape(input_shape))
+    
     computed_output_shapes = create_list(computed_output_shapes)
 
     computed_output_signatures = layer.compute_output_signature(
@@ -235,7 +236,6 @@ def layer_test(
             actual_output = layer.predict(input_data)
         else:
             actual_output = model.predict(input_data)
-
         # Handle multiple outputs
         actual_output = (
             actual_output[idx] if isinstance(actual_output, tuple) else actual_output

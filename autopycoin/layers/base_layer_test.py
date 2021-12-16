@@ -21,7 +21,6 @@ class ModelTest(tf.test.TestCase, parameterized.TestCase):
 
     def test_attributes(self):
         model = create_interpretable_nbeats(
-            input_width=10,
             label_width=10,
             forecast_periods=[10],
             backcast_periods=[10],

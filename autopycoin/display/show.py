@@ -2,7 +2,7 @@
 This file defines the plot function to use with generator.
 """
 
-from typing import List, Union, Tuple
+from typing import Callable, List, Union, Tuple
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -17,7 +17,7 @@ from ..utils import example_handler
 
 class ShowTs(AutopycoinBaseClass):
     """
-    TODO: unit testing + doc
+    TODO: unit testing + doc + table_from_index + diagnose errors
     Display a model results with matplotlib or a dataframe.
 
     Parameters
@@ -158,77 +158,6 @@ class ShowTs(AutopycoinBaseClass):
         fig.tight_layout()
         plt.xlabel("Time")
 
-    def table_from_index(
-        self,
-        index: Union[str, List[str]],
-        col: str,
-        render_interval: bool = True,
-        max_series: int = 3,
-    ):
-
-        (inputs, _, date_inputs, date_labels), labels = self._filtering_by_index(
-            index, max_series
-        )
-
-        table = pd.DataFrame(columns=[''])
-        # We loop over max_subplots instances
-        max_series = min(max_series, len(inputs))
-        for serie in range(max_series):
-
-            labels[serie]
-            date_labels[plot]
-
-            numbers = [0, 1, 2]
-            colors = ['green', 'purple']
-            pd.MultiIndex.from_product([numbers, colors],
-                                    names=['number', 'color'])
-
-            if plot_labels is True:
-                plt.plot(
-                    date_labels[plot],
-                    labels[plot],
-                    color="#fe9929",
-                    marker=".",
-                    markeredgecolor="k",
-                    label="Real values",
-                )
-
-            if self._model is None:
-                raise AttributeError('A valid model need to be given. Got None.')
-                if plot_interval:
-                    self._plot_intervals(inputs, date_labels, plot)
-
-                # If we don't want to plot interval then plot only the quantile 0.5 if it exists else just the output
-                else:
-                    output = self._model.predict(inputs)
-                    n_quantiles = output.shape[0]
-                    middle = int(np.ceil(n_quantiles / 2))
-                    if self._model.quantiles:
-                        plt.plot(
-                            date_labels[plot],
-                            output[middle - 1, plot],
-                            color="#fff7bc",
-                            marker="X",
-                            markeredgecolor="k",
-                            label="Predictions",
-                        )
-                    else:
-                        plt.plot(
-                            date_labels[plot],
-                            output[plot],
-                            color="#fff7bc",
-                            marker="X",
-                            markeredgecolor="k",
-                            label="Predictions",
-                        )
-
-            if plot == 0:
-                plt.legend()
-            plt.xticks(rotation="vertical")
-
-        fig.tight_layout()
-        plt.xlabel("Time")
-
     def _filtering_by_index(self, index: Union[str, List[str]], max_subplot: int) -> Tuple[Tuple[tf.Tensor, ...], tf.Tensor]:
         """Return the dataset filtered by the index in `Tensor` format."""
 
@@ -321,3 +250,22 @@ class ShowTs(AutopycoinBaseClass):
             )
 
         return plt.gca()
+
+    def table_from_index(
+        self,
+        index: Union[str, List[str]],
+        max_series: int = 3,
+        metrics: Callable = None,
+        **kwargs: dict
+    ):
+        """
+        """
+
+        (inputs, _, date_inputs, date_labels), labels = self._filtering_by_index(
+            index, max_series
+        )
+
+        if metrics is None:
+            return self._model.evaluate(inputs, labels, **kwargs)
+
+        return metrics(inputs, labels)

@@ -1116,7 +1116,6 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
         batch_size,
     ):
         model = create_interpretable_nbeats(
-            input_width=2,
             label_width=2,
             forecast_periods=[2],
             backcast_periods=[2],
