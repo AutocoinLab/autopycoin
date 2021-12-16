@@ -4,8 +4,9 @@ N-BEATS implementation
 
 from typing import Callable, Union, Tuple, List
 from numpy.random import randint, uniform
-import tensorflow as tf
+import keras_tuner as kt
 
+import tensorflow as tf
 from keras.engine import data_adapter
 
 # from tensorflow.keras import Model
@@ -639,7 +640,6 @@ def create_interpretable_nbeats(
     seasonality_n_neurons: int = 16,
     drop_rate: float = 0.0,
     share: bool = True,
-
     **kwargs: dict,
 ):
     """
@@ -842,3 +842,41 @@ def create_generic_nbeats(
     return model
 
 
+def interpretable_nbeats_builder(label_width: int, **kwargs: dict) -> Callable:
+    """
+    It defines model and hyperparameters to take into account during the optimization.
+    We set main parameters but you can overread this function to customize
+    your parameters selection.
+    """
+    def model_builder(hp) -> NBEATS:
+        hp_n_neurons_trend = hp.Int('neurons_trend', min_value = 20, max_value=520, step=20)
+        hp_n_neurons_seas = hp.Int('neurons_seas', min_value = 20, max_value=520, step=20)
+        hp_periods = hp.Choice('periods', n) if (n := kwargs.get('periods', None)) else n
+        hp_backcast_periods = hp.Choice('backcast_periods', n) if (n := kwargs.get('backcast_periods', None)) else n
+        hp_forecast_fourier_order = hp.Choice('forecast_fourier_order', n) if (n := kwargs.get('forecast_fourier_order', None)) else n
+        hp_backcast_fourier_order = hp.Choice('backcast_fourier_order', n) if (n := kwargs.get('backcast_fourier_order', None)) else n
+        hp_share = hp.Boolean('share')
+        hp_p_degree = hp.Int('p_degree', min_value = 0, max_value = 3, step = 1)
+        loss_list = kwargs.get('forecast_fourier_order', ['mse'])
+        loss_idx = hp.Choice('optimizer', range(len(loss_list)))
+        optimizer_list = kwargs.get('forecast_fourier_order', [tf.keras.optimizers.Adam(learning_rate=0.001)])
+        optimizer_idx = hp.Choice('optimizer', range(len(optimizer_list)))
+
+        model = create_interpretable_nbeats(
+                        label_width=label_width,
+                        p_degree=hp_p_degree,
+                        forecast_periods=hp_periods,
+                        backcast_periods=hp_backcast_periods,
+                        forecast_fourier_order=hp_forecast_fourier_order,
+                        backcast_fourier_order=hp_backcast_fourier_order,
+                        trend_n_neurons=hp_n_neurons_trend,
+                        seasonality_n_neurons=hp_n_neurons_seas,
+                        share=hp_share
+                        )
+
+        model.compile(loss=loss_list[loss_idx], optimizer=optimizer_list[optimizer_idx],
+                            metrics=[tf.keras.metrics.MeanAbsoluteError()])
+
+        return model
+
+    return model_builder

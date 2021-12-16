@@ -105,7 +105,7 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
             (
                 [(TrendBlock(*trend_args), TrendBlock(*trend_args))],
                 Stack,
-                ["blocks", "stack_type", "is_interpretable"],
+                ["blocks", "stack_type", "is_interpretable", "label_width"],
                 [
                     (
                         TrendBlock(*trend_args),
@@ -113,13 +113,14 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
                     ),
                     "TrendStack",
                     True,
+                    1
                 ],
             ),
             # Stack attributes test
             (
                 [(GenericBlock(*(1, 2, 2, 3, 0.0)), TrendBlock(*trend_args))],
                 Stack,
-                ["blocks", "stack_type", "is_interpretable"],
+                ["blocks", "stack_type", "is_interpretable", "label_width"],
                 [
                     (
                         GenericBlock(*(1, 2, 2, 3, 0.0)),
@@ -127,6 +128,7 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
                     ),
                     "CustomStack",
                     False,
+                    1
                 ],
             ),
             # NBEATS attributes test
@@ -142,7 +144,7 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
                     ]
                 ],
                 NBEATS,
-                ["stacks", "is_interpretable", "nbeats_type"],
+                ["stacks", "is_interpretable", "nbeats_type", "label_width"],
                 [
                     [
                         Stack(
@@ -154,6 +156,7 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
                     ],
                     True,
                     "InterpretableNbeats",
+                    1
                 ],
             ),
             (
@@ -168,7 +171,7 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
                     ]
                 ],
                 NBEATS,
-                ["stacks", "is_interpretable", "nbeats_type"],
+                ["stacks", "is_interpretable", "nbeats_type", "label_width"],
                 [
                     [
                         Stack(
@@ -180,6 +183,26 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
                     ],
                     False,
                     "Nbeats",
+                    1
+                ],
+            ),
+            (
+                [
+                    10, lambda : create_generic_nbeats(
+                                    label_width=1,
+                                    g_forecast_neurons=10,
+                                    g_backcast_neurons=10,
+                                    n_neurons=10,
+                                    n_blocks=2,
+                                    n_stacks=2,
+                                    drop_rate=0.,
+                                    share=True,), ['mse']
+                    
+                ],
+                PoolNBEATS,
+                ["label_width", "n_models"],
+                [
+                    1, 10
                 ],
             ),
         ]
@@ -630,8 +653,8 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
         outputs = model.predict(np.array([[1.0, 2.0, 3.0]]))
         self.assertEqual(outputs.shape, (3, 1, 2))
 
-    @parameterized.parameters([(2, 5, 5, 5, 3, 2, 0.0, True, tf.reduce_mean, (1, 2)),
-                               (2, 5, 5, 5, 3, 2, 0.0, True, lambda x, axis: tf.identity(x), (1, 1, 2))])
+    @parameterized.parameters([(2, 5, 5, 5, 3, 2, 0.0, True, tf.reduce_mean, (1, 2), (1, 2)),
+                               (2, 5, 5, 5, 3, 2, 0.0, True, lambda x, axis: tf.identity(x), (1, 1, 2), (10, 1, 2))])
     def test_pool_nbeats(
         self,
         label_width,
@@ -643,7 +666,8 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
         drop_rate,
         share,
         fn_agg,
-        shape
+        shape,
+        shape2
     ):
 
         model = create_generic_nbeats(
@@ -669,4 +693,33 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
         output = model.predict(np.array([[1.0, 2.0, 3.0, 5., 6., 7.]]))
 
         self.assertEqual(output.shape, shape)
+        
+        for loss in ['mse', 'mae', 'mape']:
+            self.assertIn(loss, model.get_pool_losses())
+        model.reset_pool_losses(['mse', 'msle', 'mape'])
+        for loss in ['mse', 'msle', 'mape']:
+            self.assertIn(loss, model.get_pool_losses())
+
+        model2 = lambda : create_generic_nbeats(
+            label_width=label_width,
+            g_forecast_neurons=g_forecast_neurons,
+            g_backcast_neurons=g_backcast_neurons,
+            n_neurons=n_neurons,
+            n_blocks=n_blocks,
+            n_stacks=n_stacks,
+            drop_rate=drop_rate,
+            share=share,
+        )
+        model2 = PoolNBEATS(
+                 n_models=10,
+                 nbeats_models=model2,
+                 losses=['mse', 'mae', 'mape'],
+                 fn_agg=fn_agg)
+
+        model2.compile(tf.keras.optimizers.Adam(
+            learning_rate=0.02, beta_1=0.9, beta_2=0.999, epsilon=1e-07, amsgrad=True,
+            name='Adam'), loss=model.get_pool_losses(), metrics=['mae'])
+        output = model2.predict(np.array([[1.0, 2.0, 3.0, 5., 6., 7.]]))
+
+        self.assertEqual(output.shape, shape2)
         
