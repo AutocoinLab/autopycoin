@@ -32,8 +32,8 @@ class QuantileLossTest(test.TestCase):
             dtype=tf.float32,
         )
         y_pred = tf.constant(
-            [[4, 8, 12, 8, 1, 3], [4, 8, 12, 8, 1, 3], [4, 8, 12, 8, 1, 3]],
-            shape=(3, 2, 3),
+            [[[4, 4, 4], [8, 8, 8], [12, 12, 12]], [[8, 8, 8], [1, 1, 1], [3, 3, 3]]],
+            shape=(2, 3, 3),
             dtype=tf.float32,
         )
         loss = ql_obj(y_true, y_pred)
@@ -46,8 +46,8 @@ class QuantileLossTest(test.TestCase):
             shape=(2, 3),
         )
         y_pred = tf.constant(
-            [[4, 8, 12, 8, 1, 3], [4, 8, 12, 8, 1, 3], [4, 8, 12, 8, 1, 3]],
-            shape=(3, 2, 3),
+            [[[4, 4, 4], [8, 8, 8], [12, 12, 12]], [[8, 8, 8], [1, 1, 1], [3, 3, 3]]],
+            shape=(2, 3, 3),
             dtype=tf.float32,
         )
         loss = ql_obj(y_true, y_pred)
@@ -60,8 +60,8 @@ class QuantileLossTest(test.TestCase):
             shape=(2, 3),
         )
         y_pred = tf.constant(
-            [[4, 8, 12, 8, 1, 3], [4, 8, 12, 8, 1, 3], [4, 8, 12, 8, 1, 3]],
-            shape=(3, 2, 3),
+            [[[4, 4, 4], [8, 8, 8], [12, 12, 12]], [[8, 8, 8], [1, 1, 1], [3, 3, 3]]],
+            shape=(2, 3, 3),
             dtype=tf.float32,
         )
         loss = ql_obj(y_true, y_pred, sample_weight=2.3)
@@ -74,44 +74,27 @@ class QuantileLossTest(test.TestCase):
             shape=(2, 3),
         )
         y_pred = tf.constant(
-            [[4, 8, 12, 8, 1, 3], [4, 8, 12, 8, 1, 3], [4, 8, 12, 8, 1, 3]],
-            shape=(3, 2, 3),
+            [[[4, 4, 4], [8, 8, 8], [12, 12, 12]], [[8, 8, 8], [1, 1, 1], [3, 3, 3]]],
+            shape=(2, 3, 3),
             dtype=tf.float32,
         )
         sample_weight = tf.constant([1.2, 3.4], shape=(2, 1))
         loss = ql_obj(y_true, y_pred, sample_weight=sample_weight)
         self.assertAlmostEqual(self.evaluate(loss), 40.7, 3)
 
-    def test_ragged_tensors(self):
-        ql_obj = losses.QuantileLossError(quantiles=[0.1, 0.5, 0.9])
-
-        y_true = tf.ragged.constant([[[1.0, 1.0, 9.0], [2.0, 5.0]]])
-        y_pred = tf.ragged.constant(
-            [
-                [[4.0, 1.0, 8.0], [12.0, 3.0]],
-                [[4.0, 1.0, 8.0], [12.0, 3.0]],
-                [[4.0, 1.0, 8.0], [12.0, 3.0]],
-            ],
-            dtype=tf.float32,
-        )
-        sample_weight = tf.constant([1.2, 0.5])
-        loss = ql_obj(y_true, y_pred, sample_weight=sample_weight)
-
-        self.assertAllClose(self.evaluate(loss), 6.9, 1e-2)
-
     def test_timestep_weighted(self):
         ql_obj = losses.QuantileLossError(quantiles=[0.1, 0.5, 0.9])
         y_true = tf.constant(
             [[1, 9, 2, -5, -2, 6]],
-            shape=(1, 2, 3, 1),
+            shape=(2, 3, 1),
         )
         y_pred = tf.constant(
-            [[4, 8, 12, 8, 1, 3], [4, 8, 12, 8, 1, 3], [4, 8, 12, 8, 1, 3]],
-            shape=(3, 2, 3, 1),
+            [[[4, 4, 4], [8, 8, 8], [12, 12, 12]], [[8, 8, 8], [1, 1, 1], [3, 3, 3]]],
+            shape=(2, 3, 1, 3),
             dtype=tf.float32,
         )
 
-        sample_weight = tf.constant([3, 6, 5, 0, 4, 2], shape=(2, 3))
+        sample_weight = tf.constant([3, 6, 5, 0, 4, 2], shape=(2, 3, 1))
         loss = ql_obj(y_true, y_pred, sample_weight=sample_weight)
         self.assertAlmostEqual(self.evaluate(loss), 124.5, 3)
 
@@ -122,8 +105,8 @@ class QuantileLossTest(test.TestCase):
             shape=(2, 3),
         )
         y_pred = tf.constant(
-            [[4, 8, 12, 8, 1, 3], [4, 8, 12, 8, 1, 3], [4, 8, 12, 8, 1, 3]],
-            shape=(3, 2, 3),
+            [[[4, 4, 4], [8, 8, 8], [12, 12, 12]], [[8, 8, 8], [1, 1, 1], [3, 3, 3]]],
+            shape=(2, 3, 3),
             dtype=tf.float32,
         )
         loss = ql_obj(y_true, y_pred, sample_weight=0)
@@ -138,8 +121,8 @@ class QuantileLossTest(test.TestCase):
             shape=(2, 3),
         )
         y_pred = tf.constant(
-            [[4, 8, 12, 8, 1, 3], [4, 8, 12, 8, 1, 3], [4, 8, 12, 8, 1, 3]],
-            shape=(3, 2, 3),
+            [[[4, 4, 4], [8, 8, 8], [12, 12, 12]], [[8, 8, 8], [1, 1, 1], [3, 3, 3]]],
+            shape=(2, 3, 3),
             dtype=tf.float32,
         )
         loss = ql_obj(y_true, y_pred, sample_weight=2.3)
@@ -155,8 +138,8 @@ class QuantileLossTest(test.TestCase):
             shape=(2, 3),
         )
         y_pred = tf.constant(
-            [[4, 8, 12, 8, 1, 3], [4, 8, 12, 8, 1, 3], [4, 8, 12, 8, 1, 3]],
-            shape=(3, 2, 3),
+            [[[4, 4, 4], [8, 8, 8], [12, 12, 12]], [[8, 8, 8], [1, 1, 1], [3, 3, 3]]],
+            shape=(2, 3, 3),
             dtype=tf.float32,
         )
         loss = ql_obj(y_true, y_pred, sample_weight=2.3)

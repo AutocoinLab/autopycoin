@@ -84,7 +84,7 @@ def quantiles_handler(quantiles: List[Union[int, float]]) -> tf.Tensor:
     return (quantiles / 100).tolist()
 
 
-def example_handler(dataset: tf.data.Dataset, window_generator: 'WindowGenerator'):
+def example_handler(dataset: tf.data.Dataset, window_generator: Any) -> Tuple[tf.Tensor]:
     """
     Convenient function which extract one instance of a
     `WindowGenerator` train, validation, test or a forecast dataset.
@@ -107,9 +107,9 @@ def example_handler(dataset: tf.data.Dataset, window_generator: 'WindowGenerator
     if isinstance(dataset, tuple):
         index = [
             True,
-            window_generator.include_known,
-            window_generator.include_date_inputs,
-            window_generator.include_date_labels,
+            bool(window_generator.known_columns),
+            bool(window_generator.date_columns),
+            bool(window_generator.date_columns),
         ]
         if (
             len(dataset) != 2
@@ -117,10 +117,8 @@ def example_handler(dataset: tf.data.Dataset, window_generator: 'WindowGenerator
             or not isinstance(dataset[1], tf.Tensor)
         ):
             raise ValueError(
-                f"""Accepts only a tuple of shapes (inputs, labels) with inputs composed by {sum(index)} tensors and a labels tensor.
-                Got adataset of {sum(True for tensor in dataset[0] if tensor is not None)} 
-                components, an inputs of {len(dataset[0])} tensors
-                and a labels component of type {type(dataset[1])}."""
+                f"""Accepts only a tuple of shapes (inputs, labels) with the inputs composed by {sum(index)} tensors.
+                Got an inputs of {len(dataset[0])} tensors and a labels component of type {type(dataset[1])}."""
             )
 
         inputs, labels = dataset
@@ -150,9 +148,9 @@ def example_handler(dataset: tf.data.Dataset, window_generator: 'WindowGenerator
         inputs,
         index=[
             True,
-            window_generator.include_known,
-            window_generator.include_date_inputs,
-            window_generator.include_date_labels,
+            bool(window_generator.known_columns),
+            bool(window_generator.date_columns),
+            bool(window_generator.date_columns),
         ],
     )
 
@@ -169,9 +167,10 @@ def example_handler(dataset: tf.data.Dataset, window_generator: 'WindowGenerator
 
 def fill_none(
     inputs: Union[tuple, tf.Tensor], max_value: int = 4, index: List[bool] = None
-):
+) -> Tuple[tf.Tensor]:
     """Fill the inputs tuple by None values."""
-    inputs = list(inputs)
+    # if tensor then it becomes a list of lists
+    inputs = list(inputs) if isinstance(inputs, tuple) else [inputs]
     if not index:
         return tuple(
             None if value > len(inputs) - 1 else inputs[value]
@@ -182,7 +181,7 @@ def fill_none(
         )
 
 
-def convert_to_list(to_convert: Any):
+def convert_to_list(to_convert: Any) -> list:
     """Wrap the object with a list.
     If a list is provided, it doesn't wrap it."""
     return [to_convert] if not isinstance(to_convert, list) else to_convert

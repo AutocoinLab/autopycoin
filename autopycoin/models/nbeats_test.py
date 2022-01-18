@@ -593,7 +593,7 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
         # Compare output shape with expected shape when quantiles = 3
         model.compile(loss=QuantileLossError([0.1, 0.5, 0.9]))
         outputs = model.predict(np.array([[1.0, 2.0, 3.0]]))
-        self.assertEqual(outputs.shape, (3, 1, 2))
+        self.assertEqual(outputs.shape, (1, 2, 3))
 
     @parameterized.parameters([(2, 5, 5, 5, 3, 2, 0.0, True)])
     def test_create_generic_nbeats(
@@ -651,7 +651,7 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
         # Compare output shape with expected when quantiles = 2
         model.compile(loss=QuantileLossError([0.1, 0.5, 0.9]))
         outputs = model.predict(np.array([[1.0, 2.0, 3.0]]))
-        self.assertEqual(outputs.shape, (3, 1, 2))
+        self.assertEqual(outputs.shape, (1, 2, 3))
 
     @parameterized.parameters([(2, 5, 5, 5, 3, 2, 0.0, True, tf.reduce_mean, (1, 2), (1, 2)),
                                (2, 5, 5, 5, 3, 2, 0.0, True, lambda x, axis: tf.identity(x), (1, 1, 2), (10, 1, 2))])

@@ -12,10 +12,10 @@ from ..utils import range_dims
 
 
 def random_ts(
-    n_steps: int,
-    trend_degree: int,
-    periods: List[int],
-    fourier_orders: List[int],
+    n_steps: int = 100,
+    trend_degree: int = 2,
+    periods: List[int] = [10],
+    fourier_orders: List[int] = [10],
     trend_mean: Optional[int] = 0,
     trend_std: Optional[int] = 1,
     seasonality_mean: Optional[int] = 0,

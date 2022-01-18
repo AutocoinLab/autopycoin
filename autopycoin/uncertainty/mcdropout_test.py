@@ -45,12 +45,10 @@ def prepare_data(request):
         batch_size=32,
     )
 
-    w = w.from_dataframe(
+    w = w.from_array(
         data=data,
         input_columns=["test"],
-        known_columns=[],
-        label_columns=["test"],
-        date_columns=[],
+        label_columns=["test"]
     )
 
     model_params = {

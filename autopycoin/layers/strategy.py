@@ -1,5 +1,6 @@
 """
 Defines layers for time series analysis.
+#TODO: doc and test unit
 """
 
 import tensorflow as tf
@@ -21,7 +22,7 @@ class BaseStrategy(Layer):
                 "non-floating point dtype %s" % (dtype,)
             )
 
-        last_dims = []
+        self.last_dims = []
         shapes = []
         self.input_rank = []
         self.time_steps = []
@@ -33,7 +34,7 @@ class BaseStrategy(Layer):
                     f"The last dimension of the inputs"
                     f" should be defined. Found {last_dim}."
                 )
-            last_dims.append(last_dim)
+            self.last_dims.append(last_dim)
             shapes.append(shape)
             self.input_rank.append(input_shape.rank)
 
@@ -67,17 +68,23 @@ class UniVariate(BaseStrategy):
     def build(self, input_shape):
         super().build(input_shape)
         self._n_variates = 1
-        if self.input_rank[0] > 2:
-            self._n_variates = input_shape[0][-1]
+        if self.input_rank[0] > 2: # See BaseStrategy
+            self._n_variates = self.last_dims[0]
             self._new_shape = [self.input_rank[0] - 1] + [i for i in range(self.input_rank[0] - 1)]
+            self._leg_shape = [i for i in range(1, self.input_rank[0])] + [0]
 
-    def call(self, inputs):
-        inputs = super().call(inputs)
-        if isinstance(inputs, tuple):
-            inputs = inputs[0]
-        if self.input_rank[0] > 2:
-            inputs = tf.transpose(inputs, perm=self._new_shape)
-        return inputs
+    def call(self, inputs, begin, quantiles=None):
+        if begin:
+            inputs = super().call(inputs) # initialize attributes in BaseStrategy
+            if isinstance(inputs, tuple):
+                inputs = inputs[0]
+            if self.input_rank[0] > 2:
+                inputs = tf.transpose(inputs, perm=self._new_shape)
+            return inputs
+        else:
+            if self.input_rank[0] > 2 and quantiles is None:
+                return tf.transpose(inputs, perm=self._leg_shape)
+            return inputs
 
 
 class MultiVariate(BaseStrategyMultivariate):

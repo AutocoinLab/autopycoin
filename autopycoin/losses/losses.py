@@ -83,7 +83,7 @@ def quantile_loss(
     >>> from autopycoin.losses import quantile_loss
     >>> import tensorflow as tf
     >>> y_true = [[0., 1.], [0., 0.]]
-    >>> y_pred = [[[1., 1.], [1., 0.]]]
+    >>> y_pred = [[[1.], [1.]], [[1.], [0.]]]
     >>> quantile_loss(y_true, y_pred, quantiles=[0.5]).numpy()
     array([0.25, 0.25], dtype=float32)
     """
@@ -94,19 +94,18 @@ def quantile_loss(
     y_true = tf.cast(y_true, dtype=y_pred.dtype)
     quantiles = tf.convert_to_tensor(quantiles)
 
-    # Broadcast quantiles to y_true
-    shape_broadcast = tf.concat(
-        ([tf.shape(quantiles)[0]], tf.ones(tf.rank(y_pred) - 1, dtype=tf.int32)), axis=0
-    )
-    quantiles = tf.reshape(quantiles, shape=shape_broadcast)
+    if tf.rank(y_pred) > tf.rank(y_true):
+        y_true = tf.expand_dims(y_true, -1)
 
+    print(tf.shape(y_pred))
+    print(tf.shape(y_true))
     diff = y_pred - y_true
     q_loss = quantiles * tf.clip_by_value(diff, 0.0, np.inf) + (
         1 - quantiles
     ) * tf.clip_by_value(-diff, 0.0, np.inf)
 
-    error = tf.reduce_mean(q_loss, axis=-1)
-    return tf.reduce_sum(error, axis=[0])
+    error = tf.reduce_mean(q_loss, axis=-2)
+    return tf.reduce_sum(error, axis=[-1])
 
 
 class SymetricMeanAbsolutePercentageError(LossFunctionWrapper, AutopycoinBaseClass):
@@ -167,6 +166,7 @@ class SymetricMeanAbsolutePercentageError(LossFunctionWrapper, AutopycoinBaseCla
 
 class QuantileLossError(LossFunctionWrapper, AutopycoinBaseClass):
     """
+    #TODO: ragged tensor
     Calculate the quantile loss error between `y_true` and `y_pred`
     across all examples.
 
@@ -202,7 +202,7 @@ class QuantileLossError(LossFunctionWrapper, AutopycoinBaseClass):
     >>> import tensorflow as tf
     >>> from autopycoin.losses import QuantileLossError
     >>> y_true = [[0., 1.], [0., 0.]]
-    >>> y_pred = [[[1., 1.], [1., 0.]]]
+    >>> y_pred = [[[1.], [1.]], [[1.], [0.]]]
     >>> # Using 'auto'/'sum_over_batch_size' reduction type.
     >>> ql = QuantileLossError(quantiles=[0.5])
     >>> ql(y_true, y_pred).numpy()
@@ -221,7 +221,7 @@ class QuantileLossError(LossFunctionWrapper, AutopycoinBaseClass):
     >>> ql(y_true, y_pred).numpy()
     array([0.25, 0.25], dtype=float32)
     >>> # Using multiple quantiles.
-    >>> y_pred = [[[1., 1.], [1., 0.]], [[1., 1.], [1., 0.]], [[1., 1.], [1., 0.]]]
+    >>> y_pred = [[[1.,1.,1.], [1.,1.,1.]], [[1.,1.,1.], [0.,0.,0.]]]
     >>> ql = QuantileLossError(quantiles=[0.1, 0.5, 0.9])
     >>> ql(y_true, y_pred).numpy()
     1.5

@@ -138,6 +138,7 @@ class BaseBlock(Layer, AutopycoinBaseClass):
         # broadcast the output to take into account this uncertainty.
         shape_fc = self._base_shape + [self._n_neurons, coef.shape[0]]
         if self._n_quantiles > 1:
+            print(self._n_quantiles)
             shape_fc.insert(0, self._n_quantiles)
         fc = self.add_weight(shape=shape_fc, name=f"fc_{branch_name}_{self.name}")
 
@@ -687,6 +688,7 @@ class SeasonalityBlock(BaseBlock, AutopycoinBaseClass):
 
         if self.backcast_periods is not None:
             greater_or_equal(self.backcast_periods, 0, 'backcast_periods')
+        if self.backcast_fourier_order is not None:
             greater_or_equal(self.backcast_fourier_order, 0, 'backcast_fourier_order')
             equal_length(self.backcast_periods, self.backcast_fourier_order,
                             'backcast_periods', 'backcast_fourier_order')
@@ -843,3 +845,140 @@ class GenericBlock(BaseBlock, AutopycoinBaseClass):
     ) -> None:  # pylint: disable=unused-argument
         greater_or_equal(self.g_forecast_neurons, 0, 'g_forecast_neurons')
         greater_or_equal(self.g_backcast_neurons, 0, 'g_backcast_neurons')
+
+
+class Stack(Layer):
+    """
+    TODO: Transform to layer
+    A stack is a series of blocks where each block produces two outputs,
+    the forecast and the backcast.
+
+    Inside a stack all forecasts are sum up and compose the stack output.
+    In the meantime, the backcast is given to the following block.
+
+    Parameters
+    ----------
+    blocks : Tuple[:class:`autopycoin.models.BaseBlock`]
+        Blocks layers. they can be generic, seasonal or trend ones.
+        You can also define your own block by subclassing `BaseBlock`.
+
+    Attributes
+    ----------
+    blocks : Tuple[:class:`autopycoin.models.BaseBlock`]
+    is_interpretable : bool
+    stack_type : str
+    label_width : int
+    input_width : int
+
+    Examples
+    --------
+    >>> from autopycoin.layers import TrendBlock, SeasonalityBlock
+    >>> from autopycoin.models import Stack, NBEATS
+    >>> from autopycoin.losses import QuantileLossError
+    >>> trend_block = TrendBlock(label_width=20,
+    ...                          p_degree=2,
+    ...                          n_neurons=16,
+    ...                          drop_rate=0.1,
+    ...                          name="trend_block")
+    >>> seasonality_block = SeasonalityBlock(label_width=20,
+    ...                                      forecast_periods=[10],
+    ...                                      backcast_periods=[20],
+    ...                                      forecast_fourier_order=[10],
+    ...                                      backcast_fourier_order=[20],
+    ...                                      n_neurons=15,
+    ...                                      drop_rate=0.1,
+    ...                                      name="seasonality_block")
+    >>> trend_blocks = [trend_block for _ in range(3)]
+    >>> seasonality_blocks = [seasonality_block for _ in range(3)]
+    >>> trend_stacks = Stack(trend_blocks, name="trend_stack")
+    >>> seasonality_stacks = Stack(seasonality_blocks, name="seasonality_stack")
+    >>> # model definition and compiling
+    >>> model = NBEATS([trend_stacks, seasonality_stacks], name="interpretable_NBEATS")
+    >>> model.compile(loss=QuantileLossError(quantiles=[0.5]))
+
+    Notes
+    -----
+    input shape:
+    N-D tensor with shape: (batch_size, ..., units).
+    The most common situation would be a 2D input with shape (batch_size, units).
+
+    output shape:
+    N-D tensor with shape: (quantiles, batch_size, ..., units) or (batch_size, ..., units) .
+    For instance, for a 2D input with shape (batch_size, units),
+    the output would have shape (batch_size, units).
+    With a QuantileLossError with 2 quantiles or higher the output would have shape (quantiles, batch_size, units).
+    """
+
+    def __init__(self, blocks: Tuple[BaseBlock, ...], **kwargs: dict):
+
+        super().__init__(**kwargs)
+        self._blocks = blocks
+        self._stack_type = self._set_type()
+        self._is_interpretable = self._set_interpretability()
+
+    def call(
+        self, inputs: Union[tuple, dict, list, tf.Tensor]
+    ) -> Tuple[tf.Tensor, ...]:
+        """Call method from tensorflow."""
+
+        outputs = tf.constant(0.0) # init output
+        for block in self.blocks:
+            # outputs is (quantiles, Batch_size, forecast)
+            # reconstructed_inputs is (Batch_size, backcast)
+            residual_outputs, reconstructed_inputs = block(inputs)
+            inputs = tf.subtract(inputs, reconstructed_inputs)
+            # outputs is (quantiles, Batch_size, forecast)
+            outputs = tf.add(outputs, residual_outputs)
+        return outputs, inputs
+
+    def get_config(self) -> dict:
+        """get_config method from tensorflow."""
+        config = super().get_config()
+        config.update({"blocks": self.blocks})
+        return config
+
+    def _set_type(self) -> str:
+        """Return the type of the stack."""
+
+        block_type = self.blocks[0].block_type
+        for block in self.blocks:
+            if block.block_type != block_type:
+                return "CustomStack"
+        return block_type.replace("Block", "") + "Stack"
+
+    def _set_interpretability(self) -> bool:
+        """True if the stack is interpretable else False."""
+
+        interpretable = all([block.is_interpretable for block in self.blocks])
+        if interpretable:
+            return True
+        return False
+
+    @property
+    def label_width(self) -> int:
+        """Return the label width."""
+        return self.blocks[0].label_width
+
+    @property
+    def input_width(self) -> int:
+        """Return the input width."""
+        return self.blocks[0].input_width
+
+    @property
+    def blocks(self) -> List[BaseBlock]:
+        """Return the list of blocks."""
+        return self._blocks
+
+    @property
+    def stack_type(self) -> str:
+        """Return the type of the stack.
+        `CustomStack` if the blocks are all differents."""
+        return self._stack_type
+
+    @property
+    def is_interpretable(self) -> bool:
+        """Return True if the stack is interpretable."""
+        return self._is_interpretable
+
+    def __repr__(self):
+        return self.stack_type

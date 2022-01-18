@@ -5,7 +5,6 @@ This file defines the plot function to use with generator.
 from typing import Callable, List, Union, Tuple
 import numpy as np
 import matplotlib.pyplot as plt
-import pandas as pd
 
 import tensorflow as tf
 
@@ -36,32 +35,32 @@ class ShowTs(AutopycoinBaseClass):
     def __init__(
         self,
         window_generator: WindowGenerator,
-        dataset: Union[tf.Tensor, str],
         model: Union[tf.keras.Model, None] = None,
         interval_estimator: Union[MCDropoutEstimator, None] = None,
         **kwargs: dict,
     ):
 
         self._window_generator = window_generator
+
         self._window_generator._batch_size_cached = self._window_generator.batch_size
         self._window_generator.batch_size = None
+
+        self._train = self._window_generator.train
+        self._valid = self._window_generator.valid
+        self._test = self._window_generator.test
+
+        self._window_generator.batch_size = self._window_generator._batch_size_cached
+
         self._model = model
         self._interval_estimator = interval_estimator
         self._fig_kwargs = kwargs
-
-        if isinstance(dataset, tf.Tensor):
-            self._dataset = self._window_generator.production(dataset, None)
-        else:
-            self._dataset = getattr(self._window_generator, dataset)
-
-        self._window_generator.batch_size = self._window_generator._batch_size_cached
 
     def plot_from_index(
         self,
         index: Union[str, List[str]],
         plot_col: str,
         plot_labels: bool = True,
-        plot_history: Union[np.ndarray, List[float]] = None,
+        plot_history: Union[np.ndarray, tf.Tensor] = None,
         plot_interval: bool = True,
         max_subplots: int = 3,
     ):

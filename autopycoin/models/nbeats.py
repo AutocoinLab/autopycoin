@@ -3,7 +3,7 @@ N-BEATS implementation
 """
 
 from typing import Callable, Union, Tuple, List
-from numpy.random import randint, uniform
+from numpy.random import randint
 import keras_tuner as kt
 
 import tensorflow as tf
@@ -13,145 +13,10 @@ from keras.engine import data_adapter
 
 from ..utils.data_utils import convert_to_list
 from .training import Model
+from ..layers.base_layer import Layer
 from ..baseclass import AutopycoinBaseClass
-from ..layers import (BaseBlock, TrendBlock, SeasonalityBlock, GenericBlock, UniVariate)
+from ..layers import (BaseBlock, TrendBlock, SeasonalityBlock, GenericBlock, UniVariate, Stack)
 from ..layers.nbeats_layers import SEASONALITY_TYPE
-
-class Stack(Model, AutopycoinBaseClass):
-    """
-    TODO: Transform to layer
-    A stack is a series of blocks where each block produces two outputs,
-    the forecast and the backcast.
-
-    Inside a stack all forecasts are sum up and compose the stack output.
-    In the meantime, the backcast is given to the following block.
-
-    Parameters
-    ----------
-    blocks : Tuple[:class:`autopycoin.models.BaseBlock`]
-        Blocks layers. they can be generic, seasonal or trend ones.
-        You can also define your own block by subclassing `BaseBlock`.
-
-    Attributes
-    ----------
-    blocks : Tuple[:class:`autopycoin.models.BaseBlock`]
-    is_interpretable : bool
-    stack_type : str
-    label_width : int
-    input_width : int
-
-    Examples
-    --------
-    >>> from autopycoin.layers import TrendBlock, SeasonalityBlock
-    >>> from autopycoin.models import Stack, NBEATS
-    >>> from autopycoin.losses import QuantileLossError
-    >>> trend_block = TrendBlock(label_width=20,
-    ...                          p_degree=2,
-    ...                          n_neurons=16,
-    ...                          drop_rate=0.1,
-    ...                          name="trend_block")
-    >>> seasonality_block = SeasonalityBlock(label_width=20,
-    ...                                      forecast_periods=[10],
-    ...                                      backcast_periods=[20],
-    ...                                      forecast_fourier_order=[10],
-    ...                                      backcast_fourier_order=[20],
-    ...                                      n_neurons=15,
-    ...                                      drop_rate=0.1,
-    ...                                      name="seasonality_block")
-    >>> trend_blocks = [trend_block for _ in range(3)]
-    >>> seasonality_blocks = [seasonality_block for _ in range(3)]
-    >>> trend_stacks = Stack(trend_blocks, name="trend_stack")
-    >>> seasonality_stacks = Stack(seasonality_blocks, name="seasonality_stack")
-    >>> # model definition and compiling
-    >>> model = NBEATS([trend_stacks, seasonality_stacks], name="interpretable_NBEATS")
-    >>> model.compile(loss=QuantileLossError(quantiles=[0.5]))
-
-    Notes
-    -----
-    input shape:
-    N-D tensor with shape: (batch_size, ..., units).
-    The most common situation would be a 2D input with shape (batch_size, units).
-
-    output shape:
-    N-D tensor with shape: (quantiles, batch_size, ..., units) or (batch_size, ..., units) .
-    For instance, for a 2D input with shape (batch_size, units),
-    the output would have shape (batch_size, units).
-    With a QuantileLossError with 2 quantiles or higher the output would have shape (quantiles, batch_size, units).
-    """
-
-    def __init__(self, blocks: Tuple[BaseBlock, ...], **kwargs: dict):
-
-        super().__init__(**kwargs)
-        self._blocks = blocks
-        self._stack_type = self._set_type()
-        self._is_interpretable = self._set_interpretability()
-
-    def call(
-        self, inputs: Union[tuple, dict, list, tf.Tensor]
-    ) -> Tuple[tf.Tensor, ...]:
-        """Call method from tensorflow."""
-
-        outputs = tf.constant(0.0) # init output
-        for block in self.blocks:
-            # outputs is (quantiles, Batch_size, forecast)
-            # inputs_reconstruction is (Batch_size, backcast)
-            reconstructed_outputs, reconstructed_inputs = block(inputs)
-            inputs = tf.subtract(inputs, reconstructed_inputs)
-            # outputs is (quantiles, Batch_size, forecast)
-            outputs = tf.add(outputs, reconstructed_outputs)
-        return outputs, inputs
-
-    def get_config(self) -> dict:
-        """get_config method from tensorflow."""
-        config = super().get_config()
-        config.update({"blocks": self.blocks})
-        return config
-
-    def _set_type(self) -> str:
-        """Return the type of the stack."""
-
-        block_type = self.blocks[0].block_type
-        for block in self.blocks:
-            if block.block_type != block_type:
-                return "CustomStack"
-        return block_type.replace("Block", "") + "Stack"
-
-    def _set_interpretability(self) -> bool:
-        """True if the stack is interpretable else False."""
-
-        interpretable = all([block.is_interpretable for block in self.blocks])
-        if interpretable:
-            return True
-        return False
-
-    @property
-    def label_width(self) -> int:
-        """Return the label width."""
-        return self.blocks[0].label_width
-
-    @property
-    def input_width(self) -> int:
-        """Return the input width."""
-        return self.blocks[0].input_width
-
-    @property
-    def blocks(self) -> List[BaseBlock]:
-        """Return the list of blocks."""
-        return self._blocks
-
-    @property
-    def stack_type(self) -> str:
-        """Return the type of the stack.
-        `CustomStack` if the blocks are all differents."""
-        return self._stack_type
-
-    @property
-    def is_interpretable(self) -> bool:
-        """Return True if the stack is interpretable."""
-        return self._is_interpretable
-
-    def __repr__(self):
-        return self.stack_type
 
 
 class NBEATS(Model, AutopycoinBaseClass):
@@ -246,15 +111,16 @@ class NBEATS(Model, AutopycoinBaseClass):
 
     def call(self, inputs: Union[tuple, dict, list, tf.Tensor]) -> tf.Tensor:
         """Call method from tensorflow."""
-        inputs = self.strategy(inputs)
+        inputs = self.strategy(inputs, begin=True)
         outputs = tf.constant(0.0)
+        print(inputs.shape)
         for stack in self.stacks:
             # outputs_residual is (quantiles, Batch_size, forecast)
             # inputs is (Batch_size, backcast)
-            reconstructed_outputs, inputs = stack(inputs)
+            residual_outputs, inputs = stack(inputs)
             # outputs is (quantiles, Batch_size, forecast)
-            outputs = tf.math.add(outputs, reconstructed_outputs)
-        return outputs  # , inputs - reconstructed_inputs
+            outputs = tf.math.add(outputs, residual_outputs)
+        return self.strategy(outputs, False, self.quantiles)  # , inputs - reconstructed_inputs
 
     def seasonality(self, data: tf.Tensor) -> tf.Tensor:
         """
@@ -270,7 +136,7 @@ class NBEATS(Model, AutopycoinBaseClass):
         Returns
         -------
         seasonality : `Tensor`
-            Seasonality components with shape (quantiles, Batch_size, input_width)
+            Seasonality components with shape (d0,..., batch_size, input_width).
 
         Raises
         ------
@@ -284,8 +150,6 @@ class NBEATS(Model, AutopycoinBaseClass):
         msg_error = f"""The first stack has to be a `TrendStack`,
         hence seasonality doesn't exists . Got {self.stacks}."""
 
-        start = 0
-        end = 0
         for idx, stack in enumerate(self.stacks):
             if stack.stack_type != "TrendStack" and idx == 0:
                 raise AttributeError(msg_error)
@@ -295,13 +159,18 @@ class NBEATS(Model, AutopycoinBaseClass):
                 continue
             else:
                 break
-        if start == 0:
+        if 'start' not in locals():
             raise AttributeError(f"No `SeasonalityStack` defined. Got {self.stacks}")
-        end = idx + 1
 
-        seasonality = [stack(data) for stack in self.stacks[start:end]]
-        return (tf.reduce_sum([output[0] for output in seasonality], axis=0),
-                tf.reduce_sum([output[1] for output in seasonality], axis=0))
+        for stack in self.stacks[:start]:
+            _, data = stack(data)
+        for stack in self.stacks[start : idx + 1]:
+            residual_seas, data = stack(data)
+            if 'seasonality' not in locals():
+                seasonality = residual_seas
+            else:
+                seasonality += residual_seas
+        return seasonality
 
     def trend(self, data: tf.Tensor) -> tf.Tensor:
         """
@@ -318,18 +187,23 @@ class NBEATS(Model, AutopycoinBaseClass):
             Raises an error if previous stacks are not `TrendBlock`.
         """
 
+        for idx, stack in enumerate(self.stacks):
+            if stack.stack_type != "TrendStack":
+                break
         msg = (
                 f"""No `TrendStack` defined. Got {self.stacks}.
                 `TrendStack` has to be defined as first stack."""
             )
-        end = 0
-        for idx, stack in enumerate(self.stacks):
-            if stack.stack_type != "TrendStack":
-                break
-        end = idx + 1
-        if end == 1:
+        if idx == 0:
             raise AttributeError(msg)
-        return [stack(data) for stack in self.stacks[:end]]
+
+        for stack in self.stacks[:idx + 1]:
+            residual_trend, data = stack(data)
+            if 'trend' not in locals():
+                trend = residual_trend
+            else:
+                trend += residual_trend
+        return trend
 
     def get_config(self) -> dict:
         """Get_config from tensorflow."""
@@ -432,11 +306,9 @@ class PoolNBEATS(Model, AutopycoinBaseClass):
     ...        batch_size=32,
     ...     )
     ...
-    >>> w = w.from_dataframe(data=data,
+    >>> w = w.from_array(data=data,
     ...        input_columns=['test'],
-    ...        known_columns=[],
-    ...        label_columns=['test'],
-    ...        date_columns=[],)
+    ...        label_columns=['test'])
     ...
     >>> nbeats = lambda : create_interpretable_nbeats(
     ...                 label_width=10,
@@ -544,14 +416,14 @@ class PoolNBEATS(Model, AutopycoinBaseClass):
 
     def call(self, inputs: Union[tuple, dict, list, tf.Tensor]) -> tf.Tensor:
         """Call method from tensorflow Model."""
-        inputs = self.strategy(inputs)
+        inputs = self.strategy(inputs, begin=True)
         outputs = []
         for idx, model in enumerate(self.nbeats):
             inputs_masked = inputs[
                 ..., :, -self._mask[idx]:
             ]
             outputs.append(model(inputs_masked))
-        return outputs
+        return self.strategy(outputs, begin=False)
 
     def predict(self, *args: list, **kwargs: dict) -> tf.Tensor:
         """Reduce the n outputs to a single output tensor by mean operation."""
@@ -851,15 +723,19 @@ def interpretable_nbeats_builder(label_width: int, **kwargs: dict) -> Callable:
     def model_builder(hp) -> NBEATS:
         hp_n_neurons_trend = hp.Int('neurons_trend', min_value = 20, max_value=520, step=20)
         hp_n_neurons_seas = hp.Int('neurons_seas', min_value = 20, max_value=520, step=20)
-        hp_periods = hp.Choice('periods', n) if (n := kwargs.get('periods', None)) else n
-        hp_backcast_periods = hp.Choice('backcast_periods', n) if (n := kwargs.get('backcast_periods', None)) else n
-        hp_forecast_fourier_order = hp.Choice('forecast_fourier_order', n) if (n := kwargs.get('forecast_fourier_order', None)) else n
-        hp_backcast_fourier_order = hp.Choice('backcast_fourier_order', n) if (n := kwargs.get('backcast_fourier_order', None)) else n
+        hp_periods = kwargs.get('periods', None)
+        hp_periods = hp.Choice('periods', hp_periods) if hp_periods else hp_periods
+        hp_backcast_periods = kwargs.get('backcast_periods', None)
+        hp_backcast_periods = hp.Choice('backcast_periods', hp_backcast_periods) if hp_backcast_periods else hp_backcast_periods
+        hp_forecast_fourier_order = kwargs.get('forecast_fourier_order', None)
+        hp_forecast_fourier_order = hp.Choice('forecast_fourier_order', hp_forecast_fourier_order) if hp_forecast_fourier_order else hp_forecast_fourier_order
+        hp_backcast_fourier_order =  kwargs.get('backcast_fourier_order', None)
+        hp_backcast_fourier_order = hp.Choice('backcast_fourier_order', hp_backcast_fourier_order) if  hp_backcast_fourier_order else  hp_backcast_fourier_order
         hp_share = hp.Boolean('share')
         hp_p_degree = hp.Int('p_degree', min_value = 0, max_value = 3, step = 1)
-        loss_list = kwargs.get('forecast_fourier_order', ['mse'])
-        loss_idx = hp.Choice('optimizer', range(len(loss_list)))
-        optimizer_list = kwargs.get('forecast_fourier_order', [tf.keras.optimizers.Adam(learning_rate=0.001)])
+        loss_list = kwargs.get('loss', ['mse'])
+        loss_idx = hp.Choice('loss', range(len(loss_list)))
+        optimizer_list = kwargs.get('optimizer', [tf.keras.optimizers.Adam(learning_rate=0.001)])
         optimizer_idx = hp.Choice('optimizer', range(len(optimizer_list)))
 
         model = create_interpretable_nbeats(
