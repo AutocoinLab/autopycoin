@@ -4,6 +4,8 @@ Overloading Model tensorflow object
 
 import tensorflow.compat.v2 as tf
 
+from ..utils import transpose_first_to_last
+
 
 class Model(tf.keras.Model):
     """
@@ -16,11 +18,17 @@ class Model(tf.keras.Model):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._quantiles = None
+        self._n_quantiles = 0
 
     @property
     def quantiles(self):
         """Return quantiles attribute."""
         return self._quantiles
+
+    @property
+    def n_quantiles(self):
+        """Return the number of quantiles."""
+        return self._n_quantiles
 
     # TODO: Avoid to rebuild weights when quantiles of model is not None
     def _set_quantiles(self, value):
@@ -28,6 +36,7 @@ class Model(tf.keras.Model):
         self.built = False
         for idx, _ in enumerate(self.layers):
             self.layers[idx]._set_quantiles(value)  # pylint: disable=protected-access
+        self._n_quantiles = len(value)
         self._quantiles = value
 
     def compile(
@@ -59,19 +68,20 @@ class Model(tf.keras.Model):
         )
 
     def __call__(self, *args, **kwargs):
+        """See tensorflow documentation"""
         outputs = super().__call__(*args, **kwargs)
-        # TODO: not isinstance(outputs, tuple) need to be deleted when stack will become a layer
-        if self.quantiles is not None and not isinstance(outputs, tuple):
-            if len(self.quantiles) > 1:
-                outputs = tf.transpose(outputs, perm=tf.concat([tf.range(1, len(outputs.shape)), [0]], axis=0))
+        if self.n_quantiles > 1 and not isinstance(outputs, tuple):
+            outputs = transpose_first_to_last(outputs)
         return outputs
 
     def train_step(self, data):
-        if self.quantiles is not None:
+        """See tensorflow documentation"""
+        if self.n_quantiles > 1:
             data = (data[0], tf.expand_dims(data[1], axis=-1))
         return super().train_step(data)
 
     def test_step(self, data):
-        if self.quantiles is not None:
+        """See tensorflow documentation"""
+        if self.n_quantiles > 1:
             data = (data[0], tf.expand_dims(data[1], axis=-1))
         return super().test_step(data)

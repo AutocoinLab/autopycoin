@@ -127,7 +127,11 @@ def layer_test(
     if adapt_data is not None:
         layer.adapt(adapt_data)
 
-    # test get_weights , set_weights at layer level
+    # test in functional API
+    x = layers.Input(shape=input_shape[1:], dtype=input_dtype)
+    y = layer(x)
+
+    # test get_weights, set_weights at layer level
     weights = layer.get_weights()
     layer.set_weights(weights)
 
@@ -135,10 +139,6 @@ def layer_test(
     if "weights" in tf_inspect.getargspec(layer_cls.__init__):
         kwargs["weights"] = weights
         layer = layer_cls(**kwargs)
-
-    # test in functional API
-    x = layers.Input(shape=input_shape[1:], dtype=input_dtype)
-    y = layer(x)
 
     def create_list(tensor):
         return tensor if isinstance(tensor, (tuple, list)) else [tensor]

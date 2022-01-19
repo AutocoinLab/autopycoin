@@ -97,8 +97,6 @@ def quantile_loss(
     if tf.rank(y_pred) > tf.rank(y_true):
         y_true = tf.expand_dims(y_true, -1)
 
-    print(tf.shape(y_pred))
-    print(tf.shape(y_true))
     diff = y_pred - y_true
     q_loss = quantiles * tf.clip_by_value(diff, 0.0, np.inf) + (
         1 - quantiles

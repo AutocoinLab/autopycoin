@@ -64,7 +64,6 @@ class ModelTest(tf.test.TestCase, parameterized.TestCase):
 
         data = pd.DataFrame(data[0].numpy(), columns=["test"])
         data['date'] = range(400)
-        print('d',data.tail(85).head(10))
 
         w = WindowGenerator(
             label_width=50,
@@ -108,6 +107,7 @@ class ModelTest(tf.test.TestCase, parameterized.TestCase):
             loss=QuantileLossError([0.1, 0.3, 0.5]),
             metrics=['mae']
         )
+
         model.fit(w.train, validation_data=w.valid, epochs=1)
         output = model.predict(w.train)        
 

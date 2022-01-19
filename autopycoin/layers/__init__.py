@@ -6,8 +6,7 @@ from .nbeats_layers import (
     TrendBlock,
     SeasonalityBlock,
     GenericBlock,
-    BaseBlock,
-    Stack)
+    BaseBlock)
 
 from .base_layer import Layer
 
@@ -20,5 +19,4 @@ __ALL__ = [
     "BaseBlock",
     "Layer",
     "UniVariate",
-    "Stack"
 ]

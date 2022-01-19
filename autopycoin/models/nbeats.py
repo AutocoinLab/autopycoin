@@ -9,14 +9,147 @@ import keras_tuner as kt
 import tensorflow as tf
 from keras.engine import data_adapter
 
-# from tensorflow.keras import Model
-
 from ..utils.data_utils import convert_to_list
 from .training import Model
-from ..layers.base_layer import Layer
 from ..baseclass import AutopycoinBaseClass
-from ..layers import (BaseBlock, TrendBlock, SeasonalityBlock, GenericBlock, UniVariate, Stack)
+from ..layers import (TrendBlock, SeasonalityBlock, GenericBlock, UniVariate, BaseBlock)
 from ..layers.nbeats_layers import SEASONALITY_TYPE
+
+
+class Stack(Model):
+    """
+    A stack is a series of blocks where each block produces two outputs,
+    the forecast and the backcast.
+
+    Inside a stack all forecasts are sum up and compose the stack output.
+    In the meantime, the backcast is given to the following block.
+
+    Parameters
+    ----------
+    blocks : Tuple[:class:`autopycoin.models.BaseBlock`]
+        Blocks layers. they can be generic, seasonal or trend ones.
+        You can also define your own block by subclassing `BaseBlock`.
+
+    Attributes
+    ----------
+    blocks : Tuple[:class:`autopycoin.models.BaseBlock`]
+    is_interpretable : bool
+    stack_type : str
+    label_width : int
+    input_width : int
+
+    Examples
+    --------
+    >>> from autopycoin.layers import TrendBlock, SeasonalityBlock
+    >>> from autopycoin.models import Stack, NBEATS
+    >>> from autopycoin.losses import QuantileLossError
+    >>> trend_block = TrendBlock(label_width=20,
+    ...                          p_degree=2,
+    ...                          n_neurons=16,
+    ...                          drop_rate=0.1,
+    ...                          name="trend_block")
+    >>> seasonality_block = SeasonalityBlock(label_width=20,
+    ...                                      forecast_periods=[10],
+    ...                                      backcast_periods=[20],
+    ...                                      forecast_fourier_order=[10],
+    ...                                      backcast_fourier_order=[20],
+    ...                                      n_neurons=15,
+    ...                                      drop_rate=0.1,
+    ...                                      name="seasonality_block")
+    >>> trend_blocks = [trend_block for _ in range(3)]
+    >>> seasonality_blocks = [seasonality_block for _ in range(3)]
+    >>> trend_stacks = Stack(trend_blocks, name="trend_stack")
+    >>> seasonality_stacks = Stack(seasonality_blocks, name="seasonality_stack")
+    >>> # model definition and compiling
+    >>> model = NBEATS([trend_stacks, seasonality_stacks], name="interpretable_NBEATS")
+    >>> model.compile(loss=QuantileLossError(quantiles=[0.5]))
+
+    Notes
+    -----
+    input shape:
+    N-D tensor with shape: (batch_size, ..., units).
+    The most common situation would be a 2D input with shape (batch_size, units).
+
+    output shape:
+    N-D tensor with shape: (quantiles, batch_size, ..., units) or (batch_size, ..., units) .
+    For instance, for a 2D input with shape (batch_size, units),
+    the output would have shape (batch_size, units).
+    With a QuantileLossError with 2 quantiles or higher the output would have shape (quantiles, batch_size, units).
+    """
+
+    def __init__(self, blocks: Tuple[BaseBlock, ...], **kwargs: dict):
+
+        super().__init__(**kwargs)
+        self._blocks = blocks
+        self._stack_type = self._set_type()
+        self._is_interpretable = self._set_interpretability()
+
+    def call(
+        self, inputs: Union[tuple, dict, list, tf.Tensor]
+    ) -> Tuple[tf.Tensor, ...]:
+        """Call method from tensorflow."""
+
+        outputs = tf.constant(0.0) # init output
+        for block in self.blocks:
+            # outputs is (quantiles, Batch_size, forecast)
+            # reconstructed_inputs is (Batch_size, backcast)
+            residual_outputs, reconstructed_inputs = block(inputs)
+            inputs = tf.subtract(inputs, reconstructed_inputs)
+            # outputs is (quantiles, Batch_size, forecast)
+            outputs = tf.add(outputs, residual_outputs)
+        return outputs, inputs
+
+    def get_config(self) -> dict:
+        """get_config method from tensorflow."""
+        config = super().get_config()
+        config.update({"blocks": self.blocks})
+        return config
+
+    def _set_type(self) -> str:
+        """Return the type of the stack."""
+
+        block_type = self.blocks[0].block_type
+        for block in self.blocks:
+            if block.block_type != block_type:
+                return "CustomStack"
+        return block_type.replace("Block", "") + "Stack"
+
+    def _set_interpretability(self) -> bool:
+        """True if the stack is interpretable else False."""
+
+        interpretable = all([block.is_interpretable for block in self.blocks])
+        if interpretable:
+            return True
+        return False
+
+    @property
+    def label_width(self) -> int:
+        """Return the label width."""
+        return self.blocks[0].label_width
+
+    @property
+    def input_width(self) -> int:
+        """Return the input width."""
+        return self.blocks[0].input_width
+
+    @property
+    def blocks(self) -> List[BaseBlock]:
+        """Return the list of blocks."""
+        return self._blocks
+
+    @property
+    def stack_type(self) -> str:
+        """Return the type of the stack.
+        `CustomStack` if the blocks are all differents."""
+        return self._stack_type
+
+    @property
+    def is_interpretable(self) -> bool:
+        """Return True if the stack is interpretable."""
+        return self._is_interpretable
+
+    def __repr__(self):
+        return self.stack_type
 
 
 class NBEATS(Model, AutopycoinBaseClass):
@@ -107,20 +240,32 @@ class NBEATS(Model, AutopycoinBaseClass):
         self._stacks = stacks
         self._is_interpretable = self._set_interpretability()
         self._nbeats_type = self._set_type()
-        self.strategy = UniVariate()
+        
+    def build(self, input_shape: Union[tf.TensorShape, Tuple[tf.TensorShape, ...]]) -> None:
+        """See tensorflow documentation."""
+
+        if isinstance(input_shape, tuple):
+            input_shape = input_shape[0]
+        
+        input_shape = tf.TensorShape(input_shape)
+        # multi univariate inputs
+        self._multivariate = input_shape.as_list()[:-2] if input_shape.rank > 2 else []
+        self.strategy_input = UniVariate(last_to_first=True, is_multivariate=bool(self._multivariate))
+        self.strategy_output = UniVariate(last_to_first=False, is_multivariate=bool(self._multivariate))
+
+        super().build(input_shape)
 
     def call(self, inputs: Union[tuple, dict, list, tf.Tensor]) -> tf.Tensor:
         """Call method from tensorflow."""
-        inputs = self.strategy(inputs, begin=True)
+        inputs = self.strategy_input(inputs)
         outputs = tf.constant(0.0)
-        print(inputs.shape)
         for stack in self.stacks:
             # outputs_residual is (quantiles, Batch_size, forecast)
             # inputs is (Batch_size, backcast)
             residual_outputs, inputs = stack(inputs)
             # outputs is (quantiles, Batch_size, forecast)
             outputs = tf.math.add(outputs, residual_outputs)
-        return self.strategy(outputs, False, self.quantiles)  # , inputs - reconstructed_inputs
+        return self.strategy_output(outputs)  # , inputs - reconstructed_inputs
 
     def seasonality(self, data: tf.Tensor) -> tf.Tensor:
         """
@@ -364,7 +509,6 @@ class PoolNBEATS(Model, AutopycoinBaseClass):
         self._init_nbeats(convert_to_list(nbeats_models))
 
         # Layer definition and function to aggregate the multiple outputs
-        self.strategy = UniVariate()
         self._fn_agg = fn_agg
 
     def _init_nbeats(self, nbeats_models: Union[List[Callable], List[NBEATS]]) -> None:
@@ -397,16 +541,22 @@ class PoolNBEATS(Model, AutopycoinBaseClass):
         self._label_width = model.label_width
 
     def _set_quantiles(self) -> None:
-        """Set quantiles if a quentil loss."""
+        """Set quantiles if a quantile loss is compiled."""
         for idx, loss in enumerate(self._pool_losses):
             if hasattr(loss, "quantiles"):
                 self._nbeats[idx]._set_quantiles(loss.quantiles)
 
     def build(self, input_shape: Union[tf.TensorShape, Tuple[tf.TensorShape, ...]]) -> None:
-        """Build from tensorflow."""
+        """See tensorflow documentation."""
 
         if isinstance(input_shape, tuple):
             input_shape = input_shape[0]
+
+        input_shape = tf.TensorShape(input_shape)
+        # multi univariate inputs
+        self._multivariate = input_shape.as_list()[:-2] if input_shape.rank > 2 else []
+        self.strategy_input = UniVariate(last_to_first=True, is_multivariate=bool(self._multivariate))
+        self.strategy_output = UniVariate(last_to_first=False, is_multivariate=bool(self._multivariate))
 
         mask = tf.random.uniform((self.n_models,), minval=0,
                 maxval=int(input_shape[-1] / self.label_width), dtype=tf.int32)
@@ -416,14 +566,14 @@ class PoolNBEATS(Model, AutopycoinBaseClass):
 
     def call(self, inputs: Union[tuple, dict, list, tf.Tensor]) -> tf.Tensor:
         """Call method from tensorflow Model."""
-        inputs = self.strategy(inputs, begin=True)
+        inputs = self.strategy_input(inputs)
         outputs = []
         for idx, model in enumerate(self.nbeats):
             inputs_masked = inputs[
                 ..., :, -self._mask[idx]:
             ]
             outputs.append(model(inputs_masked))
-        return self.strategy(outputs, begin=False)
+        return self.strategy_input(outputs)
 
     def predict(self, *args: list, **kwargs: dict) -> tf.Tensor:
         """Reduce the n outputs to a single output tensor by mean operation."""
