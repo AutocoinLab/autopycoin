@@ -118,9 +118,7 @@ class BaseBlock(Layer, AutopycoinBaseClass):
         self._build_branch(self.input_width, branch_name="backcast")
         super().build(input_shape)
 
-    def _build_branch(
-        self, output_last_dim: int, branch_name: str
-    ) -> None:
+    def _build_branch(self, output_last_dim: int, branch_name: str) -> None:
         """
         Build forecast and backcast branches.
         """
@@ -131,7 +129,7 @@ class BaseBlock(Layer, AutopycoinBaseClass):
         # broadcast the output to take into account this uncertainty.
         shape_fc = self._multivariate + [self._n_neurons, coef.shape[0]]
 
-        if self.n_quantiles > 1 and branch_name == 'forecast':
+        if self.n_quantiles > 1 and branch_name == "forecast":
             # We place quantiles after multivariates
             shape_fc.insert(len(self._multivariate), self.n_quantiles)
         # If multivariate inputs then we modify the shape of fc layers
@@ -278,9 +276,9 @@ class BaseBlock(Layer, AutopycoinBaseClass):
         self, output: None, *args: list, **kwargs: dict
     ) -> None:  # pylint: disable=unused-argument
 
-        is_between(self.drop_rate, 0, 1, 'drop_rate')
-        greater_or_equal(self.label_width, 0, 'label_width')
-        greater_or_equal(self._n_neurons, 0, 'n_neurons')
+        is_between(self.drop_rate, 0, 1, "drop_rate")
+        greater_or_equal(self.label_width, 0, "label_width")
+        greater_or_equal(self._n_neurons, 0, "n_neurons")
 
         if "Block" not in self.block_type:
             raise ValueError(f"`name` has to contain `Block`. Got {self.name}")
@@ -420,8 +418,7 @@ class TrendBlock(BaseBlock, AutopycoinBaseClass):
 
         # Set weights with calculated coef
         coef = self.coefficient_factory(
-            output_last_dim,
-            range_dims(self.p_degree + 1, shape=(-1, 1)),
+            output_last_dim, range_dims(self.p_degree + 1, shape=(-1, 1)),
         )
         return self.add_weight(
             shape=coef.shape,
@@ -452,10 +449,11 @@ class TrendBlock(BaseBlock, AutopycoinBaseClass):
         self, output: None, *args: list, **kwargs: dict
     ) -> None:  # pylint: disable=unused-argument
         """Valid p_degree"""
-        greater_or_equal(self.p_degree, 0, 'p_degree')
+        greater_or_equal(self.p_degree, 0, "p_degree")
 
 
 SEASONALITY_TYPE = Union[Union[int, float], List[Union[int, float]]]
+
 
 class SeasonalityBlock(BaseBlock, AutopycoinBaseClass):
     """
@@ -581,8 +579,7 @@ class SeasonalityBlock(BaseBlock, AutopycoinBaseClass):
             forecast_periods if forecast_periods else int(label_width / 2)
         )
         self._forecast_fourier_order = (
-            forecast_fourier_order if forecast_fourier_order
-            else self._forecast_periods
+            forecast_fourier_order if forecast_fourier_order else self._forecast_periods
         )
         # backcast_fourier_order and backcast_periods can't be calculated
         self._backcast_periods = backcast_periods
@@ -593,19 +590,20 @@ class SeasonalityBlock(BaseBlock, AutopycoinBaseClass):
 
         # if None then set an default value based on the *input shape*
         self._backcast_periods = (
-            self._backcast_periods if self._backcast_periods else int(input_shape[-1] / 2)
+            self._backcast_periods
+            if self._backcast_periods
+            else int(input_shape[-1] / 2)
         )
         self._backcast_fourier_order = (
-            self._backcast_fourier_order if self._backcast_fourier_order else self._backcast_periods
+            self._backcast_fourier_order
+            if self._backcast_fourier_order
+            else self._backcast_periods
         )
 
         super().build(input_shape)
 
     def coefficient_factory(
-        self,
-        output_last_dim: float,
-        periods: List[float],
-        fourier_orders: List[float],
+        self, output_last_dim: float, periods: List[float], fourier_orders: List[float],
     ) -> tf.Tensor:
         """
         Compute the coefficients used in the last layer a.k.a g constrained layer.
@@ -626,8 +624,10 @@ class SeasonalityBlock(BaseBlock, AutopycoinBaseClass):
         periods = tf.reshape(periods, shape=(-1, 1, 1))
         time_forecast = tf.range(output_last_dim)
 
-        seasonality = 2. * np.pi * time_forecast / periods
-        seasonality = tf.expand_dims(tf.ragged.range(fourier_orders), axis=-1) * seasonality
+        seasonality = 2.0 * np.pi * time_forecast / periods
+        seasonality = (
+            tf.expand_dims(tf.ragged.range(fourier_orders), axis=-1) * seasonality
+        )
         seasonality = tf.concat((tf.sin(seasonality), tf.cos(seasonality)), axis=0)
         return seasonality.flat_values
 
@@ -693,17 +693,25 @@ class SeasonalityBlock(BaseBlock, AutopycoinBaseClass):
     def _val___init__(
         self, output: None, *args: list, **kwargs: dict
     ) -> None:  # pylint: disable=unused-argument
-        greater_or_equal(self.forecast_periods, 0, 'forecast_periods')
-        greater_or_equal(self.forecast_fourier_order, 0, 'forecast_fourier_order')
-        equal_length(self.forecast_periods, self.forecast_fourier_order,
-                            'forecast_periods', 'forecast_fourier_order')
+        greater_or_equal(self.forecast_periods, 0, "forecast_periods")
+        greater_or_equal(self.forecast_fourier_order, 0, "forecast_fourier_order")
+        equal_length(
+            self.forecast_periods,
+            self.forecast_fourier_order,
+            "forecast_periods",
+            "forecast_fourier_order",
+        )
 
         if self.backcast_periods is not None:
-            greater_or_equal(self.backcast_periods, 0, 'backcast_periods')
+            greater_or_equal(self.backcast_periods, 0, "backcast_periods")
         if self.backcast_fourier_order is not None:
-            greater_or_equal(self.backcast_fourier_order, 0, 'backcast_fourier_order')
-            equal_length(self.backcast_periods, self.backcast_fourier_order,
-                            'backcast_periods', 'backcast_fourier_order')
+            greater_or_equal(self.backcast_fourier_order, 0, "backcast_fourier_order")
+            equal_length(
+                self.backcast_periods,
+                self.backcast_fourier_order,
+                "backcast_periods",
+                "backcast_fourier_order",
+            )
 
 
 class GenericBlock(BaseBlock, AutopycoinBaseClass):
@@ -783,7 +791,7 @@ class GenericBlock(BaseBlock, AutopycoinBaseClass):
             block_type="GenericBlock",
             **kwargs,
         )
-        
+
         self._g_forecast_neurons = g_forecast_neurons
         self._g_backcast_neurons = g_backcast_neurons
 
@@ -805,7 +813,7 @@ class GenericBlock(BaseBlock, AutopycoinBaseClass):
         """
 
         coefficients = tf.keras.initializers.GlorotUniform(seed=42)(
-            shape= self._multivariate + [neurons, output_last_dim]
+            shape=self._multivariate + [neurons, output_last_dim]
         )
 
         return coefficients
@@ -861,5 +869,5 @@ class GenericBlock(BaseBlock, AutopycoinBaseClass):
     def _val___init__(
         self, output: None, *args: list, **kwargs: dict
     ) -> None:  # pylint: disable=unused-argument
-        greater_or_equal(self.g_forecast_neurons, 0, 'g_forecast_neurons')
-        greater_or_equal(self.g_backcast_neurons, 0, 'g_backcast_neurons')
+        greater_or_equal(self.g_forecast_neurons, 0, "g_forecast_neurons")
+        greater_or_equal(self.g_backcast_neurons, 0, "g_backcast_neurons")

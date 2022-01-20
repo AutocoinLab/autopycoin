@@ -145,14 +145,7 @@ class TypeAnnotationsTest(tf.test.TestCase, parameterized.TestCase):
         [
             (typing.Union[int, float], (int, float)),
             (typing.Tuple[int, ...], (int, Ellipsis)),
-            (
-                typing.Tuple[int, float, float],
-                (
-                    int,
-                    float,
-                    float,
-                ),
-            ),
+            (typing.Tuple[int, float, float], (int, float, float,),),
             (typing.Mapping[int, float], (int, float)),
             (
                 typing.Union[typing.Tuple[int], typing.Tuple[int, ...]],

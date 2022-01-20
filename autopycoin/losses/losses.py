@@ -161,7 +161,8 @@ class SymetricMeanAbsolutePercentageError(LossFunctionWrapper, AutopycoinBaseCla
     ):
         super().__init__(smape, name=name, reduction=reduction)
 
-#TODO: ragged tensor
+
+# TODO: ragged tensor
 class QuantileLossError(LossFunctionWrapper, AutopycoinBaseClass):
     """
     Calculate the quantile loss error between `y_true` and `y_pred`
@@ -243,6 +244,7 @@ class QuantileLossError(LossFunctionWrapper, AutopycoinBaseClass):
         assert quantiles == [
             abs(quantile) for quantile in quantiles
         ], f"Negative quantiles are not allowed. got {quantiles}"
+
 
 # TODO: write doc, test and use LossFunctionWrapper, autpycoinBaseClass.
 class LagError(tf.keras.losses.Loss):

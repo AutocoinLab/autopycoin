@@ -116,7 +116,7 @@ class BlocksLayersTest(tf.test.TestCase, parameterized.TestCase):
 
     @parameterized.parameters(
         [  # BaseBlock attributes test
-        (
+            (
                 (10, None, None, None, None, 16, 0.5),
                 SeasonalityBlock,
                 [
@@ -131,11 +131,15 @@ class BlocksLayersTest(tf.test.TestCase, parameterized.TestCase):
                     "block_type",
                 ],
                 [10, 5, 2, 5, 2, 0.5, True, False, "SeasonalityBlock"],
-            ),])
-    def test_attributes_and_property_after_build(self, args, cls, attributes, expected_values):
+            ),
+        ]
+    )
+    def test_attributes_and_property_after_build(
+        self, args, cls, attributes, expected_values
+    ):
 
         block = cls(*args)
-        block(tf.constant([[0., 0., 0., 0.]]))
+        block(tf.constant([[0.0, 0.0, 0.0, 0.0]]))
         check_attributes(self, block, attributes, expected_values)
 
     @parameterized.parameters(
@@ -211,10 +215,7 @@ class BlocksLayersTest(tf.test.TestCase, parameterized.TestCase):
             raise ValueError(error)
 
     @parameterized.parameters(
-        [
-            (1, 2, 1, 3, 0.0),
-            (1, 2, 1, 3, 0.01),
-        ]
+        [(1, 2, 1, 3, 0.0), (1, 2, 1, 3, 0.01),]
     )
     def test_trendblock(self, label_width, input_width, p_degree, n_neurons, drop_rate):
 
@@ -473,12 +474,7 @@ class BlocksLayersTest(tf.test.TestCase, parameterized.TestCase):
 
     @parameterized.parameters([(1, 5, 5, 3, 0.0)])
     def test_genericblock(
-        self,
-        label_width,
-        g_forecast_neurons,
-        g_backcast_neurons,
-        n_neurons,
-        drop_rate,
+        self, label_width, g_forecast_neurons, g_backcast_neurons, n_neurons, drop_rate,
     ):
 
         layer_test(

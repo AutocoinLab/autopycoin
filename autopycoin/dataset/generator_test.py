@@ -202,11 +202,7 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
 
         if df:
             w = w.from_array(
-                self.df,
-                input_columns,
-                label_columns,
-                known_columns,
-                date_columns,
+                self.df, input_columns, label_columns, known_columns, date_columns,
             )
 
             for attr, expected_value in zip(attributes, expected_values):
@@ -575,17 +571,12 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 ["data1"],
                 ["year"],
                 1,
-                [
-                    "train",
-                    "valid",
-                    "test",
-                    "data",
-                ],
+                ["train", "valid", "test", "data",],
                 (1, 2),
                 (1, 2),
                 (1, 2),
                 (1, 2),
-                4
+                4,
             ),
             (
                 2,
@@ -604,7 +595,7 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 (1, 2),
                 (1, 2),
                 (1, 2),
-                4
+                4,
             ),
             (
                 2,
@@ -623,7 +614,7 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 (1, 2),
                 (1, 2),
                 (1, 2),
-                4
+                4,
             ),
             (
                 2,
@@ -642,7 +633,7 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 None,
                 (1, 2),
                 (1, 2),
-                4
+                4,
             ),
             (
                 2,
@@ -661,7 +652,7 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 (1, 2),
                 None,
                 None,
-                1
+                1,
             ),
             (
                 2,
@@ -680,7 +671,7 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 (1, 2, 1),
                 (1, 2, 1),
                 None,
-                2
+                2,
             ),
             (
                 2,
@@ -699,7 +690,7 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 (1, 2),
                 (1, 2),
                 None,
-                2
+                2,
             ),
             (
                 2,
@@ -718,7 +709,7 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 (1, 2, 1),
                 (1, 2, 1),
                 None,
-                2
+                2,
             ),
         ]
     )
@@ -740,7 +731,7 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
         expected_label_shape,
         expected_known_shape,
         expected_date_shape,
-        expected_x_shape
+        expected_x_shape,
     ):
         w = WindowGenerator(
             input_width=input_width,
@@ -753,11 +744,7 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
         )
 
         w = w.from_array(
-            self.df,
-            input_columns,
-            label_columns,
-            known_columns,
-            date_columns,
+            self.df, input_columns, label_columns, known_columns, date_columns,
         )
 
         df = pd.DataFrame()
@@ -772,7 +759,7 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 expected_cardinality = valid_size if "valid" in attr else test_size
                 if "valid" in attr or "test" in attr:
                     self.assertEqual(
-                        property.reduce(np.int64(0), lambda x,_ : x + 1),
+                        property.reduce(np.int64(0), lambda x, _: x + 1),
                         expected_cardinality,
                         f"Error in {attr}, cardinality not equals.",
                     )
@@ -939,11 +926,7 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
         )
 
         w = w.from_array(
-            self.df,
-            input_columns,
-            label_columns,
-            known_columns,
-            date_columns,
+            self.df, input_columns, label_columns, known_columns, date_columns,
         )
 
         dataset = w.production(self.df, batch_size)
@@ -956,7 +939,9 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
             else int((self.df.shape[0] + 1 - input_width - shift) / batch_size)
         )
         self.assertEqual(
-            dataset.reduce(np.int64(0), lambda x,_ : x + 1).numpy(), expected_cardinality, f"Error in cardinality."
+            dataset.reduce(np.int64(0), lambda x, _: x + 1).numpy(),
+            expected_cardinality,
+            f"Error in cardinality.",
         )
 
         # Test shape
@@ -1029,21 +1014,17 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
     ):
 
         w = WindowGenerator(
-            input_width = input_width,
-            label_width = label_width,
-            shift = shift,
-            valid_size = valid_size,
-            test_size = test_size,
-            flat = flat,
-            batch_size = batch_size,
+            input_width=input_width,
+            label_width=label_width,
+            shift=shift,
+            valid_size=valid_size,
+            test_size=test_size,
+            flat=flat,
+            batch_size=batch_size,
         )
 
         w = w.from_array(
-            self.df,
-            input_columns,
-            label_columns,
-            known_columns,
-            date_columns,
+            self.df, input_columns, label_columns, known_columns, date_columns,
         )
 
         # Raise an error if columns of data are not inside self.data
@@ -1051,9 +1032,7 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
             w.production(data, None)
 
     @parameterized.parameters(
-        [
-            (2, 2, 2, 2, 2, True, ["data1"], ["data1"], ["label"], ["year"], 1),
-        ]
+        [(2, 2, 2, 2, 2, True, ["data1"], ["data1"], ["label"], ["year"], 1),]
     )
     def test_with_model(
         self,
@@ -1083,21 +1062,17 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
         )
 
         w = WindowGenerator(
-            input_width = input_width,
-            label_width = label_width,
-            shift = shift,
-            valid_size = valid_size,
-            test_size = test_size,
-            flat = flat,
-            batch_size = batch_size,
+            input_width=input_width,
+            label_width=label_width,
+            shift=shift,
+            valid_size=valid_size,
+            test_size=test_size,
+            flat=flat,
+            batch_size=batch_size,
         )
 
         w = w.from_array(
-            self.df,
-            input_columns,
-            label_columns,
-            known_columns,
-            date_columns,
+            self.df, input_columns, label_columns, known_columns, date_columns,
         )
 
         model.compile(loss=QuantileLossError(quantiles=[0.5]))

@@ -63,7 +63,7 @@ class ModelTest(tf.test.TestCase, parameterized.TestCase):
         )
 
         data = pd.DataFrame(data[0].numpy(), columns=["test"])
-        data['date'] = range(400)
+        data["date"] = range(400)
 
         w = WindowGenerator(
             label_width=50,
@@ -79,7 +79,7 @@ class ModelTest(tf.test.TestCase, parameterized.TestCase):
             data=data,
             input_columns=["test"],
             label_columns=["test"],
-            date_columns=['date']
+            date_columns=["date"],
         )
 
         model = create_interpretable_nbeats(
@@ -105,10 +105,10 @@ class ModelTest(tf.test.TestCase, parameterized.TestCase):
                 name="Adam",
             ),
             loss=QuantileLossError([0.1, 0.3, 0.5]),
-            metrics=['mae']
+            metrics=["mae"],
         )
 
         model.fit(w.train, validation_data=w.valid, epochs=1)
-        output = model.predict(w.train)        
+        output = model.predict(w.train)
 
         self.assertEqual(output.shape, (213, 50, 5))

@@ -8,7 +8,7 @@ from .nbeats import (
     Stack,
     create_interpretable_nbeats,
     create_generic_nbeats,
-    interpretable_nbeats_builder
+    interpretable_nbeats_builder,
 )
 
 from .training import Model
@@ -20,5 +20,5 @@ __ALL__ = [
     "create_interpretable_nbeats",
     "create_generic_nbeats",
     "Model",
-    "interpretable_nbeats_builder"
+    "interpretable_nbeats_builder",
 ]

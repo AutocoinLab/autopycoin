@@ -67,9 +67,7 @@ def prepare_data(request):
     )
 
     request.cls.w = request.cls.w.from_array(
-        data=request.cls.data,
-        input_columns=["test"],
-        label_columns=["test"],
+        data=request.cls.data, input_columns=["test"], label_columns=["test"],
     )
 
     request.cls.w2 = WindowGenerator(
@@ -86,7 +84,7 @@ def prepare_data(request):
         data=request.cls.data,
         input_columns=["test"],
         label_columns=["test"],
-        date_columns=['test']
+        date_columns=["test"],
     )
 
 
@@ -98,57 +96,48 @@ class ExampleHandlerTest(test.TestCase):
         """
         outputs = example_handler(self.w.train, self.w)
         self.assertEqual(
-            ([output if output is None else output.shape for output in outputs[0]] + [outputs[1].shape]),
-            [
-                tf.TensorShape([32, 50]),
-                None,
-                None,
-                None,
-                tf.TensorShape([32, 20]),
-            ],
+            (
+                [output if output is None else output.shape for output in outputs[0]]
+                + [outputs[1].shape]
+            ),
+            [tf.TensorShape([32, 50]), None, None, None, tf.TensorShape([32, 20]),],
         )
 
         outputs = example_handler(self.w.test, self.w)
         self.assertEqual(
-            ([output if output is None else output.shape for output in outputs[0]] + [outputs[1].shape]),
-            [
-                tf.TensorShape([10, 50]),
-                None,
-                None,
-                None,
-                tf.TensorShape([10, 20]),
-            ],
+            (
+                [output if output is None else output.shape for output in outputs[0]]
+                + [outputs[1].shape]
+            ),
+            [tf.TensorShape([10, 50]), None, None, None, tf.TensorShape([10, 20]),],
         )
 
         outputs = example_handler(self.w.valid, self.w)
         self.assertEqual(
-            ([output if output is None else output.shape for output in outputs[0]] + [outputs[1].shape]),
-            [
-                tf.TensorShape([10, 50]),
-                None,
-                None,
-                None,
-                tf.TensorShape([10, 20]),
-            ],
+            (
+                [output if output is None else output.shape for output in outputs[0]]
+                + [outputs[1].shape]
+            ),
+            [tf.TensorShape([10, 50]), None, None, None, tf.TensorShape([10, 20]),],
         )
 
         outputs = example_handler(self.w.production(self.data, None), self.w)
         self.assertEqual(
-            ([output if output is None else output.shape for output in outputs[0]] + [outputs[1].shape]),
-            [
-                tf.TensorShape([1, 50]),
-                None,
-                None,
-                None,
-                tf.TensorShape([1, 20]),
-            ],
+            (
+                [output if output is None else output.shape for output in outputs[0]]
+                + [outputs[1].shape]
+            ),
+            [tf.TensorShape([1, 50]), None, None, None, tf.TensorShape([1, 20]),],
         )
 
         # example_handler doesn't affect tuple inputs with good shape
         tensor = (tf.constant([0.0]), tf.constant([0.0]))
         outputs = example_handler(tensor, self.w)
         self.assertEqual(
-            ([output if output is None else output.shape for output in outputs[0]] + [outputs[1].shape]),
+            (
+                [output if output is None else output.shape for output in outputs[0]]
+                + [outputs[1].shape]
+            ),
             [tf.TensorShape([1]), None, None, None, tf.TensorShape([1])],
         )
 
@@ -160,38 +149,56 @@ class ExampleHandlerTest(test.TestCase):
 
         outputs = example_handler(self.w2.train, self.w2)
         self.assertEqual(
-            ([output if output is None else output.dtype for output in outputs[0]] + [outputs[1].dtype]),
+            (
+                [output if output is None else output.dtype for output in outputs[0]]
+                + [outputs[1].dtype]
+            ),
             [tf.float32, None, np.dtype("<U3"), np.dtype("<U3"), tf.float32],
         )
 
         outputs = example_handler(self.w2.test, self.w2)
         self.assertEqual(
-            ([output if output is None else output.dtype for output in outputs[0]] + [outputs[1].dtype]),
+            (
+                [output if output is None else output.dtype for output in outputs[0]]
+                + [outputs[1].dtype]
+            ),
             [tf.float32, None, np.dtype("<U3"), np.dtype("<U3"), tf.float32],
         )
 
         outputs = example_handler(self.w2.valid, self.w2)
         self.assertEqual(
-            ([output if output is None else output.dtype for output in outputs[0]] + [outputs[1].dtype]),
+            (
+                [output if output is None else output.dtype for output in outputs[0]]
+                + [outputs[1].dtype]
+            ),
             [tf.float32, None, np.dtype("<U3"), np.dtype("<U3"), tf.float32],
         )
 
         outputs = example_handler(self.w2.production(self.data, None), self.w2)
         self.assertEqual(
-            ([output if output is None else output.dtype for output in outputs[0]] + [outputs[1].dtype]),
+            (
+                [output if output is None else output.dtype for output in outputs[0]]
+                + [outputs[1].dtype]
+            ),
             [tf.float32, None, np.dtype("<U3"), np.dtype("<U3"), tf.float32],
         )
 
         # example_handler doesn't affect tuple inputs with good -types
         tensor = (
+            (
+                tf.constant([0.0]),
+                np.array(["0"], dtype="<U2"),
+                np.array(["0"], dtype="<U2"),
+            ),
             tf.constant([0.0]),
-            np.array(["0"], dtype="<U2"),
-            np.array(["0"], dtype="<U2"),
-        ), tf.constant([0.0])
+        )
         outputs = example_handler(tensor, self.w2)
         self.assertEqual(
-            ([output if output is None else output.dtype for output in outputs[0]] + [outputs[1].dtype]),
-            [tf.float32, None, np.dtype('<U2'), np.dtype('<U2'), tf.float32],
+            (
+                [output if output is None else output.dtype for output in outputs[0]]
+                + [outputs[1].dtype]
+            ),
+            [tf.float32, None, np.dtype("<U2"), np.dtype("<U2"), tf.float32],
         )
 
     def test_raise(self):
@@ -207,16 +214,19 @@ class ExampleHandlerTest(test.TestCase):
         # bad inputs shape
         with self.assertRaises(ValueError):
             tensor = (
+                (
+                    tf.constant([0]),
+                    tf.constant([0]),
+                    tf.constant([0]),
+                    tf.constant([0]),
+                ),
                 tf.constant([0]),
-                tf.constant([0]),
-                tf.constant([0]),
-                tf.constant([0]),
-            ), tf.constant([0])
+            )
             example_handler(tensor, self.w)
 
         # good inputs shape but bad dtypes
         with self.assertRaises(ValueError):
-            tensor = (tf.constant(['0']), tf.constant([0]))
+            tensor = (tf.constant(["0"]), tf.constant([0]))
             example_handler(tensor, self.w)
 
     def test_none(self):
@@ -232,11 +242,7 @@ class ExampleHandlerTest(test.TestCase):
             batch_size=32,
         )
 
-        w = w.from_array(
-            data=self.data,
-            input_columns=["test"],
-            label_columns=["test"]
-        )
+        w = w.from_array(data=self.data, input_columns=["test"], label_columns=["test"])
 
         tensor = (tf.constant([0.0]), tf.constant([0.0]))
         np.testing.assert_equal(

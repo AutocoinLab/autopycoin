@@ -84,7 +84,9 @@ def quantiles_handler(quantiles: List[Union[int, float]]) -> tf.Tensor:
     return (quantiles / 100).tolist()
 
 
-def example_handler(dataset: tf.data.Dataset, window_generator: Any) -> Tuple[tf.Tensor]:
+def example_handler(
+    dataset: tf.data.Dataset, window_generator: Any
+) -> Tuple[tf.Tensor]:
     """
     Convenient function which extract one instance of a
     `WindowGenerator` train, validation, test or a forecast dataset.
@@ -177,8 +179,8 @@ def fill_none(
             for value in range(max_value)
         )
     return tuple(
-            None if not index[value] else inputs.pop(0) for value in range(max_value)
-        )
+        None if not index[value] else inputs.pop(0) for value in range(max_value)
+    )
 
 
 def convert_to_list(to_convert: Any) -> list:
@@ -186,28 +188,33 @@ def convert_to_list(to_convert: Any) -> list:
     If a list is provided, it doesn't wrap it."""
     return [to_convert] if not isinstance(to_convert, list) else to_convert
 
-#TODO: unit testing
+
+# TODO: unit testing
 def transpose_first_to_last(inputs: tf.Tensor):
     """transpose the first dimension to the last position."""
-    
+
     perm = tf.concat([tf.range(1, tf.rank(inputs)), [0]], axis=0)
     return tf.transpose(inputs, perm=perm)
 
-#TODO: unit testing
+
+# TODO: unit testing
 def transpose_last_to_first(inputs: tf.Tensor):
     """transpose the last dimension to the first position."""
 
-
     perm = tf.concat([[tf.rank(inputs) - 1], tf.range(tf.rank(inputs) - 1)], axis=0)
     return tf.transpose(inputs, perm=perm)
+
 
 def features(inputs, features_slice, columns_index):
     """Return an input and output date tensors from the features tensor."""
 
     feature_length = features_slice.stop - features_slice.start
-    feature = tf.stack([inputs[..., features_slice, index] for index in columns_index], axis=-1)
+    feature = tf.stack(
+        [inputs[..., features_slice, index] for index in columns_index], axis=-1
+    )
     feature.set_shape([None, feature_length, len(columns_index)])
     return feature
+
 
 def date_features(inputs, features_slice, columns_index) -> tf.Tensor:
     """Return an input and output date tensors from the features tensor."""

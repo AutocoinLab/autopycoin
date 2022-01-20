@@ -12,7 +12,7 @@ from keras.engine import data_adapter
 from ..utils.data_utils import convert_to_list
 from .training import Model
 from ..baseclass import AutopycoinBaseClass
-from ..layers import (TrendBlock, SeasonalityBlock, GenericBlock, UniVariate, BaseBlock)
+from ..layers import TrendBlock, SeasonalityBlock, GenericBlock, UniVariate, BaseBlock
 from ..layers.nbeats_layers import SEASONALITY_TYPE
 
 
@@ -97,7 +97,7 @@ class Stack(Model):
     ) -> Tuple[tf.Tensor, ...]:
         """Call method from tensorflow."""
 
-        outputs = tf.constant(0.0) # init output
+        outputs = tf.constant(0.0)  # init output
         for block in self.blocks:
             # outputs is (quantiles, Batch_size, forecast)
             # reconstructed_inputs is (Batch_size, backcast)
@@ -254,18 +254,24 @@ class NBEATS(Model, AutopycoinBaseClass):
         self._stacks = stacks
         self._is_interpretable = self._set_interpretability()
         self._nbeats_type = self._set_type()
-        
-    def build(self, input_shape: Union[tf.TensorShape, Tuple[tf.TensorShape, ...]]) -> None:
+
+    def build(
+        self, input_shape: Union[tf.TensorShape, Tuple[tf.TensorShape, ...]]
+    ) -> None:
         """See tensorflow documentation."""
 
         if isinstance(input_shape, tuple):
             input_shape = input_shape[0]
-        
+
         input_shape = tf.TensorShape(input_shape)
         # multi univariate inputs
         self._multivariate = input_shape.as_list()[:-2] if input_shape.rank > 2 else []
-        self.strategy_input = UniVariate(last_to_first=True, is_multivariate=bool(self._multivariate))
-        self.strategy_output = UniVariate(last_to_first=False, is_multivariate=bool(self._multivariate))
+        self.strategy_input = UniVariate(
+            last_to_first=True, is_multivariate=bool(self._multivariate)
+        )
+        self.strategy_output = UniVariate(
+            last_to_first=False, is_multivariate=bool(self._multivariate)
+        )
 
         super().build(input_shape)
 
@@ -319,14 +325,14 @@ class NBEATS(Model, AutopycoinBaseClass):
                 continue
             else:
                 break
-        if 'start' not in locals():
+        if "start" not in locals():
             raise AttributeError(f"No `SeasonalityStack` defined. Got {self.stacks}")
 
         for stack in self.stacks[:start]:
             _, data = stack(data)
         for stack in self.stacks[start : idx + 1]:
             residual_seas, data = stack(data)
-            if 'seasonality' not in locals():
+            if "seasonality" not in locals():
                 seasonality = residual_seas
             else:
                 seasonality += residual_seas
@@ -350,16 +356,14 @@ class NBEATS(Model, AutopycoinBaseClass):
         for idx, stack in enumerate(self.stacks):
             if stack.stack_type != "TrendStack":
                 break
-        msg = (
-                f"""No `TrendStack` defined. Got {self.stacks}.
+        msg = f"""No `TrendStack` defined. Got {self.stacks}.
                 `TrendStack` has to be defined as first stack."""
-            )
         if idx == 0:
             raise AttributeError(msg)
 
-        for stack in self.stacks[:idx + 1]:
+        for stack in self.stacks[: idx + 1]:
             residual_trend, data = stack(data)
-            if 'trend' not in locals():
+            if "trend" not in locals():
                 trend = residual_trend
             else:
                 trend += residual_trend
@@ -416,7 +420,7 @@ class NBEATS(Model, AutopycoinBaseClass):
         return self._nbeats_type
 
 
-#TODO: finish doc and unit testing.
+# TODO: finish doc and unit testing.
 class PoolNBEATS(Model, AutopycoinBaseClass):
     """
     Tensorflow model defining a pool of N-BEATS models.
@@ -509,8 +513,10 @@ class PoolNBEATS(Model, AutopycoinBaseClass):
     def __init__(
         self,
         n_models: int,
-        nbeats_models: Union[Union[Callable, List[Callable]], Union[NBEATS, List[NBEATS]]],
-        losses: List[Union[str,tf.keras.losses.Loss]],
+        nbeats_models: Union[
+            Union[Callable, List[Callable]], Union[NBEATS, List[NBEATS]]
+        ],
+        losses: List[Union[str, tf.keras.losses.Loss]],
         fn_agg: Callable = tf.reduce_mean,
         seed: Union[None, int] = None,
         **kwargs: dict,
@@ -553,14 +559,17 @@ class PoolNBEATS(Model, AutopycoinBaseClass):
             nbeats.append(model)
         return nbeats
 
-    def _check_label_width(self, nbeats_models: Union[List[Callable], List[NBEATS]]) -> None:
+    def _check_label_width(
+        self, nbeats_models: Union[List[Callable], List[NBEATS]]
+    ) -> None:
         """Check if `label_width` are equals through models."""
 
         labels_width = [model.label_width for model in nbeats_models]
         theoric_sum = len(labels_width) * labels_width[0]
-        assert sum(labels_width) - theoric_sum == 0,(
-        f"`label_width` parameter has to be identical through models."
-        f"Got {labels_width}")
+        assert sum(labels_width) - theoric_sum == 0, (
+            f"`label_width` parameter has to be identical through models."
+            f"Got {labels_width}"
+        )
         self._label_width = labels_width[0]
 
     def _set_quantiles(self) -> None:
@@ -570,15 +579,21 @@ class PoolNBEATS(Model, AutopycoinBaseClass):
             if hasattr(loss, "quantiles"):
                 self._nbeats[idx]._set_quantiles(loss.quantiles)
 
-    def build(self, input_shape: Union[tf.TensorShape, Tuple[tf.TensorShape, ...]]) -> None:
+    def build(
+        self, input_shape: Union[tf.TensorShape, Tuple[tf.TensorShape, ...]]
+    ) -> None:
         """See tensorflow documentation."""
 
         if isinstance(input_shape, tuple):
             input_shape = input_shape[0]
 
         # Defines mask
-        mask = tf.random.uniform((self.n_models,), minval=0,
-                maxval=int(input_shape[-1] / self.label_width), dtype=tf.int32)
+        mask = tf.random.uniform(
+            (self.n_models,),
+            minval=0,
+            maxval=int(input_shape[-1] / self.label_width),
+            dtype=tf.int32,
+        )
         self._mask = input_shape[-1] - (mask * self.label_width)
 
         super().build(input_shape)
@@ -588,9 +603,7 @@ class PoolNBEATS(Model, AutopycoinBaseClass):
 
         outputs = []
         for idx, model in enumerate(self.nbeats):
-            inputs_masked = inputs[
-                ..., :, -self._mask[idx]:
-            ]
+            inputs_masked = inputs[..., :, -self._mask[idx] :]
             outputs.append(model(inputs_masked))
         return outputs
 
@@ -626,8 +639,7 @@ class PoolNBEATS(Model, AutopycoinBaseClass):
 
         y_pred = self._fn_agg(self(x, training=False), axis=0)
         # Updates stateful loss metrics.
-        self.compiled_loss(
-            y, y_pred, sample_weight, regularization_losses=self.losses)
+        self.compiled_loss(y, y_pred, sample_weight, regularization_losses=self.losses)
         self.compiled_metrics.update_state(y, y_pred, sample_weight)
         # Collect metrics to return
         return_metrics = {}
@@ -888,6 +900,7 @@ def create_generic_nbeats(
     model = NBEATS(generic_stacks, name="generic_NBEATS", **kwargs)
     return model
 
+
 # TODO: unit test
 def interpretable_nbeats_builder(label_width: int, **kwargs: dict) -> Callable:
     """
@@ -897,37 +910,56 @@ def interpretable_nbeats_builder(label_width: int, **kwargs: dict) -> Callable:
     """
 
     def model_builder(hp) -> NBEATS:
-        hp_n_neurons_trend = hp.Int('neurons_trend', min_value = 20, max_value=520, step=20)
-        hp_n_neurons_seas = hp.Int('neurons_seas', min_value = 20, max_value=520, step=20)
-        hp_periods = kwargs.get('periods', None)
-        hp_periods = hp.Choice('periods', hp_periods) if hp_periods else hp_periods
-        hp_backcast_periods = kwargs.get('backcast_periods', None)
-        hp_backcast_periods = hp.Choice('backcast_periods', hp_backcast_periods) if hp_backcast_periods else hp_backcast_periods
-        hp_forecast_fourier_order = kwargs.get('forecast_fourier_order', None)
-        hp_forecast_fourier_order = hp.Choice('forecast_fourier_order', hp_forecast_fourier_order) if hp_forecast_fourier_order else hp_forecast_fourier_order
-        hp_backcast_fourier_order =  kwargs.get('backcast_fourier_order', None)
-        hp_backcast_fourier_order = hp.Choice('backcast_fourier_order', hp_backcast_fourier_order) if  hp_backcast_fourier_order else  hp_backcast_fourier_order
-        hp_share = hp.Boolean('share')
-        hp_p_degree = hp.Int('p_degree', min_value = 0, max_value = 3, step = 1)
-        loss_list = kwargs.get('loss', ['mse'])
-        loss_idx = hp.Choice('loss', range(len(loss_list)))
-        optimizer_list = kwargs.get('optimizer', [tf.keras.optimizers.Adam(learning_rate=0.001)])
-        optimizer_idx = hp.Choice('optimizer', range(len(optimizer_list)))
+        hp_n_neurons_trend = hp.Int(
+            "neurons_trend", min_value=20, max_value=520, step=20
+        )
+        hp_n_neurons_seas = hp.Int("neurons_seas", min_value=20, max_value=520, step=20)
+        hp_periods = kwargs.get("periods", None)
+        hp_periods = hp.Choice("periods", hp_periods) if hp_periods else hp_periods
+        hp_backcast_periods = kwargs.get("backcast_periods", None)
+        hp_backcast_periods = (
+            hp.Choice("backcast_periods", hp_backcast_periods)
+            if hp_backcast_periods
+            else hp_backcast_periods
+        )
+        hp_forecast_fourier_order = kwargs.get("forecast_fourier_order", None)
+        hp_forecast_fourier_order = (
+            hp.Choice("forecast_fourier_order", hp_forecast_fourier_order)
+            if hp_forecast_fourier_order
+            else hp_forecast_fourier_order
+        )
+        hp_backcast_fourier_order = kwargs.get("backcast_fourier_order", None)
+        hp_backcast_fourier_order = (
+            hp.Choice("backcast_fourier_order", hp_backcast_fourier_order)
+            if hp_backcast_fourier_order
+            else hp_backcast_fourier_order
+        )
+        hp_share = hp.Boolean("share")
+        hp_p_degree = hp.Int("p_degree", min_value=0, max_value=3, step=1)
+        loss_list = kwargs.get("loss", ["mse"])
+        loss_idx = hp.Choice("loss", range(len(loss_list)))
+        optimizer_list = kwargs.get(
+            "optimizer", [tf.keras.optimizers.Adam(learning_rate=0.001)]
+        )
+        optimizer_idx = hp.Choice("optimizer", range(len(optimizer_list)))
 
         model = create_interpretable_nbeats(
-                        label_width=label_width,
-                        p_degree=hp_p_degree,
-                        forecast_periods=hp_periods,
-                        backcast_periods=hp_backcast_periods,
-                        forecast_fourier_order=hp_forecast_fourier_order,
-                        backcast_fourier_order=hp_backcast_fourier_order,
-                        trend_n_neurons=hp_n_neurons_trend,
-                        seasonality_n_neurons=hp_n_neurons_seas,
-                        share=hp_share
-                        )
+            label_width=label_width,
+            p_degree=hp_p_degree,
+            forecast_periods=hp_periods,
+            backcast_periods=hp_backcast_periods,
+            forecast_fourier_order=hp_forecast_fourier_order,
+            backcast_fourier_order=hp_backcast_fourier_order,
+            trend_n_neurons=hp_n_neurons_trend,
+            seasonality_n_neurons=hp_n_neurons_seas,
+            share=hp_share,
+        )
 
-        model.compile(loss=loss_list[loss_idx], optimizer=optimizer_list[optimizer_idx],
-                            metrics=[tf.keras.metrics.MeanAbsoluteError()])
+        model.compile(
+            loss=loss_list[loss_idx],
+            optimizer=optimizer_list[optimizer_idx],
+            metrics=[tf.keras.metrics.MeanAbsoluteError()],
+        )
 
         return model
 
