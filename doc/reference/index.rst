@@ -14,3 +14,4 @@ This reference manual details functions, modules, and objects included in NumPy,
    :maxdepth: 3
 
    models
+   layers

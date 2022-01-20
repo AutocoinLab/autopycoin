@@ -9,4 +9,4 @@ dataset
    :toctree: generated/
    :template: class.rst
 
-   dataset.WindowGenerator
+   dataset.generator.WindowGenerator

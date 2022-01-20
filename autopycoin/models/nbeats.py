@@ -26,28 +26,30 @@ class Stack(Model):
 
     Parameters
     ----------
-    blocks : Tuple[:class:`autopycoin.models.BaseBlock`]
+    blocks : tuple[:class:`autopycoin.models.BaseBlock`]
         Blocks layers. they can be generic, seasonal or trend ones.
         You can also define your own block by subclassing `BaseBlock`.
 
     Attributes
     ----------
-    blocks : Tuple[:class:`autopycoin.models.BaseBlock`]
-    is_interpretable : bool
-    stack_type : str
+    blocks : tuple[:class:`autopycoin.models.BaseBlock`]
     label_width : int
     input_width : int
+    is_interpretable : bool
+    stack_type : str
 
     Examples
     --------
     >>> from autopycoin.layers import TrendBlock, SeasonalityBlock
     >>> from autopycoin.models import Stack, NBEATS
     >>> from autopycoin.losses import QuantileLossError
+    ...
     >>> trend_block = TrendBlock(label_width=20,
     ...                          p_degree=2,
     ...                          n_neurons=16,
     ...                          drop_rate=0.1,
     ...                          name="trend_block")
+    ...
     >>> seasonality_block = SeasonalityBlock(label_width=20,
     ...                                      forecast_periods=[10],
     ...                                      backcast_periods=[20],
@@ -56,25 +58,31 @@ class Stack(Model):
     ...                                      n_neurons=15,
     ...                                      drop_rate=0.1,
     ...                                      name="seasonality_block")
+    ...
+    ... # blocks creation
     >>> trend_blocks = [trend_block for _ in range(3)]
     >>> seasonality_blocks = [seasonality_block for _ in range(3)]
+    ...
+    ... # Stacks creation
     >>> trend_stacks = Stack(trend_blocks, name="trend_stack")
     >>> seasonality_stacks = Stack(seasonality_blocks, name="seasonality_stack")
-    >>> # model definition and compiling
+    ... 
+    ... # model definition and compiling
     >>> model = NBEATS([trend_stacks, seasonality_stacks], name="interpretable_NBEATS")
     >>> model.compile(loss=QuantileLossError(quantiles=[0.5]))
 
     Notes
     -----
     input shape:
-    N-D tensor with shape: (batch_size, ..., units).
-    The most common situation would be a 2D input with shape (batch_size, units).
+    N-D tensor with shape: (..., batch_size, time step).
+    The most common situation would be a 2D input with shape (batch_size, time step).
 
     output shape:
-    N-D tensor with shape: (quantiles, batch_size, ..., units) or (batch_size, ..., units) .
+    N-D tensor with shape: (..., batch_size, units).
     For instance, for a 2D input with shape (batch_size, units),
     the output would have shape (batch_size, units).
     With a QuantileLossError with 2 quantiles or higher the output would have shape (quantiles, batch_size, units).
+    If you add 2 variables, the output would have shape (variables, quantiles, batch_size, units).
     """
 
     def __init__(self, blocks: Tuple[BaseBlock, ...], **kwargs: dict):
@@ -100,7 +108,7 @@ class Stack(Model):
         return outputs, inputs
 
     def get_config(self) -> dict:
-        """get_config method from tensorflow."""
+        """See tensorflow documentation."""
         config = super().get_config()
         config.update({"blocks": self.blocks})
         return config
@@ -125,27 +133,32 @@ class Stack(Model):
     @property
     def label_width(self) -> int:
         """Return the label width."""
+
         return self.blocks[0].label_width
 
     @property
     def input_width(self) -> int:
         """Return the input width."""
+
         return self.blocks[0].input_width
 
     @property
     def blocks(self) -> List[BaseBlock]:
         """Return the list of blocks."""
+
         return self._blocks
 
     @property
     def stack_type(self) -> str:
         """Return the type of the stack.
         `CustomStack` if the blocks are all differents."""
+
         return self._stack_type
 
     @property
     def is_interpretable(self) -> bool:
         """Return True if the stack is interpretable."""
+
         return self._is_interpretable
 
     def __repr__(self):
@@ -163,14 +176,14 @@ class NBEATS(Model, AutopycoinBaseClass):
 
     Parameters
     ----------
-    stacks : Tuple[:class:`autopycoin.models.Stack`]
+    stacks : tuple[:class:`autopycoin.models.Stack`]
              Stacks can be created from :class:`autopycoin.models.TrendBlock`,
              :class:`autopycoin.models.SeasonalityBlock` or :class:`autopycoin.models.GenericBlock`.
              See stack documentation for more details.
 
     Attributes
     ----------
-    stacks : Tuple[`Tensor`]
+    stacks : tuple[`Tensor`]
     seasonality : `Tensor`
         Seasonality component of the output.
     trend : `Tensor`
@@ -217,15 +230,16 @@ class NBEATS(Model, AutopycoinBaseClass):
     - Epistemic interval : MCDropout
 
     You can use :class:`autopycoin.loss.QuantileLossError` as loss error to estimate the
-    aleotoric error. Also, run multiple tims a prediction with `drop_date` > 0 to estimate
+    aleotoric error. Also, run multiple times a prediction with `drop_date` > 0 to estimate
     the epistemic error.
 
-    *Input shape*:
-    N-D tensor with shape: (batch_size, ..., units).
-    The most common situation would be a 2D input with shape (batch_size, units).
+    *Input shape*
+    N-D tensor with shape: (batch_size, time step, variables) or (batch_size, time step).
+    The most common situation would be a 2D input with shape (batch_size, time step).
 
-    *Output shape*:
-    N-D tensor with shape: (quantiles, batch_size, ..., units) or (batch_size, ..., units) .
+    *Output shape*
+    N-D tensor with shape: (batch_size, time step, variables, quantiles) or (batch_size, time step, quantiles)
+    or (batch_size, time step).
     For instance, for a 2D input with shape (batch_size, units),
     the output would have shape (batch_size, units).
     With a QuantileLossError with 2 quantiles or higher the output
@@ -257,6 +271,7 @@ class NBEATS(Model, AutopycoinBaseClass):
 
     def call(self, inputs: Union[tuple, dict, list, tf.Tensor]) -> tf.Tensor:
         """Call method from tensorflow."""
+
         inputs = self.strategy_input(inputs)
         outputs = tf.constant(0.0)
         for stack in self.stacks:
@@ -275,13 +290,13 @@ class NBEATS(Model, AutopycoinBaseClass):
 
         Parameters
         ----------
-        data : tf.Tensor
+        data : `Tensor`
             input data.
 
         Returns
         -------
         seasonality : `Tensor`
-            Seasonality components with shape (d0,..., batch_size, input_width).
+            Same shape as call inputs (see notes).
 
         Raises
         ------
@@ -324,7 +339,7 @@ class NBEATS(Model, AutopycoinBaseClass):
         Returns
         -------
         trend : `Tensor`
-            Tensor of shape (d0,..., batch_size, input_width).
+            Same shape as call inputs (see notes).
 
         Raises
         ------
@@ -352,13 +367,17 @@ class NBEATS(Model, AutopycoinBaseClass):
 
     def get_config(self) -> dict:
         """Get_config from tensorflow."""
+
         return {"stacks": self.stacks}
 
     def _set_interpretability(self) -> bool:
+        """check if interpretable or not."""
+
         return all(stack.is_interpretable for stack in self.stacks)
 
     def _set_type(self):
         """Defines the type of Nbeats."""
+
         if self.is_interpretable:
             return "InterpretableNbeats"
         return "Nbeats"
@@ -366,35 +385,40 @@ class NBEATS(Model, AutopycoinBaseClass):
     @property
     def label_width(self) -> int:
         """Return the label width."""
+
         return self.stacks[0].label_width
 
     @property
     def input_width(self) -> int:
         """Return the input width."""
+
         return self.input_width
 
     @property
     def stacks(self) -> int:
         """Return the input width."""
+
         return self._stacks
 
     @property
     def is_interpretable(self) -> bool:
         """Return True if the model is interpretable."""
+
         return self._is_interpretable
 
     @property
     def nbeats_type(self) -> str:
         """Return the Nbeats type."""
+
         return self._nbeats_type
 
     def __repr__(self):
         return self._nbeats_type
 
 
+#TODO: finish doc and unit testing.
 class PoolNBEATS(Model, AutopycoinBaseClass):
     """
-    TODO: finish doc and unit testing.
     Tensorflow model defining a pool of N-BEATS models.
 
     As described in the paper https://arxiv.org/abs/1905.10437, the state-of-the-art results
@@ -404,14 +428,13 @@ class PoolNBEATS(Model, AutopycoinBaseClass):
     ----------
     n_models : int
         Number of models inside the pool.
-    nbeats_models : List[Callable]
+    nbeats_models : list[callable]
         A list of callables which create a NBEATS model.
-        It has to be the same shape than nbeats_kwargs.
-    losses : List[str or `tf.keras.losses.Loss`]
+    losses : list[str or `tf.keras.losses.Loss`]
         List of losses used to train the models.
     fn_agg : Callable
         Function of aggregation which takes an parameter axis.
-        It aggregates the models outputs.
+        It aggregates the models outputs. Default to mean.
     seed: int
         Used in combination with tf.random.set_seed to create a
         reproducible sequence of tensors across multiple calls.
@@ -522,6 +545,7 @@ class PoolNBEATS(Model, AutopycoinBaseClass):
 
     def _init_nbeats_from_callable(self, nbeats_models: List[Callable]) -> None:
         """Initialize nbeats models from callable."""
+
         nbeats = []
         # Init pool of models by picking randomly model in nbeats_models list.
         for nbeats_idx in randint(0, len(nbeats_models), size=self.n_models):
@@ -531,17 +555,17 @@ class PoolNBEATS(Model, AutopycoinBaseClass):
 
     def _check_label_width(self, nbeats_models: Union[List[Callable], List[NBEATS]]) -> None:
         """Check if `label_width` are equals through models."""
-        for idx, model in enumerate(nbeats_models):
-            if idx != 0:
-                previous_model = nbeats_models[idx-1]
-                assert previous_model.label_width - model.label_width == 0,(
-                f"""`label_width` parameter has to be identical through models.
-                Got {previous_model.label_width} for model {previous_model}
-                and {model.label_width} for {model}.""")
-        self._label_width = model.label_width
+
+        labels_width = [model.label_width for model in nbeats_models]
+        theoric_sum = len(labels_width) * labels_width[0]
+        assert sum(labels_width) - theoric_sum == 0,(
+        f"`label_width` parameter has to be identical through models."
+        f"Got {labels_width}")
+        self._label_width = labels_width[0]
 
     def _set_quantiles(self) -> None:
         """Set quantiles if a quantile loss is compiled."""
+
         for idx, loss in enumerate(self._pool_losses):
             if hasattr(loss, "quantiles"):
                 self._nbeats[idx]._set_quantiles(loss.quantiles)
@@ -552,31 +576,27 @@ class PoolNBEATS(Model, AutopycoinBaseClass):
         if isinstance(input_shape, tuple):
             input_shape = input_shape[0]
 
-        input_shape = tf.TensorShape(input_shape)
-        # multi univariate inputs
-        self._multivariate = input_shape.as_list()[:-2] if input_shape.rank > 2 else []
-        self.strategy_input = UniVariate(last_to_first=True, is_multivariate=bool(self._multivariate))
-        self.strategy_output = UniVariate(last_to_first=False, is_multivariate=bool(self._multivariate))
-
+        # Defines mask
         mask = tf.random.uniform((self.n_models,), minval=0,
                 maxval=int(input_shape[-1] / self.label_width), dtype=tf.int32)
-
         self._mask = input_shape[-1] - (mask * self.label_width)
+
         super().build(input_shape)
 
     def call(self, inputs: Union[tuple, dict, list, tf.Tensor]) -> tf.Tensor:
         """Call method from tensorflow Model."""
-        inputs = self.strategy_input(inputs)
+
         outputs = []
         for idx, model in enumerate(self.nbeats):
             inputs_masked = inputs[
                 ..., :, -self._mask[idx]:
             ]
             outputs.append(model(inputs_masked))
-        return self.strategy_input(outputs)
+        return outputs
 
     def predict(self, *args: list, **kwargs: dict) -> tf.Tensor:
         """Reduce the n outputs to a single output tensor by mean operation."""
+
         outputs = super().predict(*args, **kwargs)
         return self._fn_agg(outputs, axis=0)
 
@@ -621,6 +641,7 @@ class PoolNBEATS(Model, AutopycoinBaseClass):
 
     def get_pool_losses(self) -> list:
         """Return the pool losses."""
+
         return self._pool_losses
 
     def reset_pool_losses(
@@ -629,6 +650,7 @@ class PoolNBEATS(Model, AutopycoinBaseClass):
         seed: Union[int, None] = None,
     ) -> None:
         """Reset the pool losses based on the given losses."""
+
         if seed is not None:
             tf.random.set_seed(seed)
         losses_idx = randint(0, len(losses), size=self.n_models - len(losses))
@@ -638,16 +660,19 @@ class PoolNBEATS(Model, AutopycoinBaseClass):
     @property
     def label_width(self) -> int:
         """Return the `label_width` parameter."""
+
         return self._label_width
 
     @property
     def n_models(self) -> int:
         """Return the `n_models` parameter."""
+
         return self._n_models
 
     @property
     def nbeats(self) -> list:
         """Return the nbeats pool."""
+
         return self._nbeats
 
 
@@ -863,13 +888,14 @@ def create_generic_nbeats(
     model = NBEATS(generic_stacks, name="generic_NBEATS", **kwargs)
     return model
 
-
+# TODO: unit test
 def interpretable_nbeats_builder(label_width: int, **kwargs: dict) -> Callable:
     """
     It defines model and hyperparameters to take into account during the optimization.
     We set main parameters but you can overread this function to customize
     your parameters selection.
     """
+
     def model_builder(hp) -> NBEATS:
         hp_n_neurons_trend = hp.Int('neurons_trend', min_value = 20, max_value=520, step=20)
         hp_n_neurons_seas = hp.Int('neurons_seas', min_value = 20, max_value=520, step=20)

@@ -30,10 +30,10 @@ class ExampleBlock(BaseBlock):
             block_type=block_type,
         )
 
-    def _coefficient_factory(self, *args: list, **kwargs: dict):
+    def coefficient_factory(self, *args: list, **kwargs: dict):
         pass
 
-    def _get_coefficients(self, output_last_dim: int, branch_name: str):
+    def get_coefficients(self, output_last_dim: int, branch_name: str):
         return tf.constant([0, 0, 0])
 
 

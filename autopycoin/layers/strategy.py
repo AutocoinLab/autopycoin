@@ -8,10 +8,24 @@ from tensorflow.keras.layers import InputSpec
 
 from . import Layer
 from ..utils import transpose_first_to_last, transpose_last_to_first
-from ..dataset import features, date_features
+#from ..dataset import features, date_features
 
 
 class UniVariate(Layer):
+    """
+    Used inside univariate models as first and last layer.
+    It performs transpose operation to put the variables as the first dimensions
+    to avoid use them during calculations and get them back as last dimensions to
+    fit with tensorflow norms.
+
+    Parameters
+    ----------
+    last_to_first : boolean
+        Set it `True`if it is the first layer else `False`.
+    is_multivariate : boolean
+        Based on your inputs, if `True` then it will perform back transformation
+        if it is the last layer.
+    """
     def __init__(self, last_to_first, is_multivariate, *args, **kwargs):
         
         super().__init__(*args, **kwargs)
@@ -29,7 +43,7 @@ class UniVariate(Layer):
         return self.transform(inputs)
 
 
-class MultiVariate():
+"""class MultiVariate():
     def __init__(self, n_series, start, stop, **kwargs):
         super().__init__(**kwargs)
 
@@ -60,4 +74,4 @@ class Features():
 
 class DateFeatures():
     def call(self, inputs):
-        return date_features(inputs, self.features_slice, self.columns_index)
+        return date_features(inputs, self.features_slice, self.columns_index)"""

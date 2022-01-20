@@ -42,7 +42,7 @@ class BaseBlock(Layer, AutopycoinBaseClass):
 
     Raises
     ------
-    ValueError:
+    ValueError
         If `name` doesn't contain `Block`.
         `drop_rate` is not between 0 and 1.
         All others arguments are not strictly positive integers.
@@ -125,7 +125,7 @@ class BaseBlock(Layer, AutopycoinBaseClass):
         Build forecast and backcast branches.
         """
 
-        coef = self._get_coefficients(output_last_dim, branch_name=branch_name)
+        coef = self.get_coefficients(output_last_dim, branch_name=branch_name)
 
         # If the model is compiling with a loss error defining uncertainty then
         # broadcast the output to take into account this uncertainty.
@@ -142,19 +142,16 @@ class BaseBlock(Layer, AutopycoinBaseClass):
         setattr(self, f"{branch_name}_coef", coef)
 
     @abc.abstractmethod
-    def _get_coefficients(self, output_last_dim: int, branch_name: str) -> tf.Tensor:
+    def get_coefficients(self, output_last_dim: int, branch_name: str) -> tf.Tensor:
         """
         Return the coefficients used in the forecast and backcast layer a.k.a g layer
         by calling coefficient_factory.
         This method needs to be overriden.
 
-        Returns
-        -------
-        coefficients
-            `Tensor` of shape (d0, ..., output_first_dim_forecast, label_width)
-
         Raises
         ------
+        NotImplementedError
+            If not overriden
         ValueError
             Raise an error if the coefficients tensor shape is not equal to
             (d0, ..., output_first_dim_forecast, label_width).
@@ -165,15 +162,15 @@ class BaseBlock(Layer, AutopycoinBaseClass):
         )
 
     @abc.abstractmethod
-    def _coefficient_factory(self, *args: list, **kwargs: dict) -> tf.Tensor:
+    def coefficient_factory(self, *args: list, **kwargs: dict) -> tf.Tensor:
         """
         Create the coefficients used in the last layer a.k.a g constrained layer.
         This method needs to be overriden.
 
-        Returns
-        -------
-        coefficients
-            `Tensor` of shape (d0, ..., output_first_dim, units)
+        Raises
+        ------
+        NotImplementedError
+            If not overriden
         """
         raise NotImplementedError(
             "When subclassing the `BaseBlock` class, you should "
@@ -183,7 +180,7 @@ class BaseBlock(Layer, AutopycoinBaseClass):
     def call(
         self, inputs: tf.Tensor
     ) -> Tuple[tf.Tensor]:  # pylint: disable=arguments-differ
-        """Call method from tensorflow."""
+        """See tensorflow documentation."""
 
         for kernel, bias in self.fc_stack:
             # shape: (Batch_size, n_neurons)
@@ -311,9 +308,9 @@ class TrendBlock(BaseBlock, AutopycoinBaseClass):
 
     Attributes
     ----------
-    p_degree : int
     label_width : int
     input_width : int
+    p_degree : int
     input_spec : `ÌnputSpec`
     drop_rate : float
     is_interpretable : bool
@@ -322,7 +319,7 @@ class TrendBlock(BaseBlock, AutopycoinBaseClass):
 
     Raises
     ------
-    ValueError:
+    ValueError
         `drop_rate` is not between 0 and 1.
         All others arguments are not strictly positive integers.
 
@@ -353,14 +350,15 @@ class TrendBlock(BaseBlock, AutopycoinBaseClass):
     Notes
     -----
     input shape:
-    N-D tensor with shape: (batch_size, ..., units).
-    The most common situation would be a 2D input with shape (batch_size, units).
+    N-D tensor with shape: (..., batch_size, time step).
+    The most common situation would be a 2D input with shape (batch_size, time step).
 
     output shape:
-    N-D tensor with shape: (quantiles, batch_size, ..., units) or (batch_size, ..., units) .
+    N-D tensor with shape: (..., batch_size, units).
     For instance, for a 2D input with shape (batch_size, units),
     the output would have shape (batch_size, units).
     With a QuantileLossError with 2 quantiles or higher the output would have shape (quantiles, batch_size, units).
+    If you add 2 variables, the output would have shape (variables, quantiles, batch_size, units).
     """
 
     def __init__(
@@ -385,7 +383,7 @@ class TrendBlock(BaseBlock, AutopycoinBaseClass):
         # Shape (-1, 1) in order to broadcast label_width to all p degrees
         self._p_degree = p_degree
 
-    def _coefficient_factory(
+    def coefficient_factory(
         self, output_last_dim: float, p_degrees: tf.Tensor
     ) -> tf.Tensor:
         """
@@ -405,13 +403,23 @@ class TrendBlock(BaseBlock, AutopycoinBaseClass):
 
         return coefficients
 
-    def _get_coefficients(self, output_last_dim: float, branch_name: str) -> tf.Tensor:
+    def get_coefficients(self, output_last_dim: float, branch_name: str) -> tf.Tensor:
         """
         Return the coefficients calculated by the  `_coefficients_factory` method.
+
+        Parameters
+        ----------
+        output_last_dim : int
+        branch_name : str
+
+        Returns
+        -------
+        coefficients : `weight with shape (p_degree, label_width)`
+            Coefficients of the g layer.
         """
 
         # Set weights with calculated coef
-        coef = self._coefficient_factory(
+        coef = self.coefficient_factory(
             output_last_dim,
             range_dims(self.p_degree + 1, shape=(-1, 1)),
         )
@@ -443,6 +451,7 @@ class TrendBlock(BaseBlock, AutopycoinBaseClass):
     def _val___init__(
         self, output: None, *args: list, **kwargs: dict
     ) -> None:  # pylint: disable=unused-argument
+        """Valid p_degree"""
         greater_or_equal(self.p_degree, 0, 'p_degree')
 
 
@@ -487,13 +496,13 @@ class SeasonalityBlock(BaseBlock, AutopycoinBaseClass):
     ----------
     label_width : int
     input_width : int
-    input_spec : `ÌnputSpec`
+    input_spec : `InputSpec`
     drop_rate : float
-    periods : int | float | List[int | float]
-    back_periods : int | float | List[int | float]
+    periods : int | float | list[int | float]
+    back_periods : int | float | list[int | float]
         if not provided, then it is set during `build` method.
-    forecast_fourier_order : int | float | List[int | float]
-    backcast_fourier_order : int | float | List[int | float]
+    forecast_fourier_order : int | float | list[int | float]
+    backcast_fourier_order : int | float | list[int | float]
         if not provided, then it is set during `build` method.
 
     Raises
@@ -533,14 +542,15 @@ class SeasonalityBlock(BaseBlock, AutopycoinBaseClass):
     Notes
     -----
     input shape:
-    N-D tensor with shape: (batch_size, ..., units).
-    The most common situation would be a 2D input with shape (batch_size, units).
+    N-D tensor with shape: (..., batch_size, time step).
+    The most common situation would be a 2D input with shape (batch_size, time step).
 
     output shape:
-    N-D tensor with shape: (quantiles, batch_size, ..., units) or (batch_size, ..., units) .
+    N-D tensor with shape: (..., batch_size, units).
     For instance, for a 2D input with shape (batch_size, units),
     the output would have shape (batch_size, units).
     With a QuantileLossError with 2 quantiles or higher the output would have shape (quantiles, batch_size, units).
+    If you add 2 variables, the output would have shape (variables, quantiles, batch_size, units).
     """
 
     def __init__(
@@ -581,7 +591,7 @@ class SeasonalityBlock(BaseBlock, AutopycoinBaseClass):
     def build(self, input_shape: tf.TensorShape):
         """Build method from tensorflow."""
 
-        # if None then set an default value based on the input shape
+        # if None then set an default value based on the *input shape*
         self._backcast_periods = (
             self._backcast_periods if self._backcast_periods else int(input_shape[-1] / 2)
         )
@@ -591,7 +601,7 @@ class SeasonalityBlock(BaseBlock, AutopycoinBaseClass):
 
         super().build(input_shape)
 
-    def _coefficient_factory(
+    def coefficient_factory(
         self,
         output_last_dim: float,
         periods: List[float],
@@ -602,7 +612,7 @@ class SeasonalityBlock(BaseBlock, AutopycoinBaseClass):
 
         Parameters
         ----------
-        input_width : float
+        output_last_dim : float
         periods : Tuple[float, ...]
         fourier_orders : Tuple[float, ...]
 
@@ -621,16 +631,21 @@ class SeasonalityBlock(BaseBlock, AutopycoinBaseClass):
         seasonality = tf.concat((tf.sin(seasonality), tf.cos(seasonality)), axis=0)
         return seasonality.flat_values
 
-    def _get_coefficients(self, output_last_dim: float, branch_name: str) -> tf.Tensor:
+    def get_coefficients(self, output_last_dim: float, branch_name: str) -> tf.Tensor:
         """
         Return the coefficients calculated by the  `_coefficients_factory` method.
+
+        Parameters
+        ----------
+        output_last_dim : int
+        branch_name : str
         """
 
         periods = convert_to_list(getattr(self, branch_name + "_periods"))
         fourier_order = convert_to_list(getattr(self, branch_name + "_fourier_order"))
 
         # Set weights with calculated coef
-        coef = self._coefficient_factory(output_last_dim, periods, fourier_order)
+        coef = self.coefficient_factory(output_last_dim, periods, fourier_order)
 
         return self.add_weight(
             shape=coef.shape,
@@ -738,14 +753,15 @@ class GenericBlock(BaseBlock, AutopycoinBaseClass):
     Notes
     -----
     input shape:
-    N-D tensor with shape: (batch_size, ..., units).
-    The most common situation would be a 2D input with shape (batch_size, units).
+    N-D tensor with shape: (..., batch_size, time step).
+    The most common situation would be a 2D input with shape (batch_size, time step).
 
     output shape:
-    N-D tensor with shape: (quantiles, batch_size, ..., units) or (batch_size, ..., units) .
+    N-D tensor with shape: (..., batch_size, units).
     For instance, for a 2D input with shape (batch_size, units),
     the output would have shape (batch_size, units).
     With a QuantileLossError with 2 quantiles or higher the output would have shape (quantiles, batch_size, units).
+    If you add 2 variables, the output would have shape (variables, quantiles, batch_size, units).
     """
 
     def __init__(
@@ -771,7 +787,7 @@ class GenericBlock(BaseBlock, AutopycoinBaseClass):
         self._g_forecast_neurons = g_forecast_neurons
         self._g_backcast_neurons = g_backcast_neurons
 
-    def _coefficient_factory(self, output_last_dim: int, neurons: int) -> tf.Tensor:
+    def coefficient_factory(self, output_last_dim: int, neurons: int) -> tf.Tensor:
         """
         Compute the coefficients used in the last layer a.k.a g layer.
         This function is used in `_get_forecast_coefficients` and
@@ -779,7 +795,7 @@ class GenericBlock(BaseBlock, AutopycoinBaseClass):
 
         Parameters
         ----------
-        input_width : int
+        output_last_dim : int
         neurons : int
 
         Returns
@@ -794,9 +810,14 @@ class GenericBlock(BaseBlock, AutopycoinBaseClass):
 
         return coefficients
 
-    def _get_coefficients(self, output_last_dim: int, branch_name: str) -> tf.Tensor:
+    def get_coefficients(self, output_last_dim: int, branch_name: str) -> tf.Tensor:
         """
         Return the coefficients used in forecast and backcast layer a.k.a g layer.
+
+        Parameters
+        ----------
+        output_last_dim : int
+        branch_name : str
 
         Returns
         -------
@@ -805,7 +826,7 @@ class GenericBlock(BaseBlock, AutopycoinBaseClass):
 
         neurons = getattr(self, "g_" + branch_name + "_neurons")
         # Set weights with calculated coef
-        coef = self._coefficient_factory(output_last_dim, neurons)
+        coef = self.coefficient_factory(output_last_dim, neurons)
         return self.add_weight(
             shape=coef.shape,
             initializer=tf.constant_initializer(coef.numpy()),

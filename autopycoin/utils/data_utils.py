@@ -186,22 +186,24 @@ def convert_to_list(to_convert: Any) -> list:
     If a list is provided, it doesn't wrap it."""
     return [to_convert] if not isinstance(to_convert, list) else to_convert
 
-
+#TODO: unit testing
 def transpose_first_to_last(inputs: tf.Tensor):
     """transpose the first dimension to the last position."""
-    #TODO: unit testing
+    
     perm = tf.concat([tf.range(1, tf.rank(inputs)), [0]], axis=0)
     return tf.transpose(inputs, perm=perm)
 
-
+#TODO: unit testing
 def transpose_last_to_first(inputs: tf.Tensor):
     """transpose the last dimension to the first position."""
-    #TODO: unit testing
+
+
     perm = tf.concat([[tf.rank(inputs) - 1], tf.range(tf.rank(inputs) - 1)], axis=0)
     return tf.transpose(inputs, perm=perm)
 
 def features(inputs, features_slice, columns_index):
     """Return an input and output date tensors from the features tensor."""
+
     feature_length = features_slice.stop - features_slice.start
     feature = tf.stack([inputs[..., features_slice, index] for index in columns_index], axis=-1)
     feature.set_shape([None, feature_length, len(columns_index)])
@@ -209,6 +211,7 @@ def features(inputs, features_slice, columns_index):
 
 def date_features(inputs, features_slice, columns_index) -> tf.Tensor:
     """Return an input and output date tensors from the features tensor."""
+
     date = features(inputs, features_slice, columns_index)
     date = tf.cast(date, tf.int32)
     date = tf.strings.as_string(date)

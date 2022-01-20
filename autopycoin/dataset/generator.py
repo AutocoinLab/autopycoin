@@ -41,7 +41,8 @@ class WindowGenerator(AutopycoinBaseClass):
         Default to None.
     preprocessing : callable or None
         Preprocessing function to use on the data.
-        This function will to take input of shape ((inputs, known, date_inputs, date_labels), labels).
+        This function needs to take input of shape ((inputs, ...), labels).
+        It is applied after the train, validation and test split.
         Default to None.
 
     Attributes
@@ -63,7 +64,8 @@ class WindowGenerator(AutopycoinBaseClass):
     The dataset's shape depends on the columns defined in `from_array` method.
     There are currently four input tensors which can be added inside the inputs dataset.
 
-    *Output shape* when all columns components are defined:
+    Output shape: 
+    when all columns components are defined:
     Tuple of shape ((inputs, known, date_inputs, date_labels), labels)
 
     inputs tensor:
@@ -89,6 +91,7 @@ class WindowGenerator(AutopycoinBaseClass):
     >>> import pandas as pd
     >>> from autopycoin.data import random_ts
     >>> from autopycoin.dataset import WindowGenerator
+    ...
     ... # We generate data
     >>> data = random_ts(n_steps=100,
     ...                  trend_degree=2,
@@ -102,7 +105,7 @@ class WindowGenerator(AutopycoinBaseClass):
     ...                  n_variables=1,
     ...                  noise=True,
     ...                  seed=42)
-    >>>
+    ...
     >>> w_oneshot = WindowGenerator(input_width=3,
     ...                             label_width=2,
     ...                             shift=10,
@@ -112,10 +115,10 @@ class WindowGenerator(AutopycoinBaseClass):
     ...                             batch_size=None,
     ...                             preprocessing=None)
     ...
-    ... # Here juste inputs and labels tensor are generated
+    ... # Here juste inputs and labels tensors are generated
     >>> w_oneshot = w_oneshot.from_array(data[0],
-    ...     input_columns=['values'],
-    ...     label_columns=['values'])
+    ...     input_columns=[0],
+    ...     label_columns=[0])
     """
 
     def __init__(
@@ -129,7 +132,7 @@ class WindowGenerator(AutopycoinBaseClass):
         sequence_stride: int = 1,
         batch_size: int = None,
         preprocessing: Union[None, Callable] = None,
-    ): 
+    ):
 
         self._input_width = input_width
         self._label_width = label_width
@@ -164,7 +167,7 @@ class WindowGenerator(AutopycoinBaseClass):
     def from_array(
         self,
         data: Union[pd.DataFrame, np.ndarray, tf.Tensor],
-        input_columns: Union[None, List[Union[int, str]]] = None,
+        input_columns: Union[None, List[Union[int, str]]],
         label_columns: Union[None, List[Union[int, str]]] = None,
         known_columns: Union[None, List[Union[int, str]]] = None,
         date_columns: Union[None, List[Union[int, str]]] = None,
@@ -283,7 +286,10 @@ class WindowGenerator(AutopycoinBaseClass):
         self._date_columns = date_columns if date_columns else None
 
     def _split_train_valid_test(self):
-        """Create train, valid and test dataset"""
+        """
+        Create train, valid and test dataset
+        """
+
         self._dataset = self._make_dataset(self.data)
 
         n_train_examples, n_valid_examples, n_shift_examples = self._get_dataset_sizes(self._dataset)
@@ -524,7 +530,10 @@ class WindowGenerator(AutopycoinBaseClass):
 
     @property
     def data(self) -> np.ndarray:
-        """Return the original data."""
+        """
+        Return the original data.
+        """
+
         if self._initialized:
             return self._data
         raise AttributeError(
@@ -534,54 +543,84 @@ class WindowGenerator(AutopycoinBaseClass):
 
     @data.setter
     def data(self, _) -> None:
-        """Set the new data."""
+        """
+        Set the new data.
+        """
+
         raise AttributeError(
             "You cannot modify `data`, use `from_array` instead."
         )
 
     @property
     def input_width(self) -> int:
-        """Return the input_width."""
+        """
+        Return the input_width.
+        """
+
         return self._input_width
 
     @property
     def label_width(self) -> int:
-        """Return the label_width."""
+        """
+        Return the label_width.
+        """
+
         return self._label_width
 
     @property
     def shift(self) -> int:
-        """Return the shift."""
+        """
+        Return the shift.
+        """
+
         return self._shift
 
     @property
     def valid_size(self) -> int:
-        """Return the valid_size."""
+        """
+        Return the valid_size.
+        """
+
         return self._valid_size
 
     @property
     def test_size(self) -> int:
-        """Return the test_size."""
+        """
+        Return the test_size.
+        """
+
         return self._test_size
 
     @property
     def flat(self):
-        """Return the attribute flat."""
+        """
+        Return the attribute flat.
+        """
+
         return self._flat
 
     @property
     def batch_size(self):
-        """Return the attribute batch_size."""
+        """
+        Return the attribute batch_size.
+        """
+
         return self._batch_size
 
     @property
     def sequence_stride(self):
-        """Return the attribute sequence_stride."""
+        """
+        Return the attribute sequence_stride.
+        """
+
         return self._sequence_stride
 
     @property
     def input_columns(self) -> List[Union[int, slice]]:
-        """Return the input_width."""
+        """
+        Return the input_width.
+        """
+
         if self._initialized:
             return self._input_columns
         raise AttributeError(
@@ -591,14 +630,20 @@ class WindowGenerator(AutopycoinBaseClass):
 
     @input_columns.setter
     def input_columns(self, _) -> None:
-        """Set the new data."""
+        """
+        Set the new data.
+        """
+
         raise AttributeError(
             "You cannot modify `input_columns`, use `from_array` instead."
         )
 
     @property
     def label_columns(self) -> List[Union[int, slice]]:
-        """Return the label_columns."""
+        """
+        Return the label_columns.
+        """
+
         if self._initialized:
             return self._label_columns
         raise AttributeError(
@@ -608,14 +653,20 @@ class WindowGenerator(AutopycoinBaseClass):
 
     @label_columns.setter
     def label_columns(self, _) -> None:
-        """Set the new data."""
+        """
+        Set the new data.
+        """
+
         raise AttributeError(
             "You cannot modify `label_columns`, use `from_array` instead."
         )
 
     @property
     def known_columns(self) -> List[Union[int, slice]]:
-        """Return the known_columns."""
+        """
+        Return the known_columns.
+        """
+
         if self._initialized:
             return self._known_columns
         raise AttributeError(
@@ -625,14 +676,20 @@ class WindowGenerator(AutopycoinBaseClass):
 
     @known_columns.setter
     def known_columns(self, _) -> None:
-        """Set the new data."""
+        """
+        Set the new data.
+        """
+
         raise AttributeError(
             "You cannot modify `known_columns`, use `from_array` instead."
         )
 
     @property
     def date_columns(self) -> List[Union[int, slice]]:
-        """Return date_columns."""
+        """
+        Return date_columns.
+        """
+
         if self._initialized:
             return self._date_columns
         raise AttributeError(
@@ -642,7 +699,10 @@ class WindowGenerator(AutopycoinBaseClass):
 
     @date_columns.setter
     def date_columns(self, _) -> None:
-        """Set the new data."""
+        """
+        Set the new data.
+        """
+
         raise AttributeError(
             "You cannot modify `date_columns`, use `from_array` instead."
         )
@@ -650,7 +710,10 @@ class WindowGenerator(AutopycoinBaseClass):
     def _val___init__(
         self, output: None, *args: list, **kwargs: dict
     ) -> None:  # pylint: disable=unused-argument
-        """Validates attributes and args of __init__ method."""
+        """
+        Validates attributes and args of __init__ method.
+        """
+
         assert (
             self.input_width > 0
         ), f"The input width has to be strictly positive, got {self.input_width}."
@@ -677,21 +740,29 @@ class WindowGenerator(AutopycoinBaseClass):
     def _val__from_dataframe(
         self, output: None, *args: list, **kwargs: dict
     ) -> None:  # pylint: disable=unused-argument
-        """Validates attributes and args of `_from_dataframe` method."""
+        """
+        Validates attributes and args of `_from_dataframe` method.
+        """
+
         assert len(self.input_columns) > 0, "The input columns list is empty."
         assert np.size(self.data), "The given parameter `data` is an empty DataFrame."
 
     def _val__from_array(
         self, output: None, *args: list, **kwargs: dict
     ) -> None:  # pylint: disable=unused-argument
-        """Validates attributes and args of `_from_array` method."""
+        """
+        Validates attributes and args of `_from_array` method.
+        """
+
         assert len(self.input_columns) > 0, "The input columns list is empty."
         assert np.size(self.data), "The given parameter `data` is an empty DataFrame."
     
     def _val__split_train_valid_test(
         self, output: None, *args: list, **kwargs: dict
     ) -> None:  # pylint: disable=unused-argument
-        """Validates attributes and args of `_compute_train_valid_test_split` method."""
+        """
+        Validates attributes and args of `_compute_train_valid_test_split` method.
+        """
 
         n_train_examples, _, _ = self._get_dataset_sizes(self._dataset)
         assert (
@@ -701,7 +772,9 @@ class WindowGenerator(AutopycoinBaseClass):
     def _val_from_array(
         self, output: None, *args: list, **kwargs: dict
     ) -> None:  # pylint: disable=unused-argument
-        """Validates attributes and args of `_val_from_array` method."""
+        """
+        Validates attributes and args of `_val_from_array` method.
+        """
 
         assert (
             max(self.input_columns) < self.data.shape[1]

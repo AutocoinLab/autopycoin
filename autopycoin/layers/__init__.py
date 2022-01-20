@@ -7,9 +7,7 @@ from .nbeats_layers import (
     SeasonalityBlock,
     GenericBlock,
     BaseBlock)
-
 from .base_layer import Layer
-
 from .strategy import UniVariate
 
 __ALL__ = [

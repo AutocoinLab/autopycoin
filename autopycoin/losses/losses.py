@@ -161,10 +161,9 @@ class SymetricMeanAbsolutePercentageError(LossFunctionWrapper, AutopycoinBaseCla
     ):
         super().__init__(smape, name=name, reduction=reduction)
 
-
+#TODO: ragged tensor
 class QuantileLossError(LossFunctionWrapper, AutopycoinBaseClass):
     """
-    #TODO: ragged tensor
     Calculate the quantile loss error between `y_true` and `y_pred`
     across all examples.
 
@@ -193,7 +192,7 @@ class QuantileLossError(LossFunctionWrapper, AutopycoinBaseClass):
 
     Attributes
     ----------
-    quantiles : list[:int]
+    quantiles : list[int]
 
     Examples
     --------
@@ -245,10 +244,9 @@ class QuantileLossError(LossFunctionWrapper, AutopycoinBaseClass):
             abs(quantile) for quantile in quantiles
         ], f"Negative quantiles are not allowed. got {quantiles}"
 
-
+# TODO: write doc, test and use LossFunctionWrapper, autpycoinBaseClass.
 class LagError(tf.keras.losses.Loss):
     """1 lag error MSE. Often used in time series analysis.
-    TODO: write doc, test and use LossFunctionWrapper, autpycoinBaseClass.
 
     Parameters
     ----------

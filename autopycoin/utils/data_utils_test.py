@@ -96,7 +96,6 @@ class ExampleHandlerTest(test.TestCase):
         """
         Dataset and tuple shapes are not handled.
         """
-        print(self.w.train)
         outputs = example_handler(self.w.train, self.w)
         self.assertEqual(
             ([output if output is None else output.shape for output in outputs[0]] + [outputs[1].shape]),
@@ -137,11 +136,11 @@ class ExampleHandlerTest(test.TestCase):
         self.assertEqual(
             ([output if output is None else output.shape for output in outputs[0]] + [outputs[1].shape]),
             [
-                tf.TensorShape([331, 50]),
+                tf.TensorShape([1, 50]),
                 None,
                 None,
                 None,
-                tf.TensorShape([331, 20]),
+                tf.TensorShape([1, 20]),
             ],
         )
 
@@ -250,7 +249,6 @@ class ExampleHandlerTest(test.TestCase):
 class FillNoneTest(test.TestCase):
     def test_max_value(self):
         tensor = (tf.constant([0.0]), tf.constant([0.0]))
-        print(fill_none(tensor, max_value=4))
         np.testing.assert_equal(
             fill_none(tensor, max_value=4),
             (tf.constant([0.0]), tf.constant([0.0]), None, None),
