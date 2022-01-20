@@ -13,7 +13,7 @@ import tensorflow as tf
 from tensorflow.python.keras import keras_parameterized
 from tensorflow.keras.backend import floatx
 
-from .generator import WindowGenerator, STRATEGIES
+from .generator import WindowGenerator
 from ..models.nbeats import create_interpretable_nbeats
 from ..losses.losses import QuantileLossError
 
@@ -42,13 +42,14 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 3,
                 3,
                 2,
-                "one_shot",
+                True,
+                2,
                 ["data1"],
                 ["label"],
                 ["data2"],
                 ["year"],
                 1,
-                [2, 3, 3, 3, 2, "one_shot", [0], [6], [1], [5], 1],
+                [2, 3, 3, 3, 2, True, 2, [0], [6], [1], [5], 1],
                 True,
             ),
             # Test data with their default values
@@ -58,13 +59,14 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 3,
                 3,
                 2,
-                "one_shot",
+                True,
+                1,
                 ["data1"],
                 ["label"],
                 [],
                 [],
                 None,
-                [2, 3, 3, 3, 2, "one_shot", [0], [6], [], [7], None],
+                [2, 3, 3, 3, 2, True, 1, [0], [6], None, None, None],
                 True,
             ),
             # Test data with others values
@@ -74,13 +76,14 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 3,
                 0,
                 0,
-                "auto_regressive",
+                False,
+                1,
                 ["data1", "label"],
                 ["label", "label"],
                 [],
                 [],
                 None,
-                [2, 3, 3, 0, 0, "auto_regressive", [0, 6], [6, 6], [], [7], None],
+                [2, 3, 3, 0, 0, False, 1, [0, 6], [6, 6], None, None, None],
                 True,
             ),
             # Test data with all arguments assigned
@@ -90,13 +93,14 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 3,
                 3,
                 2,
-                "one_shot",
+                True,
+                1,
                 [0],
                 [6],
                 [1],
                 [5],
                 1,
-                [2, 3, 3, 3, 2, "one_shot", [0], [6], [1], [5], 1],
+                [2, 3, 3, 3, 2, True, 1, [0], [6], [1], [5], 1],
                 False,
             ),
             # Test data with their default values
@@ -106,13 +110,14 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 3,
                 3,
                 2,
-                "one_shot",
+                True,
+                1,
                 [0],
                 [6],
                 [],
                 [],
                 None,
-                [2, 3, 3, 3, 2, "one_shot", [0], [6], [], [7], None],
+                [2, 3, 3, 3, 2, True, 1, [0], [6], None, None, None],
                 False,
             ),
             # Test data with others values
@@ -122,13 +127,31 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 3,
                 0,
                 0,
-                "auto_regressive",
+                False,
+                1,
                 [0, 6],
                 [6, 6],
                 [],
                 [],
                 None,
-                [2, 3, 3, 0, 0, "auto_regressive", [0, 6], [6, 6], [], [7], None],
+                [2, 3, 3, 0, 0, False, 1, [0, 6], [6, 6], None, None, None],
+                False,
+            ),
+            # Test data with float valid and test size
+            (
+                2,
+                3,
+                3,
+                0.25,
+                0.20,
+                False,
+                1,
+                [0, 6],
+                [6, 6],
+                [],
+                [],
+                None,
+                [2, 3, 3, 0.25, 0.20, False, 1, [0, 6], [6, 6], None, None, None],
                 False,
             ),
         ]
@@ -140,7 +163,8 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
         shift,
         valid_size,
         test_size,
-        strategy,
+        flat,
+        sequence_stride,
         input_columns,
         label_columns,
         known_columns,
@@ -151,13 +175,14 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
     ):
         """Attributes testing."""
         w = WindowGenerator(
-            input_width,
-            label_width,
-            shift,
-            valid_size,
-            test_size,
-            strategy,
-            batch_size,
+            input_width=input_width,
+            label_width=label_width,
+            shift=shift,
+            valid_size=valid_size,
+            test_size=test_size,
+            flat=flat,
+            sequence_stride=sequence_stride,
+            batch_size=batch_size,
         )
 
         attributes = [
@@ -166,7 +191,8 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
             "shift",
             "valid_size",
             "test_size",
-            "strategy",
+            "flat",
+            "sequence_stride",
             "input_columns",
             "label_columns",
             "known_columns",
@@ -175,7 +201,7 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
         ]
 
         if df:
-            w = w.from_dataframe(
+            w = w.from_array(
                 self.df,
                 input_columns,
                 label_columns,
@@ -229,7 +255,7 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 2,
                 2,
                 2,
-                "one_shot",
+                True,
                 ["data1"],
                 ["label"],
                 ["data1"],
@@ -244,7 +270,7 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 2,
                 2,
                 2,
-                "one_shot",
+                True,
                 ["data1"],
                 ["label"],
                 ["data1"],
@@ -259,7 +285,7 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 -2,
                 2,
                 2,
-                "one_shot",
+                True,
                 ["data1"],
                 ["label"],
                 ["data1"],
@@ -274,7 +300,7 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 2,
                 -2,
                 2,
-                "one_shot",
+                True,
                 ["data1"],
                 ["label"],
                 ["data1"],
@@ -289,7 +315,7 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 2,
                 2,
                 -2,
-                "one_shot",
+                True,
                 ["data1"],
                 ["label"],
                 ["data1"],
@@ -304,22 +330,7 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 2,
                 2,
                 2,
-                "regressive",
-                ["data1"],
-                ["label"],
-                ["data1"],
-                ["year"],
-                1,
-                AssertionError,
-                "Invalid strategy",
-            ),
-            (
-                2,
-                2,
-                2,
-                2,
-                2,
-                "one_shot",
+                True,
                 ["data1"],
                 ["label"],
                 ["data1"],
@@ -334,7 +345,7 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 2,
                 2,
                 2,
-                "one_shot",
+                True,
                 ["data15"],
                 ["label"],
                 ["data1"],
@@ -349,7 +360,7 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 2,
                 2,
                 2,
-                "one_shot",
+                True,
                 ["data1"],
                 ["data15"],
                 ["data1"],
@@ -364,7 +375,7 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 2,
                 2,
                 2,
-                "one_shot",
+                True,
                 ["data1"],
                 ["label"],
                 ["data15"],
@@ -379,7 +390,7 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 2,
                 2,
                 2,
-                "one_shot",
+                True,
                 ["data1"],
                 ["label"],
                 ["data1"],
@@ -394,7 +405,7 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 2,
                 2,
                 2,
-                "one_shot",
+                True,
                 [],
                 ["data1"],
                 [],
@@ -404,34 +415,19 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 "The input columns list is empty",
             ),
             (
-                2,
-                2,
-                2,
-                2,
-                2,
-                "one_shot",
-                ["data1"],
-                [],
-                [],
-                [],
-                1,
-                AssertionError,
-                "The label columns list is empty",
-            ),
-            (
                 100,
                 2,
                 2,
                 2,
                 2,
-                "one_shot",
+                True,
                 ["data1"],
                 ["data1"],
                 [],
                 [],
                 1,
                 AssertionError,
-                "The input width and shift has to be equal or lower than",
+                "The training dataset is empty, please redefine the test size or valid size",
             ),
             (
                 2,
@@ -439,7 +435,7 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 2,
                 2,
                 2,
-                "one_shot",
+                True,
                 ["data1"],
                 ["data1"],
                 [],
@@ -454,14 +450,14 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 100,
                 2,
                 2,
-                "one_shot",
+                True,
                 ["data1"],
                 ["data1"],
                 [],
                 [],
                 1,
                 AssertionError,
-                "The input width and shift has to be equal or lower than",
+                "The training dataset is empty, please redefine the test size or valid size",
             ),
             (
                 2,
@@ -469,14 +465,14 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 2,
                 1000,
                 2,
-                "one_shot",
+                True,
                 ["data1"],
                 ["data1"],
                 [],
                 [],
                 1,
                 AssertionError,
-                "The training dataframe is empty, please redefine the test size or valid size.",
+                "The training dataset is empty, please redefine the test size or valid size.",
             ),
             (
                 2,
@@ -484,14 +480,44 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 2,
                 2,
                 1000,
-                "one_shot",
+                True,
                 ["data1"],
                 ["data1"],
                 [],
                 [],
                 1,
                 AssertionError,
-                "The training dataframe is empty, please redefine the test size or valid size.",
+                "The training dataset is empty, please redefine the test size or valid size.",
+            ),
+            (
+                2,
+                2,
+                2,
+                1.0,
+                0.1,
+                True,
+                ["data1"],
+                ["data1"],
+                [],
+                [],
+                1,
+                AssertionError,
+                "The training dataset is empty, please redefine the test size or valid size.",
+            ),
+            (
+                2,
+                2,
+                2,
+                0.1,
+                1.0,
+                True,
+                ["data1"],
+                ["data1"],
+                [],
+                [],
+                1,
+                AssertionError,
+                "The training dataset is empty, please redefine the test size or valid size.",
             ),
         ]
     )
@@ -502,7 +528,7 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
         shift,
         valid_size,
         test_size,
-        strategy,
+        flat,
         input_columns,
         label_columns,
         known_columns,
@@ -514,22 +540,26 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
         """Test attributes assertions."""
         with self.assertRaisesRegex(error, msg_error):
             w = WindowGenerator(
-                input_width,
-                label_width,
-                shift,
-                valid_size,
-                test_size,
-                strategy,
-                batch_size,
+                input_width=input_width,
+                label_width=label_width,
+                shift=shift,
+                valid_size=valid_size,
+                test_size=test_size,
+                flat=flat,
+                batch_size=batch_size,
             )
 
-            w.from_dataframe(
+            w.from_array(
                 test_dataframe(),
                 input_columns,
                 label_columns,
                 known_columns,
                 date_columns,
             )
+
+            w.train
+            w.valid
+            w.test
 
     @parameterized.parameters(
         [
@@ -539,16 +569,13 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 2,
                 4,
                 2,
-                "one_shot",
-                ["data1"],
+                True,
                 ["data1"],
                 ["label"],
+                ["data1"],
                 ["year"],
                 1,
                 [
-                    "train_data",
-                    "valid_data",
-                    "test_data",
                     "train",
                     "valid",
                     "test",
@@ -558,17 +585,18 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 (1, 2),
                 (1, 2),
                 (1, 2),
+                4
             ),
             (
                 2,
                 2,
                 2,
                 2,
-                0,
-                "one_shot",
-                ["data1"],
+                2,
+                True,
                 ["data1"],
                 ["label"],
+                ["data1"],
                 ["year"],
                 1,
                 ["train", "valid", "test"],
@@ -576,17 +604,18 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 (1, 2),
                 (1, 2),
                 (1, 2),
+                4
             ),
             (
                 2,
                 2,
                 2,
-                0,
-                0,
-                "one_shot",
-                ["data1"],
+                1,
+                1,
+                True,
                 ["data1"],
                 ["label"],
+                ["data1"],
                 ["year"],
                 1,
                 ["train", "valid", "test"],
@@ -594,24 +623,26 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 (1, 2),
                 (1, 2),
                 (1, 2),
+                4
             ),
             (
                 2,
                 2,
                 2,
-                0,
+                1,
                 2,
-                "one_shot",
+                True,
                 ["data1"],
+                [],
                 ["data1"],
-                ["label"],
                 ["year"],
                 1,
                 ["train", "valid", "test"],
                 (1, 2),
+                None,
                 (1, 2),
                 (1, 2),
-                (1, 2),
+                4
             ),
             (
                 2,
@@ -619,17 +650,18 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 2,
                 2,
                 2,
-                "one_shot",
-                ["data1"],
+                True,
                 ["data1"],
                 ["label"],
+                [],
                 [],
                 1,
                 ["train", "valid", "test"],
                 (1, 2),
                 (1, 2),
-                (1, 2),
-                (1, 2),
+                None,
+                None,
+                1
             ),
             (
                 2,
@@ -637,17 +669,18 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 2,
                 2,
                 2,
-                "auto_regressive",
-                ["data1"],
+                False,
                 ["data1"],
                 ["label"],
+                ["data1"],
                 [],
                 1,
                 ["train", "valid", "test"],
                 (1, 2, 1),
                 (1, 2, 1),
                 (1, 2, 1),
-                (1, 2, 1),
+                None,
+                2
             ),
             (
                 2,
@@ -655,17 +688,18 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 2,
                 2,
                 2,
-                "one_shot",
+                True,
                 ["data1", "data1"],
-                ["data1"],
                 ["label"],
+                ["data1"],
                 [],
                 1,
                 ["train", "valid", "test"],
                 (1, 4),
                 (1, 2),
                 (1, 2),
-                (1, 2),
+                None,
+                2
             ),
             (
                 2,
@@ -673,17 +707,18 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 2,
                 2,
                 2,
-                "auto_regressive",
+                False,
                 ["data1", "data1"],
-                ["data1"],
                 ["label"],
+                ["data1"],
                 [],
                 1,
                 ["train", "valid", "test"],
                 (1, 2, 2),
                 (1, 2, 1),
                 (1, 2, 1),
-                (1, 2, 1),
+                None,
+                2
             ),
         ]
     )
@@ -694,7 +729,7 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
         shift,
         valid_size,
         test_size,
-        strategy,
+        flat,
         input_columns,
         label_columns,
         known_columns,
@@ -705,18 +740,19 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
         expected_label_shape,
         expected_known_shape,
         expected_date_shape,
+        expected_x_shape
     ):
         w = WindowGenerator(
-            input_width,
-            label_width,
-            shift,
-            valid_size,
-            test_size,
-            strategy,
-            batch_size,
+            input_width=input_width,
+            label_width=label_width,
+            shift=shift,
+            valid_size=valid_size,
+            test_size=test_size,
+            flat=flat,
+            batch_size=batch_size,
         )
 
-        w = w.from_dataframe(
+        w = w.from_array(
             self.df,
             input_columns,
             label_columns,
@@ -731,64 +767,47 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
             if attr == "data":
                 self.assertIsInstance(property, np.ndarray)
                 np.testing.assert_equal(w.data, self.df)
-            elif "_data" in attr:
-                self.assertIsInstance(property, np.ndarray)
-                if np.size(df):
-                    df = np.concatenate((df, property))
-                else:
-                    df = property
-                if "test" in attr:
-                    self.assertEqual(
-                        df.shape[0],
-                        self.df.shape[0] + 2 * input_width,
-                        f"array duplicates",
-                    )
-                    # shapes
-                    self.assertEqual(
-                        property.shape,
-                        (test_size - 1 + (input_width + shift), 7),
-                        "error in test_data shape",
-                    )
-                if "valid" in attr:
-                    self.assertEqual(
-                        property.shape,
-                        (valid_size - 1 + (input_width + shift), 7),
-                        "error in valid_data shape",
-                    )
-                # Types
-                self.assertAllInSet(property.dtype, ["int64"])
-            elif property:
+            elif property is not None:
                 self.assertIsInstance(property, tf.data.Dataset)
                 expected_cardinality = valid_size if "valid" in attr else test_size
                 if "valid" in attr or "test" in attr:
                     self.assertEqual(
-                        property.cardinality(),
+                        property.reduce(np.int64(0), lambda x,_ : x + 1),
                         expected_cardinality,
                         f"Error in {attr}, cardinality not equals.",
                     )
-                # Test shape
-                x, y = iter(property).get_next()
-                self.assertIsInstance(x, tuple)
-                self.assertEqual(len(x), 4)
-                self.assertIsInstance(y, tf.Tensor)
-                self.assertEqual(x[0].shape, expected_input_shape)
-                self.assertEqual(x[2].shape, expected_date_shape)
-                self.assertEqual(x[3].shape, expected_date_shape)
-                self.assertEqual(y.shape, expected_label_shape)
-                if len(known_columns) == 0:
-                    self.assertEqual(x[1].shape, (expected_known_shape[0], 0))
+                # Test shape, handle if columns are not defined
+                if expected_label_shape:
+                    x, y = iter(property).get_next()
                 else:
+                    x = iter(property).get_next()
+                if expected_x_shape > 1:
+                    self.assertIsInstance(x, tuple)
+                else:
+                    self.assertIsInstance(x, tf.Tensor)
+                self.assertEqual(len(x), expected_x_shape)
+                if expected_input_shape:
+                    if expected_x_shape > 1:
+                        self.assertEqual(x[0].shape, expected_input_shape)
+                        self.assertDTypeEqual(x[0], floatx())
+                    else:
+                        self.assertEqual(x.shape, expected_input_shape)
+                        self.assertDTypeEqual(x, floatx())
+                if expected_date_shape:
+                    self.assertEqual(x[-2].shape, expected_date_shape)
+                    self.assertDTypeEqual(x[-2], "O")
+                    self.assertEqual(x[-1].shape, expected_date_shape)
+                    self.assertDTypeEqual(x[-1], "O")
+                if expected_label_shape:
+                    self.assertIsInstance(y, tf.Tensor)
+                    self.assertEqual(y.shape, expected_label_shape)
+                    self.assertDTypeEqual(y, floatx())
+                if expected_known_shape:
                     self.assertEqual(x[1].shape, expected_known_shape)
-
-                # Test type
-                self.assertDTypeEqual(x[0], floatx())
-                self.assertDTypeEqual(x[1], floatx())
-                self.assertDTypeEqual(x[2], "O")
-                self.assertDTypeEqual(x[3], "O")
-                self.assertDTypeEqual(y, floatx())
+                    self.assertDTypeEqual(x[1], floatx())
 
                 # values
-                if "train" in attr:
+                if "train" in attr and expected_x_shape == 4 and expected_label_shape:
                     for values, col, s in zip(
                         [x[0], x[1], x[2], x[3], y],
                         [
@@ -807,14 +826,14 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                         ],
                     ):
                         # Not testing index or values type.
-                        if strategy == "one_shot":
+                        if flat == True:
                             variables = len(col)
                             values = tf.reshape(
                                 values.numpy().astype(floatx()), (-1, variables)
                             )
-                        elif strategy == "auto_regressive":
+                        elif flat == False:
                             values = values[0].numpy().astype(floatx())
-                        np.testing.assert_equal(w.train_data[s, col], values)
+                        np.testing.assert_equal(self.df.values[s, col], values)
             else:
                 self.assertIsInstance(property, type(None))
 
@@ -826,7 +845,7 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 2,
                 2,
                 2,
-                "one_shot",
+                True,
                 ["data1"],
                 ["data1"],
                 ["label"],
@@ -843,16 +862,16 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 2,
                 2,
                 2,
-                "one_shot",
+                True,
                 ["data1"],
                 ["data1"],
                 ["label"],
                 ["year"],
                 None,
-                (97, 2),
-                (97, 2),
-                (97, 2),
-                (97, 2),
+                (1, 2),
+                (1, 2),
+                (1, 2),
+                (1, 2),
             ),
             (
                 2,
@@ -860,7 +879,7 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 2,
                 2,
                 2,
-                "auto_regressive",
+                False,
                 ["data1"],
                 ["data1"],
                 ["label"],
@@ -877,16 +896,16 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 2,
                 2,
                 2,
-                "auto_regressive",
+                False,
                 ["data1"],
                 ["data1"],
                 ["label"],
                 ["year"],
                 None,
-                (97, 2, 1),
-                (97, 2, 1),
-                (97, 2, 1),
-                (97, 2, 1),
+                (1, 2, 1),
+                (1, 2, 1),
+                (1, 2, 1),
+                (1, 2, 1),
             ),
         ]
     )
@@ -897,7 +916,7 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
         shift,
         valid_size,
         test_size,
-        strategy,
+        flat,
         input_columns,
         label_columns,
         known_columns,
@@ -910,16 +929,16 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
     ):
 
         w = WindowGenerator(
-            input_width,
-            label_width,
-            shift,
-            valid_size,
-            test_size,
-            strategy,
-            batch_size,
+            input_width=input_width,
+            label_width=label_width,
+            shift=shift,
+            valid_size=valid_size,
+            test_size=test_size,
+            flat=flat,
+            batch_size=batch_size,
         )
 
-        w = w.from_dataframe(
+        w = w.from_array(
             self.df,
             input_columns,
             label_columns,
@@ -932,12 +951,12 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
         # shape
         self.assertIsInstance(dataset, tf.data.Dataset)
         expected_cardinality = (
-            1
+            self.df.shape[0] + 1 - input_width - shift
             if batch_size is None
             else int((self.df.shape[0] + 1 - input_width - shift) / batch_size)
         )
         self.assertEqual(
-            dataset.cardinality(), expected_cardinality, f"Error in cardinality."
+            dataset.reduce(np.int64(0), lambda x,_ : x + 1).numpy(), expected_cardinality, f"Error in cardinality."
         )
 
         # Test shape
@@ -966,7 +985,7 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 2,
                 2,
                 2,
-                "one_shot",
+                True,
                 ["data1"],
                 ["data1"],
                 ["label"],
@@ -981,7 +1000,7 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 2,
                 2,
                 2,
-                "one_shot",
+                True,
                 ["data1"],
                 ["data1"],
                 ["label"],
@@ -999,7 +1018,7 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
         shift,
         valid_size,
         test_size,
-        strategy,
+        flat,
         input_columns,
         label_columns,
         known_columns,
@@ -1010,16 +1029,16 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
     ):
 
         w = WindowGenerator(
-            input_width,
-            label_width,
-            shift,
-            valid_size,
-            test_size,
-            strategy,
-            batch_size,
+            input_width = input_width,
+            label_width = label_width,
+            shift = shift,
+            valid_size = valid_size,
+            test_size = test_size,
+            flat = flat,
+            batch_size = batch_size,
         )
 
-        w = w.from_dataframe(
+        w = w.from_array(
             self.df,
             input_columns,
             label_columns,
@@ -1033,7 +1052,7 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
 
     @parameterized.parameters(
         [
-            (2, 2, 2, 2, 2, "one_shot", ["data1"], ["data1"], ["label"], ["year"], 1),
+            (2, 2, 2, 2, 2, True, ["data1"], ["data1"], ["label"], ["year"], 1),
         ]
     )
     def test_with_model(
@@ -1043,7 +1062,7 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
         shift,
         valid_size,
         test_size,
-        strategy,
+        flat,
         input_columns,
         label_columns,
         known_columns,
@@ -1051,10 +1070,9 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
         batch_size,
     ):
         model = create_interpretable_nbeats(
-            input_width=2,
             label_width=2,
-            periods=[2],
-            back_periods=[2],
+            forecast_periods=[2],
+            backcast_periods=[2],
             forecast_fourier_order=[2],
             backcast_fourier_order=[2],
             p_degree=1,
@@ -1065,16 +1083,16 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
         )
 
         w = WindowGenerator(
-            input_width,
-            label_width,
-            shift,
-            valid_size,
-            test_size,
-            strategy,
-            batch_size,
+            input_width = input_width,
+            label_width = label_width,
+            shift = shift,
+            valid_size = valid_size,
+            test_size = test_size,
+            flat = flat,
+            batch_size = batch_size,
         )
 
-        w = w.from_dataframe(
+        w = w.from_array(
             self.df,
             input_columns,
             label_columns,

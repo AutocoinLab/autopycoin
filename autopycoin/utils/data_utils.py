@@ -1,13 +1,13 @@
 """Checks used to modified inputs."""
 
-from typing import Union, Tuple, List
+from typing import Any, Union, Tuple, List
 import numpy as np
 
 import tensorflow as tf
 from tensorflow.keras.backend import floatx
 
 
-def check_infinity(tensor: tf.Tensor) -> tf.Tensor:
+def avoid_infinity(tensor: tf.Tensor) -> tf.Tensor:
     """
     This function is used to verify infinite values and to mask them.
 
@@ -28,7 +28,7 @@ def check_infinity(tensor: tf.Tensor) -> tf.Tensor:
     if isinstance(tensor, tf.RaggedTensor):
         new_tensor = tf.ragged.boolean_mask(tensor, mask, name="boolean_mask")
     else:
-        new_tensor = tf.boolean_mask(tensor, mask, axis=[None], name="boolean_mask")
+        new_tensor = tf.boolean_mask(tensor, mask, axis=None, name="boolean_mask")
 
     return new_tensor
 
@@ -84,15 +84,17 @@ def quantiles_handler(quantiles: List[Union[int, float]]) -> tf.Tensor:
     return (quantiles / 100).tolist()
 
 
-def example_handler(dataset):
+def example_handler(dataset: tf.data.Dataset, window_generator: Any) -> Tuple[tf.Tensor]:
     """
     Convenient function which extract one instance of a
-    `WindowGenerator` train, validation, test or forecast dataset.
+    `WindowGenerator` train, validation, test or a forecast dataset.
 
     Parameters
     ----------
     dataset : `WindowGenerator datasets` or tuple[`tensor`]
         `WindowGenerator` datasets train, validation, test or forecast.
+    window_generator: :class:`autopycoin.dataset.WindowGenerator`
+        A :class:`autopycoin.dataset.WindowGenerator` instance.
 
     Returns
     -------
@@ -101,31 +103,37 @@ def example_handler(dataset):
         abouyt each tensor.
     """
 
+    # If tuple we make sure it is composed by tensors
     if isinstance(dataset, tuple):
+        index = [
+            True,
+            bool(window_generator.known_columns),
+            bool(window_generator.date_columns),
+            bool(window_generator.date_columns),
+        ]
         if (
             len(dataset) != 2
-            or len(dataset[0]) != 4
+            or sum(index) != sum(True for tensor in dataset[0] if tensor is not None)
             or not isinstance(dataset[1], tf.Tensor)
         ):
             raise ValueError(
-                "Accepts only tuple of shapes (inputs, labels) with inputs of lenght 4 and where labels is a tensor"
+                f"""Accepts only a tuple of shapes (inputs, labels) with the inputs composed by {sum(index)} tensors.
+                Got an inputs of {len(dataset[0])} tensors and a labels component of type {type(dataset[1])}."""
             )
 
-        # test type
-        dtypes = [output.dtype for output in dataset[0]] + [dataset[1].dtype]
-        expected_types = [
-            tf.float32,
-            tf.float32,
-            np.dtype("<U2"),
-            np.dtype("<U2"),
-            tf.float32,
-        ]
-        if dtypes != expected_types:
-            raise ValueError(
-                f"Accepts only tuple of types {expected_types}. got {dtypes}"
-            )
+        inputs, labels = dataset
+        # Fill by None value to build an inputs tuple of shape (inputs, known, date_inputs, date_labels)
+        inputs = fill_none(inputs, index=index)
+        dtypes = [inp.dtype for inp in inputs if inp is not None] + [dataset[1].dtype]
 
-        return dataset
+        expected_types = [tf.float32, np.dtype("<U2")]
+
+        for dtype in dtypes:
+            if dtype != np.dtype("<U2") and dtype != tf.float32:
+                raise ValueError(
+                    f"Accepts only tensors of types {expected_types}. got {dtypes}"
+                )
+        return inputs, labels
 
     # dataset needs to be a tensorflow dataset or a tuple
     elif not isinstance(dataset, tf.data.Dataset):
@@ -133,13 +141,78 @@ def example_handler(dataset):
             f"Accepts only tensorflow dataset or tuple. got {type(dataset)}"
         )
 
-    inputs, outputs = iter(dataset).get_next()
+    inputs, labels = iter(dataset).get_next()
+
+    # Fill by None value to build an inputs tuple of shape (inputs, known, date_inputs, date_labels)
+    inputs = fill_none(
+        inputs,
+        index=[
+            True,
+            bool(window_generator.known_columns),
+            bool(window_generator.date_columns),
+            bool(window_generator.date_columns),
+        ],
+    )
 
     (inputs, known, date_inputs, date_labels) = inputs
-    labels = outputs
 
     # date_inputs and date_labels are bytes and need to be decoded to feed matplotlib plot
-    date_inputs = date_inputs.numpy().astype("str")
-    date_labels = date_labels.numpy().astype("str")
+    if not isinstance(date_inputs, type(None)):
+        date_inputs = date_inputs.numpy().astype("str")
+    if not isinstance(date_labels, type(None)):
+        date_labels = date_labels.numpy().astype("str")
 
     return (inputs, known, date_inputs, date_labels), labels
+
+
+def fill_none(
+    inputs: Union[tuple, tf.Tensor], max_value: int = 4, index: List[bool] = None
+) -> Tuple[tf.Tensor]:
+    """Fill the inputs tuple by None values."""
+    # if tensor then it becomes a list of lists
+    inputs = list(inputs) if isinstance(inputs, tuple) else [inputs]
+    if not index:
+        return tuple(
+            None if value > len(inputs) - 1 else inputs[value]
+            for value in range(max_value)
+        )
+    return tuple(
+            None if not index[value] else inputs.pop(0) for value in range(max_value)
+        )
+
+
+def convert_to_list(to_convert: Any) -> list:
+    """Wrap the object with a list.
+    If a list is provided, it doesn't wrap it."""
+    return [to_convert] if not isinstance(to_convert, list) else to_convert
+
+#TODO: unit testing
+def transpose_first_to_last(inputs: tf.Tensor):
+    """transpose the first dimension to the last position."""
+    
+    perm = tf.concat([tf.range(1, tf.rank(inputs)), [0]], axis=0)
+    return tf.transpose(inputs, perm=perm)
+
+#TODO: unit testing
+def transpose_last_to_first(inputs: tf.Tensor):
+    """transpose the last dimension to the first position."""
+
+
+    perm = tf.concat([[tf.rank(inputs) - 1], tf.range(tf.rank(inputs) - 1)], axis=0)
+    return tf.transpose(inputs, perm=perm)
+
+def features(inputs, features_slice, columns_index):
+    """Return an input and output date tensors from the features tensor."""
+
+    feature_length = features_slice.stop - features_slice.start
+    feature = tf.stack([inputs[..., features_slice, index] for index in columns_index], axis=-1)
+    feature.set_shape([None, feature_length, len(columns_index)])
+    return feature
+
+def date_features(inputs, features_slice, columns_index) -> tf.Tensor:
+    """Return an input and output date tensors from the features tensor."""
+
+    date = features(inputs, features_slice, columns_index)
+    date = tf.cast(date, tf.int32)
+    date = tf.strings.as_string(date)
+    return tf.strings.reduce_join(date, separator="-", axis=-1, keepdims=True)

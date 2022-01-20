@@ -3,22 +3,22 @@ Functions to assess loss.
 """
 
 import numpy as np
-from typing import Union, List, Optional
+from typing import Callable, Union, List, Optional
 import pandas as pd
 
 import tensorflow as tf
-from tensorflow.keras.backend import epsilon
+from tensorflow.keras.backend import epsilon, maximum
 from tensorflow.python.keras.losses import LossFunctionWrapper
 from tensorflow.python.keras.utils import losses_utils
 
-from ..utils import check_infinity, quantiles_handler
+from ..utils import quantiles_handler
 from .. import AutopycoinBaseClass
 
 
 Yannotation = Union[tf.Tensor, pd.DataFrame, np.array, list]
 
 
-def smape(y_true: Yannotation, y_pred: Yannotation, mask: Optional[bool] = False):
+def smape(y_true: Yannotation, y_pred: Yannotation):
     """
     Calculate the symmetric mean absolute percentage error between `y_true`and `y_pred`.
 
@@ -51,24 +51,10 @@ def smape(y_true: Yannotation, y_pred: Yannotation, mask: Optional[bool] = False
         y_pred = tf.convert_to_tensor(y_pred)
 
     y_true = tf.cast(y_true, dtype=y_pred.dtype)
-
-    mask = tf.convert_to_tensor(mask)
-
-    diff = tf.abs(y_true - y_pred)
-    total = tf.abs(y_true) + tf.abs(y_pred)
-
-    error = tf.cond(
-        mask,
-        lambda: check_infinity(diff / total),
-        lambda: diff / (total + epsilon()),
+    error = tf.abs(y_true - y_pred) / (
+        maximum(tf.abs(y_true), epsilon()) + tf.abs(y_pred)
     )
-
-    if isinstance(diff, tf.RaggedTensor):
-        total_samples = tf.cast(error.row_lengths(), dtype=error.dtype)
-    else:
-        total_samples = diff.shape[1]
-
-    error = 200 * tf.reduce_sum(error, axis=-1) / total_samples
+    error = 200.0 * tf.reduce_mean(error, axis=-1)
     return error
 
 
@@ -97,7 +83,7 @@ def quantile_loss(
     >>> from autopycoin.losses import quantile_loss
     >>> import tensorflow as tf
     >>> y_true = [[0., 1.], [0., 0.]]
-    >>> y_pred = [[[1., 1.], [1., 0.]]]
+    >>> y_pred = [[[1.], [1.]], [[1.], [0.]]]
     >>> quantile_loss(y_true, y_pred, quantiles=[0.5]).numpy()
     array([0.25, 0.25], dtype=float32)
     """
@@ -108,26 +94,16 @@ def quantile_loss(
     y_true = tf.cast(y_true, dtype=y_pred.dtype)
     quantiles = tf.convert_to_tensor(quantiles)
 
-    # Broadcast quantiles to y_true
-    shape_broadcast = tf.concat(
-        ([tf.shape(quantiles)[0]], tf.ones(tf.rank(y_pred) - 1, dtype=tf.int32)), axis=0
-    )
-    quantiles = tf.reshape(quantiles, shape=shape_broadcast)
+    if tf.rank(y_pred) > tf.rank(y_true):
+        y_true = tf.expand_dims(y_true, -1)
 
     diff = y_pred - y_true
     q_loss = quantiles * tf.clip_by_value(diff, 0.0, np.inf) + (
         1 - quantiles
     ) * tf.clip_by_value(-diff, 0.0, np.inf)
 
-    # Handle ragged tensor
-    if isinstance(y_true, tf.RaggedTensor):
-        total_samples = tf.cast(y_true.bounding_shape()[1], dtype=y_true.dtype)
-    else:
-        total_samples = y_true.shape[1]
-
-    error = tf.math.divide(q_loss, total_samples)
-
-    return tf.reduce_sum(error, axis=[0, -1])
+    error = tf.reduce_mean(q_loss, axis=-2)
+    return tf.reduce_sum(error, axis=[-1])
 
 
 class SymetricMeanAbsolutePercentageError(LossFunctionWrapper, AutopycoinBaseClass):
@@ -152,9 +128,6 @@ class SymetricMeanAbsolutePercentageError(LossFunctionWrapper, AutopycoinBaseCla
         for more details.
     name : str, `Optional`
         name for the op. Default to "smape".
-    mask : bool, `Optional`
-        Define if infinite values need to be taken into account.
-        Default to False.
 
     Examples
     --------
@@ -169,10 +142,6 @@ class SymetricMeanAbsolutePercentageError(LossFunctionWrapper, AutopycoinBaseCla
     >>> # Calling with 'sample_weight'.
     >>> smape(y_true, y_pred, sample_weight=[0.7, 0.3]).numpy()
     49.999992
-    >>> # Using mask.
-    >>> smape = SymetricMeanAbsolutePercentageError(mask=True)
-    >>> smape(y_true, y_pred).numpy()
-    100.0
     >>> # Using 'sum' reduction type.
     >>> smape = SymetricMeanAbsolutePercentageError(
     ...     reduction=tf.keras.losses.Reduction.SUM)
@@ -182,18 +151,17 @@ class SymetricMeanAbsolutePercentageError(LossFunctionWrapper, AutopycoinBaseCla
     >>> smape = SymetricMeanAbsolutePercentageError(
     ...     reduction=tf.keras.losses.Reduction.NONE)
     >>> smape(y_true, y_pred).numpy()
-    array([99.999985, 99.999985], dtype=float32)
+    array([100., 100.], dtype=float32)
     """
 
     def __init__(
         self,
         reduction: Optional[str] = losses_utils.ReductionV2.AUTO,
         name: Optional[str] = "smape",
-        mask: Optional[bool] = False,
     ):
-        super().__init__(smape, name=name, reduction=reduction, mask=mask)
+        super().__init__(smape, name=name, reduction=reduction)
 
-
+#TODO: ragged tensor
 class QuantileLossError(LossFunctionWrapper, AutopycoinBaseClass):
     """
     Calculate the quantile loss error between `y_true` and `y_pred`
@@ -224,14 +192,14 @@ class QuantileLossError(LossFunctionWrapper, AutopycoinBaseClass):
 
     Attributes
     ----------
-    quantiles : list[:int]
+    quantiles : list[int]
 
     Examples
     --------
     >>> import tensorflow as tf
     >>> from autopycoin.losses import QuantileLossError
     >>> y_true = [[0., 1.], [0., 0.]]
-    >>> y_pred = [[[1., 1.], [1., 0.]]]
+    >>> y_pred = [[[1.], [1.]], [[1.], [0.]]]
     >>> # Using 'auto'/'sum_over_batch_size' reduction type.
     >>> ql = QuantileLossError(quantiles=[0.5])
     >>> ql(y_true, y_pred).numpy()
@@ -250,7 +218,7 @@ class QuantileLossError(LossFunctionWrapper, AutopycoinBaseClass):
     >>> ql(y_true, y_pred).numpy()
     array([0.25, 0.25], dtype=float32)
     >>> # Using multiple quantiles.
-    >>> y_pred = [[[1., 1.], [1., 0.]], [[1., 1.], [1., 0.]], [[1., 1.], [1., 0.]]]
+    >>> y_pred = [[[1.,1.,1.], [1.,1.,1.]], [[1.,1.,1.], [0.,0.,0.]]]
     >>> ql = QuantileLossError(quantiles=[0.1, 0.5, 0.9])
     >>> ql(y_true, y_pred).numpy()
     1.5
@@ -275,3 +243,25 @@ class QuantileLossError(LossFunctionWrapper, AutopycoinBaseClass):
         assert quantiles == [
             abs(quantile) for quantile in quantiles
         ], f"Negative quantiles are not allowed. got {quantiles}"
+
+# TODO: write doc, test and use LossFunctionWrapper, autpycoinBaseClass.
+class LagError(tf.keras.losses.Loss):
+    """1 lag error MSE. Often used in time series analysis.
+
+    Parameters
+    ----------
+    lag : int
+    """
+
+    def __init__(self, fn_loss: Callable, lag: int, **kwargs):
+        super().__init__(**kwargs)
+        self.lag = lag
+        self.fn_loss = fn_loss
+
+    def call(self, y_true, y_pred):
+        y_pred = tf.convert_to_tensor(y_pred)
+        y_true = tf.cast(y_true, y_pred.dtype)
+
+        y_pred = y_pred[:, self.lag :] - y_pred[:, : -self.lag]
+        y_true = y_true[:, self.lag :] - y_true[:, : -self.lag]
+        return self.fn_loss(y_true, y_pred)

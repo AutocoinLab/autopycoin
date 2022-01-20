@@ -4,28 +4,21 @@ Initialization of models.
 
 from .nbeats import (
     NBEATS,
+    PoolNBEATS,
     Stack,
     create_interpretable_nbeats,
     create_generic_nbeats,
+    interpretable_nbeats_builder
 )
-from .nbeats_blocks import (
-    TrendBlock,
-    SeasonalityBlock,
-    GenericBlock,
-    BaseBlock,
-)
+
 from .training import Model
-from .base_layer import Layer
 
 __ALL__ = [
     "NBEATS",
+    "PoolNBEATS",
     "Stack",
-    "TrendBlock",
-    "SeasonalityBlock",
-    "GenericBlock",
-    "BaseBlock",
     "create_interpretable_nbeats",
     "create_generic_nbeats",
     "Model",
-    "Layer",
+    "interpretable_nbeats_builder"
 ]

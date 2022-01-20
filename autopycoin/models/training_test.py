@@ -25,9 +25,8 @@ class ModelTest(tf.test.TestCase, parameterized.TestCase):
     def test_attributes(self):
         model = create_interpretable_nbeats(
             label_width=10,
-            input_width=10,
-            periods=[10],
-            back_periods=[10],
+            forecast_periods=[10],
+            backcast_periods=[10],
             forecast_fourier_order=[10],
             backcast_fourier_order=[10],
             p_degree=2,
@@ -64,6 +63,7 @@ class ModelTest(tf.test.TestCase, parameterized.TestCase):
         )
 
         data = pd.DataFrame(data[0].numpy(), columns=["test"])
+        data['date'] = range(400)
 
         w = WindowGenerator(
             label_width=50,
@@ -71,23 +71,21 @@ class ModelTest(tf.test.TestCase, parameterized.TestCase):
             shift=50,
             test_size=10,
             valid_size=10,
-            strategy="one_shot",
+            flat=True,
             batch_size=32,
         )
 
-        w = w.from_dataframe(
+        w = w.from_array(
             data=data,
             input_columns=["test"],
-            known_columns=[],
             label_columns=["test"],
-            date_columns=[],
+            date_columns=['date']
         )
 
         model = create_interpretable_nbeats(
             label_width=50,
-            input_width=20,
-            periods=[10],
-            back_periods=[10],
+            forecast_periods=[10],
+            backcast_periods=[10],
             forecast_fourier_order=[10],
             backcast_fourier_order=[10],
             p_degree=2,
@@ -107,9 +105,10 @@ class ModelTest(tf.test.TestCase, parameterized.TestCase):
                 name="Adam",
             ),
             loss=QuantileLossError([0.1, 0.3, 0.5]),
-            metrics=["mae"],
+            metrics=['mae']
         )
-        model.fit(w.train, validation_data=w.valid, epochs=1)
-        output = model.predict(w.train)
 
-        self.assertEqual(output.shape, (5, 213, 50))
+        model.fit(w.train, validation_data=w.valid, epochs=1)
+        output = model.predict(w.train)        
+
+        self.assertEqual(output.shape, (213, 50, 5))

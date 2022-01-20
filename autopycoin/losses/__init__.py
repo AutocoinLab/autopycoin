@@ -1,14 +1,19 @@
 """ This subpackage defines additional losses needed to train a deep learning.
 """
 
-from .losses import smape
-from .losses import quantile_loss
-from .losses import SymetricMeanAbsolutePercentageError
-from .losses import QuantileLossError
+from .losses import (
+    SymetricMeanAbsolutePercentageError,
+    QuantileLossError,
+    LagError,
+    quantile_loss,
+    smape,
+)
+
 
 __all__ = [
     "smape",
     "quantile_loss",
     "SymetricMeanAbsolutePercentageError",
     "QuantileLossError",
+    "LagError",
 ]

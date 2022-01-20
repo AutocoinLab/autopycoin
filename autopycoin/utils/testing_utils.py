@@ -127,7 +127,11 @@ def layer_test(
     if adapt_data is not None:
         layer.adapt(adapt_data)
 
-    # test get_weights , set_weights at layer level
+    # test in functional API
+    x = layers.Input(shape=input_shape[1:], dtype=input_dtype)
+    y = layer(x)
+
+    # test get_weights, set_weights at layer level
     weights = layer.get_weights()
     layer.set_weights(weights)
 
@@ -135,10 +139,6 @@ def layer_test(
     if "weights" in tf_inspect.getargspec(layer_cls.__init__):
         kwargs["weights"] = weights
         layer = layer_cls(**kwargs)
-
-    # test in functional API
-    x = layers.Input(shape=input_shape[1:], dtype=input_dtype)
-    y = layer(x)
 
     def create_list(tensor):
         return tensor if isinstance(tensor, (tuple, list)) else [tensor]
@@ -159,6 +159,7 @@ def layer_test(
     expected_output_shapes = create_list(expected_output_shape)
 
     computed_output_shapes = layer.compute_output_shape(tf.TensorShape(input_shape))
+    
     computed_output_shapes = create_list(computed_output_shapes)
 
     computed_output_signatures = layer.compute_output_signature(
@@ -235,7 +236,6 @@ def layer_test(
             actual_output = layer.predict(input_data)
         else:
             actual_output = model.predict(input_data)
-
         # Handle multiple outputs
         actual_output = (
             actual_output[idx] if isinstance(actual_output, tuple) else actual_output

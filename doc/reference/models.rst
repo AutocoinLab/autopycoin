@@ -13,30 +13,6 @@ nbeats
    :toctree: generated/
    :template: class.rst
 
-   models.BaseBlock
-
-.. autosummary::
-   :toctree: generated/
-   :template: class.rst
-
-   models.TrendBlock
-
-.. autosummary::
-   :toctree: generated/
-   :template: class.rst
-
-   models.SeasonalityBlock
-
-.. autosummary::
-   :toctree: generated/
-   :template: class.rst
-
-   models.GenericBlock
-
-.. autosummary::
-   :toctree: generated/
-   :template: class.rst
-
    models.Stack
 
 .. autosummary::
@@ -56,3 +32,9 @@ nbeats
    :template: function.rst
 
    models.create_generic_nbeats
+
+.. autosummary::
+   :toctree: generated/
+   :template: class.rst
+
+   models.PoolNBEATS
