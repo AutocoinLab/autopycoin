@@ -8,7 +8,8 @@ from tensorflow.keras.layers import InputSpec
 
 from . import Layer
 from ..utils import transpose_first_to_last, transpose_last_to_first
-#from ..dataset import features, date_features
+
+# from ..dataset import features, date_features
 
 
 class UniVariate(Layer):
@@ -26,8 +27,9 @@ class UniVariate(Layer):
         Based on your inputs, if `True` then it will perform back transformation
         if it is the last layer.
     """
+
     def __init__(self, last_to_first, is_multivariate, *args, **kwargs):
-        
+
         super().__init__(*args, **kwargs)
 
         if last_to_first and is_multivariate:

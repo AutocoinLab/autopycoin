@@ -15,9 +15,7 @@ from . import losses
 class QuantileLossTest(test.TestCase):
     def test_config(self):
         ql_obj = losses.QuantileLossError(
-            quantiles=[0.9],
-            reduction=losses_utils.ReductionV2.SUM,
-            name="ql_1",
+            quantiles=[0.9], reduction=losses_utils.ReductionV2.SUM, name="ql_1",
         )
 
         self.assertEqual(ql_obj.name, "ql_1")
@@ -26,11 +24,7 @@ class QuantileLossTest(test.TestCase):
 
     def test_all_correct_unweighted(self):
         ql_obj = losses.QuantileLossError(quantiles=[0.1, 0.5, 0.9])
-        y_true = tf.constant(
-            [[4, 8, 12, 8, 1, 3]],
-            shape=(2, 3),
-            dtype=tf.float32,
-        )
+        y_true = tf.constant([[4, 8, 12, 8, 1, 3]], shape=(2, 3), dtype=tf.float32,)
         y_pred = tf.constant(
             [[[4, 4, 4], [8, 8, 8], [12, 12, 12]], [[8, 8, 8], [1, 1, 1], [3, 3, 3]]],
             shape=(2, 3, 3),
@@ -41,10 +35,7 @@ class QuantileLossTest(test.TestCase):
 
     def test_unweighted(self):
         ql_obj = losses.QuantileLossError(quantiles=[0.1, 0.5, 0.9])
-        y_true = tf.constant(
-            [[1, 9, 2, -5, -2, 6]],
-            shape=(2, 3),
-        )
+        y_true = tf.constant([[1, 9, 2, -5, -2, 6]], shape=(2, 3),)
         y_pred = tf.constant(
             [[[4, 4, 4], [8, 8, 8], [12, 12, 12]], [[8, 8, 8], [1, 1, 1], [3, 3, 3]]],
             shape=(2, 3, 3),
@@ -55,10 +46,7 @@ class QuantileLossTest(test.TestCase):
 
     def test_scalar_weighted(self):
         ql_obj = losses.QuantileLossError(quantiles=[0.1, 0.5, 0.9])
-        y_true = tf.constant(
-            [[1, 9, 2, -5, -2, 6]],
-            shape=(2, 3),
-        )
+        y_true = tf.constant([[1, 9, 2, -5, -2, 6]], shape=(2, 3),)
         y_pred = tf.constant(
             [[[4, 4, 4], [8, 8, 8], [12, 12, 12]], [[8, 8, 8], [1, 1, 1], [3, 3, 3]]],
             shape=(2, 3, 3),
@@ -69,10 +57,7 @@ class QuantileLossTest(test.TestCase):
 
     def test_sample_weighted(self):
         ql_obj = losses.QuantileLossError(quantiles=[0.1, 0.5, 0.9])
-        y_true = tf.constant(
-            [[1, 9, 2, -5, -2, 6]],
-            shape=(2, 3),
-        )
+        y_true = tf.constant([[1, 9, 2, -5, -2, 6]], shape=(2, 3),)
         y_pred = tf.constant(
             [[[4, 4, 4], [8, 8, 8], [12, 12, 12]], [[8, 8, 8], [1, 1, 1], [3, 3, 3]]],
             shape=(2, 3, 3),
@@ -84,10 +69,7 @@ class QuantileLossTest(test.TestCase):
 
     def test_timestep_weighted(self):
         ql_obj = losses.QuantileLossError(quantiles=[0.1, 0.5, 0.9])
-        y_true = tf.constant(
-            [[1, 9, 2, -5, -2, 6]],
-            shape=(2, 3, 1),
-        )
+        y_true = tf.constant([[1, 9, 2, -5, -2, 6]], shape=(2, 3, 1),)
         y_pred = tf.constant(
             [[[4, 4, 4], [8, 8, 8], [12, 12, 12]], [[8, 8, 8], [1, 1, 1], [3, 3, 3]]],
             shape=(2, 3, 1, 3),
@@ -100,10 +82,7 @@ class QuantileLossTest(test.TestCase):
 
     def test_zero_weighted(self):
         ql_obj = losses.QuantileLossError(quantiles=[0.1, 0.5, 0.9])
-        y_true = tf.constant(
-            [[1, 9, 2, -5, -2, 6]],
-            shape=(2, 3),
-        )
+        y_true = tf.constant([[1, 9, 2, -5, -2, 6]], shape=(2, 3),)
         y_pred = tf.constant(
             [[[4, 4, 4], [8, 8, 8], [12, 12, 12]], [[8, 8, 8], [1, 1, 1], [3, 3, 3]]],
             shape=(2, 3, 3),
@@ -116,10 +95,7 @@ class QuantileLossTest(test.TestCase):
         ql_obj = losses.QuantileLossError(
             quantiles=[0.1, 0.5, 0.9], reduction=losses_utils.ReductionV2.NONE
         )
-        y_true = tf.constant(
-            [[1, 9, 2, -5, -2, 6]],
-            shape=(2, 3),
-        )
+        y_true = tf.constant([[1, 9, 2, -5, -2, 6]], shape=(2, 3),)
         y_pred = tf.constant(
             [[[4, 4, 4], [8, 8, 8], [12, 12, 12]], [[8, 8, 8], [1, 1, 1], [3, 3, 3]]],
             shape=(2, 3, 3),
@@ -133,10 +109,7 @@ class QuantileLossTest(test.TestCase):
         ql_obj = losses.QuantileLossError(
             quantiles=[0.1, 0.5, 0.9], reduction=losses_utils.ReductionV2.AUTO
         )
-        y_true = tf.constant(
-            [[1, 9, 2, -5, -2, 6]],
-            shape=(2, 3),
-        )
+        y_true = tf.constant([[1, 9, 2, -5, -2, 6]], shape=(2, 3),)
         y_pred = tf.constant(
             [[[4, 4, 4], [8, 8, 8], [12, 12, 12]], [[8, 8, 8], [1, 1, 1], [3, 3, 3]]],
             shape=(2, 3, 3),
@@ -156,8 +129,7 @@ class QuantileLossTest(test.TestCase):
 class SymetricMeanAbsolutePercentageTest(test.TestCase):
     def test_config(self):
         smape_obj = losses.SymetricMeanAbsolutePercentageError(
-            reduction=losses_utils.ReductionV2.AUTO,
-            name="smape_1",
+            reduction=losses_utils.ReductionV2.AUTO, name="smape_1",
         )
         self.assertEqual(smape_obj.name, "smape_1")
         self.assertEqual(smape_obj.reduction, losses_utils.ReductionV2.AUTO)
@@ -170,39 +142,22 @@ class SymetricMeanAbsolutePercentageTest(test.TestCase):
 
     def test_unweighted(self):
         smape_obj = losses.SymetricMeanAbsolutePercentageError()
-        y_true = tf.constant(
-            [1, 9, 2, -5, -2, 6],
-            shape=(2, 3),
-        )
+        y_true = tf.constant([1, 9, 2, -5, -2, 6], shape=(2, 3),)
         y_pred = tf.constant([4, 8, 12, 8, 1, 3], shape=(2, 3), dtype=tf.float32)
         loss = smape_obj(y_true, y_pred)
         self.assertAlmostEqual(self.evaluate(loss), 123.548, 3)
 
     def test_scalar_weighted(self):
         smape_obj = losses.SymetricMeanAbsolutePercentageError()
-        y_true = tf.constant(
-            [1, 9, 2, -5, -2, 6],
-            shape=(2, 3),
-        )
-        y_pred = tf.constant(
-            [4, 8, 12, 8, 1, 3],
-            shape=(2, 3),
-            dtype=tf.float32,
-        )
+        y_true = tf.constant([1, 9, 2, -5, -2, 6], shape=(2, 3),)
+        y_pred = tf.constant([4, 8, 12, 8, 1, 3], shape=(2, 3), dtype=tf.float32,)
         loss = smape_obj(y_true, y_pred, sample_weight=2.3)
         self.assertAlmostEqual(self.evaluate(loss), 2.3 * 123.548, 3)
 
     def test_sample_weighted(self):
         smape_obj = losses.SymetricMeanAbsolutePercentageError()
-        y_true = tf.constant(
-            [1, 9, 2, -5, -2, 6],
-            shape=(2, 3),
-        )
-        y_pred = tf.constant(
-            [4, 8, 12, 8, 1, 3],
-            shape=(2, 3),
-            dtype=tf.float32,
-        )
+        y_true = tf.constant([1, 9, 2, -5, -2, 6], shape=(2, 3),)
+        y_pred = tf.constant([4, 8, 12, 8, 1, 3], shape=(2, 3), dtype=tf.float32,)
 
         sample_weight = tf.constant([1.2, 3.4], shape=(2, 1))
         loss = smape_obj(y_true, y_pred, sample_weight=sample_weight)
@@ -211,13 +166,8 @@ class SymetricMeanAbsolutePercentageTest(test.TestCase):
     def test_ragged_tensors(self):
         smape_obj = losses.SymetricMeanAbsolutePercentageError()
 
-        y_true = tf.ragged.constant(
-            [[1.0, 1.0, 9.0], [2.0, 5.0]],
-        )
-        y_pred = tf.ragged.constant(
-            [[4.0, 1.0, 8.0], [12.0, 3.0]],
-            dtype=tf.float32,
-        )
+        y_true = tf.ragged.constant([[1.0, 1.0, 9.0], [2.0, 5.0]],)
+        y_pred = tf.ragged.constant([[4.0, 1.0, 8.0], [12.0, 3.0]], dtype=tf.float32,)
         sample_weight = tf.constant([1.2, 0.5])
         loss = smape_obj(y_true, y_pred, sample_weight=sample_weight)
 
@@ -225,15 +175,8 @@ class SymetricMeanAbsolutePercentageTest(test.TestCase):
 
     def test_timestep_weighted(self):
         smape_obj = losses.SymetricMeanAbsolutePercentageError()
-        y_true = tf.constant(
-            [1, 9, 2, -5, -2, 6],
-            shape=(2, 3, 1),
-        )
-        y_pred = tf.constant(
-            [4, 8, 12, 8, 1, 3],
-            shape=(2, 3, 1),
-            dtype=tf.float32,
-        )
+        y_true = tf.constant([1, 9, 2, -5, -2, 6], shape=(2, 3, 1),)
+        y_pred = tf.constant([4, 8, 12, 8, 1, 3], shape=(2, 3, 1), dtype=tf.float32,)
 
         sample_weight = tf.constant([3, 6, 5, 0, 4, 2], shape=(2, 3))
         loss = smape_obj(y_true, y_pred, sample_weight=sample_weight)
@@ -241,15 +184,8 @@ class SymetricMeanAbsolutePercentageTest(test.TestCase):
 
     def test_zero_weighted(self):
         smape_obj = losses.SymetricMeanAbsolutePercentageError()
-        y_true = tf.constant(
-            [1, 9, 2, -5, -2, 6],
-            shape=(2, 3),
-        )
-        y_pred = tf.constant(
-            [4, 8, 12, 8, 1, 3],
-            shape=(2, 3),
-            dtype=tf.float32,
-        )
+        y_true = tf.constant([1, 9, 2, -5, -2, 6], shape=(2, 3),)
+        y_pred = tf.constant([4, 8, 12, 8, 1, 3], shape=(2, 3), dtype=tf.float32,)
         loss = smape_obj(y_true, y_pred, sample_weight=0)
         self.assertAlmostEqual(self.evaluate(loss), 0.0, 3)
 
@@ -257,15 +193,8 @@ class SymetricMeanAbsolutePercentageTest(test.TestCase):
         smape_obj = losses.SymetricMeanAbsolutePercentageError(
             reduction=losses_utils.ReductionV2.NONE
         )
-        y_true = tf.constant(
-            [1, 9, 2, -5, -2, 6],
-            shape=(2, 3),
-        )
-        y_pred = tf.constant(
-            [4, 8, 12, 8, 1, 3],
-            shape=(2, 3),
-            dtype=tf.float32,
-        )
+        y_true = tf.constant([1, 9, 2, -5, -2, 6], shape=(2, 3),)
+        y_pred = tf.constant([4, 8, 12, 8, 1, 3], shape=(2, 3), dtype=tf.float32,)
         loss = smape_obj(y_true, y_pred, sample_weight=2.3)
         loss = self.evaluate(loss)
         self.assertArrayNear(loss, [91.5406 * 2.3, 155.5556 * 2.3], 1e-3)
@@ -274,15 +203,8 @@ class SymetricMeanAbsolutePercentageTest(test.TestCase):
         smape_obj = losses.SymetricMeanAbsolutePercentageError(
             reduction=losses_utils.ReductionV2.SUM
         )
-        y_true = tf.constant(
-            [1, 9, 2, -5, -2, 6],
-            shape=(2, 3),
-        )
-        y_pred = tf.constant(
-            [4, 8, 12, 8, 1, 3],
-            shape=(2, 3),
-            dtype=tf.float32,
-        )
+        y_true = tf.constant([1, 9, 2, -5, -2, 6], shape=(2, 3),)
+        y_pred = tf.constant([4, 8, 12, 8, 1, 3], shape=(2, 3), dtype=tf.float32,)
         loss = smape_obj(y_true, y_pred, sample_weight=2.3)
         self.assertAlmostEqual(
             self.evaluate(loss), np.sum([91.5406 * 2.3, 155.5556 * 2.3]), 3

@@ -15,9 +15,7 @@ from autopycoin.models.nbeats import PoolNBEATS
 
 from ..utils import layer_test, check_attributes
 from ..losses import QuantileLossError
-from ..layers.nbeats_layers import (GenericBlock,
-    TrendBlock,
-    SeasonalityBlock)
+from ..layers.nbeats_layers import GenericBlock, TrendBlock, SeasonalityBlock
 from . import (
     create_interpretable_nbeats,
     create_generic_nbeats,
@@ -107,13 +105,10 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
                 Stack,
                 ["blocks", "stack_type", "is_interpretable", "label_width"],
                 [
-                    (
-                        TrendBlock(*trend_args),
-                        TrendBlock(*trend_args),
-                    ),
+                    (TrendBlock(*trend_args), TrendBlock(*trend_args),),
                     "TrendStack",
                     True,
-                    1
+                    1,
                 ],
             ),
             # Stack attributes test
@@ -122,88 +117,57 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
                 Stack,
                 ["blocks", "stack_type", "is_interpretable", "label_width"],
                 [
-                    (
-                        GenericBlock(*(1, 2, 2, 3, 0.0)),
-                        TrendBlock(*trend_args),
-                    ),
+                    (GenericBlock(*(1, 2, 2, 3, 0.0)), TrendBlock(*trend_args),),
                     "CustomStack",
                     False,
-                    1
+                    1,
                 ],
             ),
             # NBEATS attributes test
             (
-                [
-                    [
-                        Stack(
-                            [
-                                TrendBlock(*trend_args),
-                                TrendBlock(*trend_args),
-                            ]
-                        )
-                    ]
-                ],
+                [[Stack([TrendBlock(*trend_args), TrendBlock(*trend_args),])]],
                 NBEATS,
                 ["stacks", "is_interpretable", "nbeats_type", "label_width"],
                 [
-                    [
-                        Stack(
-                            [
-                                TrendBlock(*trend_args),
-                                TrendBlock(*trend_args),
-                            ]
-                        )
-                    ],
+                    [Stack([TrendBlock(*trend_args), TrendBlock(*trend_args),])],
                     True,
                     "InterpretableNbeats",
-                    1
+                    1,
                 ],
             ),
             (
-                [
-                    [
-                        Stack(
-                            [
-                                GenericBlock(*(1, 2, 2, 3, 0.0)),
-                                TrendBlock(*trend_args),
-                            ]
-                        )
-                    ]
-                ],
+                [[Stack([GenericBlock(*(1, 2, 2, 3, 0.0)), TrendBlock(*trend_args),])]],
                 NBEATS,
                 ["stacks", "is_interpretable", "nbeats_type", "label_width"],
                 [
                     [
                         Stack(
-                            [
-                                GenericBlock(*(1, 2, 2, 3, 0.0)),
-                                TrendBlock(*trend_args),
-                            ]
+                            [GenericBlock(*(1, 2, 2, 3, 0.0)), TrendBlock(*trend_args),]
                         )
                     ],
                     False,
                     "Nbeats",
-                    1
+                    1,
                 ],
             ),
             (
                 [
-                    10, lambda : create_generic_nbeats(
-                                    label_width=1,
-                                    g_forecast_neurons=10,
-                                    g_backcast_neurons=10,
-                                    n_neurons=10,
-                                    n_blocks=2,
-                                    n_stacks=2,
-                                    drop_rate=0.,
-                                    share=True,), ['mse']
-                    
+                    10,
+                    lambda: create_generic_nbeats(
+                        label_width=1,
+                        g_forecast_neurons=10,
+                        g_backcast_neurons=10,
+                        n_neurons=10,
+                        n_blocks=2,
+                        n_stacks=2,
+                        drop_rate=0.0,
+                        share=True,
+                    ),
+                    ["mse"],
                 ],
                 PoolNBEATS,
                 ["label_width", "n_models"],
-                [
-                    1, 10
-                ],
+                [1, 10],
             ),
         ]
     )
@@ -213,21 +177,7 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
 
         check_attributes(self, block, attributes, expected_values)
 
-    @parameterized.parameters(
-        [
-            (
-                2,
-                3,
-                3,
-                1,
-                [2],
-                [3],
-                [2],
-                [3],
-                0.0,
-            )
-        ]
-    )
+    @parameterized.parameters([(2, 3, 3, 1, [2], [3], [2], [3], 0.0,)])
     def test_stack(
         self,
         label_width,
@@ -282,35 +232,14 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
                 tf.constant([9.0, 4.5, 9.0, 4.5], shape=(2, 2)),
                 -1
                 * tf.constant(
-                    [
-                        12.0,
-                        y1 + 3 + 1,
-                        y2 + 3 + 2,
-                        12.0,
-                        y1 + 3 + 1,
-                        y2 + 3 + 2,
-                    ],
+                    [12.0, y1 + 3 + 1, y2 + 3 + 2, 12.0, y1 + 3 + 1, y2 + 3 + 2,],
                     shape=(2, 3),
                 ),
             ],
             custom_objects={"Stack": Stack},
         )
 
-    @parameterized.parameters(
-        [
-            (
-                2,
-                3,
-                3,
-                1,
-                [2],
-                [3],
-                [2],
-                [3],
-                0.0,
-            )
-        ]
-    )
+    @parameterized.parameters([(2, 3, 3, 1, [2], [3], [2], [3], 0.0,)])
     def test_nbeats(
         self,
         label_width,
@@ -366,21 +295,7 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
             expected_output=tf.constant([18.0, 9.0, 18.0, 9.0], shape=(2, 2)),
         )
 
-    @parameterized.parameters(
-        [
-            (
-                2,
-                3,
-                3,
-                1,
-                [2],
-                [3],
-                [2],
-                [3],
-                0.0,
-            )
-        ]
-    )
+    @parameterized.parameters([(2, 3, 3, 1, [2], [3], [2], [3], 0.0,)])
     def test_nbeats_attributes(
         self,
         label_width,
@@ -436,21 +351,7 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
         self.assertNotEmpty(trend[0])
         self.assertNotEmpty(trend[1])
 
-    @parameterized.parameters(
-        [
-            (
-                2,
-                3,
-                3,
-                1,
-                [2],
-                [3],
-                [2],
-                [3],
-                0.0,
-            )
-        ]
-    )
+    @parameterized.parameters([(2, 3, 3, 1, [2], [3], [2], [3], 0.0,)])
     def test_nbeats_raises_error(
         self,
         label_width,
@@ -499,8 +400,9 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
         model = NBEATS(stacks)
         inputs = tf.constant([[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]])
 
-
-        with self.assertRaisesRegexp(AttributeError, f"""The first stack has to be a `TrendStack`"""):
+        with self.assertRaisesRegexp(
+            AttributeError, f"""The first stack has to be a `TrendStack`"""
+        ):
             model.seasonality(inputs)
         with self.assertRaisesRegexp(AttributeError, f"""No `TrendStack` defined."""):
             model.trend(inputs)
@@ -509,7 +411,9 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
         stacks = [blocks_1]
 
         model = NBEATS(stacks)
-        with self.assertRaisesRegexp(AttributeError, f"""No `SeasonalityStack` defined"""):
+        with self.assertRaisesRegexp(
+            AttributeError, f"""No `SeasonalityStack` defined"""
+        ):
             model.seasonality(inputs)
 
         kwargs_3 = {
@@ -527,11 +431,12 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
         model = NBEATS(stacks)
         inputs = tf.constant([[0.0, 0.0], [0.0, 0.0]])
 
-        with self.assertRaisesRegexp(AttributeError, "The first stack has to be a `TrendStack`"):
+        with self.assertRaisesRegexp(
+            AttributeError, "The first stack has to be a `TrendStack`"
+        ):
             model.seasonality(inputs)
         with self.assertRaises(AttributeError):
             model.trend(inputs)
-
 
     @parameterized.parameters([(2, [2], [3], [2], [3], 1, 5, 5, 0.0, True)])
     def test_create_interpretable_nbeats(
@@ -653,8 +558,24 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
         outputs = model.predict(np.array([[1.0, 2.0, 3.0]]))
         self.assertEqual(outputs.shape, (1, 2, 3))
 
-    @parameterized.parameters([(2, 5, 5, 5, 3, 2, 0.0, True, tf.reduce_mean, (1, 2), (1, 2)),
-                               (2, 5, 5, 5, 3, 2, 0.0, True, lambda x, axis: tf.identity(x), (1, 1, 2), (10, 1, 2))])
+    @parameterized.parameters(
+        [
+            (2, 5, 5, 5, 3, 2, 0.0, True, tf.reduce_mean, (1, 2), (1, 2)),
+            (
+                2,
+                5,
+                5,
+                5,
+                3,
+                2,
+                0.0,
+                True,
+                lambda x, axis: tf.identity(x),
+                (1, 1, 2),
+                (10, 1, 2),
+            ),
+        ]
+    )
     def test_pool_nbeats(
         self,
         label_width,
@@ -667,7 +588,7 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
         share,
         fn_agg,
         shape,
-        shape2
+        shape2,
     ):
 
         model = create_generic_nbeats(
@@ -682,25 +603,35 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
         )
 
         model = PoolNBEATS(
-                 n_models=10,
-                 nbeats_models=model,
-                 losses=['mse', 'mae', 'mape'],
-                 fn_agg=fn_agg)
+            n_models=10,
+            nbeats_models=model,
+            losses=["mse", "mae", "mape"],
+            fn_agg=fn_agg,
+        )
 
-        model.compile(tf.keras.optimizers.Adam(
-            learning_rate=0.02, beta_1=0.9, beta_2=0.999, epsilon=1e-07, amsgrad=True,
-            name='Adam'), loss=model.get_pool_losses(), metrics=['mae'])
-        output = model.predict(np.array([[1.0, 2.0, 3.0, 5., 6., 7.]]))
+        model.compile(
+            tf.keras.optimizers.Adam(
+                learning_rate=0.02,
+                beta_1=0.9,
+                beta_2=0.999,
+                epsilon=1e-07,
+                amsgrad=True,
+                name="Adam",
+            ),
+            loss=model.get_pool_losses(),
+            metrics=["mae"],
+        )
+        output = model.predict(np.array([[1.0, 2.0, 3.0, 5.0, 6.0, 7.0]]))
 
         self.assertEqual(output.shape, shape)
-        
-        for loss in ['mse', 'mae', 'mape']:
+
+        for loss in ["mse", "mae", "mape"]:
             self.assertIn(loss, model.get_pool_losses())
-        model.reset_pool_losses(['mse', 'msle', 'mape'])
-        for loss in ['mse', 'msle', 'mape']:
+        model.reset_pool_losses(["mse", "msle", "mape"])
+        for loss in ["mse", "msle", "mape"]:
             self.assertIn(loss, model.get_pool_losses())
 
-        model2 = lambda : create_generic_nbeats(
+        model2 = lambda: create_generic_nbeats(
             label_width=label_width,
             g_forecast_neurons=g_forecast_neurons,
             g_backcast_neurons=g_backcast_neurons,
@@ -711,15 +642,24 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
             share=share,
         )
         model2 = PoolNBEATS(
-                 n_models=10,
-                 nbeats_models=model2,
-                 losses=['mse', 'mae', 'mape'],
-                 fn_agg=fn_agg)
+            n_models=10,
+            nbeats_models=model2,
+            losses=["mse", "mae", "mape"],
+            fn_agg=fn_agg,
+        )
 
-        model2.compile(tf.keras.optimizers.Adam(
-            learning_rate=0.02, beta_1=0.9, beta_2=0.999, epsilon=1e-07, amsgrad=True,
-            name='Adam'), loss=model.get_pool_losses(), metrics=['mae'])
-        output = model2.predict(np.array([[1.0, 2.0, 3.0, 5., 6., 7.]]))
+        model2.compile(
+            tf.keras.optimizers.Adam(
+                learning_rate=0.02,
+                beta_1=0.9,
+                beta_2=0.999,
+                epsilon=1e-07,
+                amsgrad=True,
+                name="Adam",
+            ),
+            loss=model.get_pool_losses(),
+            metrics=["mae"],
+        )
+        output = model2.predict(np.array([[1.0, 2.0, 3.0, 5.0, 6.0, 7.0]]))
 
         self.assertEqual(output.shape, shape2)
-        

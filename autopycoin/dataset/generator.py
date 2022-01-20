@@ -200,30 +200,30 @@ class WindowGenerator(AutopycoinBaseClass):
             return the instance.
         """
         if isinstance(data, pd.DataFrame):
-            self._from_dataframe(data,
-                                input_columns,
-                                label_columns,
-                                known_columns,
-                                date_columns)
+            self._from_dataframe(
+                data, input_columns, label_columns, known_columns, date_columns
+            )
         elif isinstance(data, (np.ndarray, tf.Tensor)):
-            self._from_array(data,
-                            input_columns,
-                            label_columns,
-                            known_columns,
-                            date_columns)
+            self._from_array(
+                data, input_columns, label_columns, known_columns, date_columns
+            )
         else:
-            raise ValueError(f'{type(data)} is not handled, please provide a pandas dataframe, a numpy array or a tensor.')
+            raise ValueError(
+                f"{type(data)} is not handled, please provide a pandas dataframe, a numpy array or a tensor."
+            )
 
         self._split_train_valid_test()
 
         return self
 
-    def _from_dataframe(self,
+    def _from_dataframe(
+        self,
         data: pd.DataFrame,
         input_columns: Union[None, List[Union[int, str]]],
         label_columns: Union[None, List[Union[int, str]]] = None,
         known_columns: Union[None, List[Union[int, str]]] = None,
-        date_columns: Union[None, List[Union[int, str]]] = None):
+        date_columns: Union[None, List[Union[int, str]]] = None,
+    ):
         """
         Handle dataframe.
         """
@@ -243,15 +243,21 @@ class WindowGenerator(AutopycoinBaseClass):
             self._input_columns = [
                 self._data_columns.get_loc(col) for col in input_columns
             ]
-            self._label_columns = [
-                self._data_columns.get_loc(col) for col in label_columns
-            ] if label_columns else None
-            self._known_columns = [
-                self._data_columns.get_loc(col) for col in known_columns
-            ] if known_columns else None
-            self._date_columns = [
-                self._data_columns.get_loc(col) for col in date_columns
-            ] if date_columns else None
+            self._label_columns = (
+                [self._data_columns.get_loc(col) for col in label_columns]
+                if label_columns
+                else None
+            )
+            self._known_columns = (
+                [self._data_columns.get_loc(col) for col in known_columns]
+                if known_columns
+                else None
+            )
+            self._date_columns = (
+                [self._data_columns.get_loc(col) for col in date_columns]
+                if date_columns
+                else None
+            )
         except KeyError as error:
             raise KeyError(
                 f"""Columns are not found inside data, got input_columns: {input_columns},
@@ -292,10 +298,16 @@ class WindowGenerator(AutopycoinBaseClass):
 
         self._dataset = self._make_dataset(self.data)
 
-        n_train_examples, n_valid_examples, n_shift_examples = self._get_dataset_sizes(self._dataset)
+        n_train_examples, n_valid_examples, n_shift_examples = self._get_dataset_sizes(
+            self._dataset
+        )
         self._train = self._dataset.take(n_train_examples)
-        self._valid = self._dataset.skip(n_train_examples + n_shift_examples).take(n_valid_examples)
-        self._test = self._dataset.skip(n_train_examples + n_valid_examples + 2 * n_shift_examples)
+        self._valid = self._dataset.skip(n_train_examples + n_shift_examples).take(
+            n_valid_examples
+        )
+        self._test = self._dataset.skip(
+            n_train_examples + n_valid_examples + 2 * n_shift_examples
+        )
 
         if self.batch_size:
             self._train = self._train.unbatch().batch(self.batch_size)
@@ -316,15 +328,21 @@ class WindowGenerator(AutopycoinBaseClass):
 
         n_valid_examples = self.valid_size
         if isinstance(self.valid_size, float) and self.valid_size <= 1:
-            n_valid_examples = int((cardinality.numpy() - n_test_examples) * self.valid_size)
+            n_valid_examples = int(
+                (cardinality.numpy() - n_test_examples) * self.valid_size
+            )
 
-        n_train_examples = cardinality.numpy() - n_valid_examples - n_test_examples - 2*n_shift_examples
+        n_train_examples = (
+            cardinality.numpy()
+            - n_valid_examples
+            - n_test_examples
+            - 2 * n_shift_examples
+        )
 
         return n_train_examples, n_valid_examples, n_shift_examples
 
     def _make_dataset(
-        self,
-        data: Union[pd.DataFrame, np.ndarray, tf.Tensor],
+        self, data: Union[pd.DataFrame, np.ndarray, tf.Tensor],
     ) -> tf.data.Dataset:
         """
         Compute a tensorflow dataset object.
@@ -407,8 +425,12 @@ class WindowGenerator(AutopycoinBaseClass):
             output.append(func(known))
 
         if self.date_columns:
-            date_inputs = date_features(feature_tensor, self._input_slice, self._date_columns)
-            date_labels = date_features(feature_tensor, self._label_slice, self._date_columns)
+            date_inputs = date_features(
+                feature_tensor, self._input_slice, self._date_columns
+            )
+            date_labels = date_features(
+                feature_tensor, self._label_slice, self._date_columns
+            )
             output = convert_to_list(output)
             output.append(func(date_inputs))
             output.append(func(date_labels))
@@ -455,10 +477,15 @@ class WindowGenerator(AutopycoinBaseClass):
             ), f"The given dataframe doesn't contain enough values, got {data.shape[0]} values, expected at least {self._input_width} values."
 
             # Columns may be none then w e have to translates into []
-            columns = self._data_columns[self.input_columns
-                    + self.label_columns if self.label_columns else []
-                    + self.known_columns if self.known_columns else []
-                    + self.date_columns if self.date_columns else []]
+            columns = self._data_columns[
+                self.input_columns + self.label_columns
+                if self.label_columns
+                else [] + self.known_columns
+                if self.known_columns
+                else [] + self.date_columns
+                if self.date_columns
+                else []
+            ]
 
             assert all(
                 columns.isin(data.columns)
@@ -547,9 +574,7 @@ class WindowGenerator(AutopycoinBaseClass):
         Set the new data.
         """
 
-        raise AttributeError(
-            "You cannot modify `data`, use `from_array` instead."
-        )
+        raise AttributeError("You cannot modify `data`, use `from_array` instead.")
 
     @property
     def input_width(self) -> int:
@@ -736,7 +761,7 @@ class WindowGenerator(AutopycoinBaseClass):
             assert (
                 self.batch_size > 0
             ), f"The batch size has to be strictly positive, got {self.batch_size}."
-    
+
     def _val__from_dataframe(
         self, output: None, *args: list, **kwargs: dict
     ) -> None:  # pylint: disable=unused-argument
@@ -756,7 +781,7 @@ class WindowGenerator(AutopycoinBaseClass):
 
         assert len(self.input_columns) > 0, "The input columns list is empty."
         assert np.size(self.data), "The given parameter `data` is an empty DataFrame."
-    
+
     def _val__split_train_valid_test(
         self, output: None, *args: list, **kwargs: dict
     ) -> None:  # pylint: disable=unused-argument
@@ -781,8 +806,8 @@ class WindowGenerator(AutopycoinBaseClass):
         ), f"""Indice {max(self.input_columns)} superior to data shape {self.data.shape}."""
         if self.label_columns:
             assert (
-            max(self.label_columns) < self.data.shape[1]
-        ), f"""Indice {max(self.label_columns)} superior to data shape {self.data.shape}."""
+                max(self.label_columns) < self.data.shape[1]
+            ), f"""Indice {max(self.label_columns)} superior to data shape {self.data.shape}."""
         if self.known_columns:
             assert (
                 max(self.known_columns) < self.data.shape[1]
