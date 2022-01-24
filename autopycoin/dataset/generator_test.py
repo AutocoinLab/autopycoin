@@ -25,6 +25,12 @@ def test_dataframe():
         columns=columns,
     )
 
+def test_array():
+    return np.array([[i for i in range(j, 7 * 100, 100)] for j in range(100)])
+
+def test_serie():
+    return pd.Series(range(100))
+
 
 @pytest.fixture(scope="class")
 def prepare_generator(request):
@@ -102,6 +108,7 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 1,
                 [2, 3, 3, 3, 2, True, 1, [0], [6], [1], [5], 1],
                 False,
+                test_dataframe().values
             ),
             # Test data with their default values
             (
@@ -119,6 +126,7 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 None,
                 [2, 3, 3, 3, 2, True, 1, [0], [6], None, None, None],
                 False,
+                test_dataframe().values
             ),
             # Test data with others values
             (
@@ -136,6 +144,7 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 None,
                 [2, 3, 3, 0, 0, False, 1, [0, 6], [6, 6], None, None, None],
                 False,
+                test_dataframe().values
             ),
             # Test data with float valid and test size
             (
@@ -153,6 +162,58 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                 None,
                 [2, 3, 3, 0.25, 0.20, False, 1, [0, 6], [6, 6], None, None, None],
                 False,
+                test_dataframe().values
+            ),
+            (
+                2,
+                3,
+                3,
+                0.25,
+                0.20,
+                False,
+                1,
+                None,
+                None,
+                None,
+                None,
+                None,
+                [2, 3, 3, 0.25, 0.20, False, 1, [0, 1, 2, 3, 4, 5, 6], [0, 1, 2, 3, 4, 5, 6], None, None, None],
+                False,
+                test_array()
+            ),
+            (
+                2,
+                3,
+                3,
+                0.25,
+                0.20,
+                False,
+                1,
+                None,
+                None,
+                None,
+                None,
+                None,
+                [2, 3, 3, 0.25, 0.20, False, 1, [0], [0], None, None, None],
+                False,
+                test_serie()
+            ),
+            (
+                2,
+                3,
+                3,
+                0.25,
+                0.20,
+                False,
+                1,
+                None,
+                [],
+                None,
+                None,
+                None,
+                [2, 3, 3, 0.25, 0.20, False, 1, [0], None, None, None, None],
+                False,
+                test_serie()
             ),
         ]
     )
@@ -172,6 +233,7 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
         batch_size,
         expected_values,
         df,
+        df_subsitute=None
     ):
         """Attributes testing."""
         w = WindowGenerator(
@@ -221,7 +283,7 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
                     )
         else:
             w = w.from_array(
-                test_dataframe().values,
+                df_subsitute,
                 input_columns,
                 label_columns,
                 known_columns,

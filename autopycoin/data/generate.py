@@ -20,7 +20,7 @@ def random_ts(
     trend_std: Optional[int] = 1,
     seasonality_mean: Optional[int] = 0,
     seasonality_std: Optional[int] = 1,
-    batch_size: Optional[Union[List[int], int]] = 1,
+    batch_size: Optional[Union[List[int], int]] = None,
     n_variables: Optional[int] = 1,
     noise: Optional[bool] = False,
     seed: Optional[int] = None,
@@ -54,9 +54,9 @@ def random_ts(
     seasonality_std : int
         Deviation value associated to the seasonality component.
         Default to 1.
-    batch_size : int or list[int]
+    batch_size : int or list[int] or None
         Computes the batch_size of the time series.
-        Default to 1.
+        Default to None.
     n_variables : int
         Number of variables.
         Default to 1.
@@ -83,18 +83,20 @@ def random_ts(
     ...                  trend_std=1,
     ...                  seasonality_mean=0,
     ...                  seasonality_std=1,
-    ...                  batch_size=1,
+    ...                  batch_size=None,
     ...                  n_variables=1,
     ...                  noise=True,
     ...                  seed=42)
     >>> data.shape
-    TensorShape([1, 10, 1])
+    TensorShape([10, 1])
     """
 
     tf.random.set_seed(seed)
 
     if isinstance(batch_size, int):
         batch_size = [batch_size]
+    elif batch_size is None:
+        batch_size = []
 
     degree = range_dims(trend_degree, shape=(1, -1, 1))
     time = range_dims(n_steps, shape=(-1, 1, 1))

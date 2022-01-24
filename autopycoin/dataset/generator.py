@@ -125,10 +125,10 @@ class WindowGenerator(AutopycoinBaseClass):
         self,
         input_width: int,
         label_width: int,
-        shift: int,
-        valid_size: Union[int, float],
-        test_size: Union[int, float],
-        flat: bool,
+        shift: Union[None, int] = None,
+        valid_size: Union[int, float] = 0,
+        test_size: Union[int, float] = 0,
+        flat: bool = False,
         sequence_stride: int = 1,
         batch_size: int = None,
         preprocessing: Union[None, Callable] = None,
@@ -136,7 +136,7 @@ class WindowGenerator(AutopycoinBaseClass):
 
         self._input_width = input_width
         self._label_width = label_width
-        self._shift = shift
+        self._shift = shift if shift is not None else label_width
         self._sequence_stride = sequence_stride
 
         self._valid_size = valid_size
@@ -166,8 +166,8 @@ class WindowGenerator(AutopycoinBaseClass):
 
     def from_array(
         self,
-        data: Union[pd.DataFrame, np.ndarray, tf.Tensor],
-        input_columns: Union[None, List[Union[int, str]]],
+        data: Union[pd.DataFrame, np.ndarray, tf.Tensor, pd.Series],
+        input_columns: Union[None, List[Union[int, str]]] = None,
         label_columns: Union[None, List[Union[int, str]]] = None,
         known_columns: Union[None, List[Union[int, str]]] = None,
         date_columns: Union[None, List[Union[int, str]]] = None,
@@ -179,7 +179,7 @@ class WindowGenerator(AutopycoinBaseClass):
 
         Parameters
         ----------
-        data : `DataFrame or ndarray or Tensor of shape (timesteps, variables)`
+        data : `DataFrame, Serie, list, ndarray or Tensor of shape (timesteps, variables)`
             The time series dataframe on which train, valid and test datasets are built.
         input_columns : list[str or int]
             The input column names. Variables used to forecast target values.
@@ -199,6 +199,15 @@ class WindowGenerator(AutopycoinBaseClass):
         self : `WindowGenerator`
             return the instance.
         """
+        if isinstance(data, pd.Series):
+            data = data.values
+        if len(data.shape) == 1:
+            data = tf.expand_dims(data, axis=-1)
+        if input_columns is None:
+            input_columns = [col for col in range(data.shape[-1])]
+        if label_columns is None:
+            label_columns = [col for col in range(data.shape[-1])]
+
         if isinstance(data, pd.DataFrame):
             self._from_dataframe(
                 data, input_columns, label_columns, known_columns, date_columns
@@ -260,9 +269,9 @@ class WindowGenerator(AutopycoinBaseClass):
             )
         except KeyError as error:
             raise KeyError(
-                f"""Columns are not found inside data, got input_columns: {input_columns},
-                label_columns: {label_columns}, known_columns: {known_columns} and date_columns: {date_columns}.
-                Expected {self._data_columns}."""
+                f"Columns are not found inside data, got input_columns: {input_columns},"
+                f"label_columns: {label_columns}, known_columns: {known_columns} and date_columns: {date_columns}."
+                f"Expected {self._data_columns}."
             ) from error
 
     def _from_array(
@@ -286,10 +295,10 @@ class WindowGenerator(AutopycoinBaseClass):
         self._data_columns = None  # Used in `production`
 
         # In case if columns are not defined
-        self._input_columns = input_columns
-        self._label_columns = label_columns if label_columns else None
-        self._known_columns = known_columns if known_columns else None
-        self._date_columns = date_columns if date_columns else None
+        self._input_columns = input_columns if input_columns else None 
+        self._label_columns = label_columns if label_columns else None 
+        self._known_columns = known_columns if known_columns else None 
+        self._date_columns = date_columns if date_columns else None 
 
     def _split_train_valid_test(self):
         """

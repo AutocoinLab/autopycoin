@@ -265,12 +265,11 @@ class NBEATS(Model, AutopycoinBaseClass):
 
         input_shape = tf.TensorShape(input_shape)
         # multi univariate inputs
-        self._multivariate = input_shape.as_list()[:-2] if input_shape.rank > 2 else []
         self.strategy_input = UniVariate(
-            last_to_first=True, is_multivariate=bool(self._multivariate)
+            last_to_first=True, is_multivariate=bool(input_shape.rank > 2)
         )
         self.strategy_output = UniVariate(
-            last_to_first=False, is_multivariate=bool(self._multivariate)
+            last_to_first=False, is_multivariate=bool(input_shape.rank > 2)
         )
 
         super().build(input_shape)
@@ -587,14 +586,14 @@ class PoolNBEATS(Model, AutopycoinBaseClass):
         if isinstance(input_shape, tuple):
             input_shape = input_shape[0]
 
-        # Defines mask
+        # Defines masks
         mask = tf.random.uniform(
             (self.n_models,),
             minval=0,
-            maxval=int(input_shape[-1] / self.label_width),
+            maxval=int(input_shape[1] / self.label_width) or 1,
             dtype=tf.int32,
         )
-        self._mask = input_shape[-1] - (mask * self.label_width)
+        self._mask = input_shape[1] - (mask * self.label_width)
 
         super().build(input_shape)
 
@@ -603,8 +602,9 @@ class PoolNBEATS(Model, AutopycoinBaseClass):
 
         outputs = []
         for idx, model in enumerate(self.nbeats):
-            inputs_masked = inputs[..., :, -self._mask[idx] :]
+            inputs_masked = inputs[:, -self._mask[idx] :]
             outputs.append(model(inputs_masked))
+            
         return outputs
 
     def predict(self, *args: list, **kwargs: dict) -> tf.Tensor:
