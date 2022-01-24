@@ -611,7 +611,6 @@ class PoolNBEATS(Model, AutopycoinBaseClass):
         """Reduce the n outputs to a single output tensor by mean operation."""
 
         outputs = super().predict(*args, **kwargs)
-        print(outputs)
         return self._fn_agg(outputs, axis=0)
 
     def test_step(self, data: Union[tf.Tensor, tuple]):
