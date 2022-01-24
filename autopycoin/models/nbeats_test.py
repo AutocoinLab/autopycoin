@@ -11,7 +11,9 @@ from tensorflow.python.keras import keras_parameterized
 from tensorflow.keras.backend import floatx
 import tensorflow as tf
 
-from autopycoin.models.nbeats import PoolNBEATS
+from autopycoin.dataset.generator import WindowGenerator
+
+from ..models import PoolNBEATS
 
 from ..utils import layer_test, check_attributes
 from ..losses import QuantileLossError
@@ -22,6 +24,7 @@ from . import (
     NBEATS,
     Stack,
 )
+from ..data import random_ts
 
 
 def trend_weights(n_neurons, p_degree):
@@ -560,7 +563,7 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
 
     @parameterized.parameters(
         [
-            (2, 5, 5, 5, 3, 2, 0.0, True, tf.reduce_mean, (1, 2), (1, 2)),
+            (2, 5, 5, 5, 3, 2, 0.0, True, tf.reduce_mean, (1, 2, 2), (1, 2)),
             (
                 2,
                 5,
@@ -571,7 +574,7 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
                 0.0,
                 True,
                 lambda x, axis: tf.identity(x),
-                (1, 1, 2),
+                (1, 1, 2, 2),
                 (10, 1, 2),
             ),
         ]
@@ -590,6 +593,17 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
         shape,
         shape2,
     ):
+
+        data = random_ts(n_steps=30, n_variables=2)
+
+        w = WindowGenerator(
+                input_width=6,
+                label_width=label_width,
+                shift=label_width,
+                valid_size=0,
+                test_size=0,
+                flat=False)
+        w.from_array(data, input_columns=[0, 1], label_columns=[0, 1])
 
         model = create_generic_nbeats(
             label_width=label_width,
@@ -621,7 +635,10 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
             loss=model.get_pool_losses(),
             metrics=["mae"],
         )
-        output = model.predict(np.array([[1.0, 2.0, 3.0, 5.0, 6.0, 7.0]]))
+
+        # Issue 13
+        model.fit(w.train)
+        output = model.predict(np.array([[[1.0, 1.0], [2.0, 2.0], [3.0, 3.0], [5.0, 5.0], [6.0, 6.0], [7.0, 7.0]]]))
 
         self.assertEqual(output.shape, shape)
 

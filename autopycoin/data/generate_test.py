@@ -71,6 +71,7 @@ class TestGenerate(tf.test.TestCase, parameterized.TestCase):
             (50, 1, [10, 10], [10, 10], 0, 1, 0, 1, 1, 3, False),
             (50, 1, [10], [10], 0, 1, 0, 1, 10, 3, False),
             (50, 1, [10], [10], 0, 1, 0, 1, [10, 10], 3, False),
+            (50, 1, [10], [10], 0, 1, 0, 1, None, 3, False),
         ]
     )
     def test_output_shape(
@@ -89,21 +90,25 @@ class TestGenerate(tf.test.TestCase, parameterized.TestCase):
     ):
 
         time_serie = random_ts(
-            n_steps,
-            trend_degree,
-            periods,
-            fourier_orders,
-            trend_mean,
-            trend_std,
-            seasonality_mean,
-            seasonality_std,
-            batch_size,
-            n_variables,
-            noise,
+            n_steps=n_steps,
+            trend_degree=trend_degree,
+            periods=periods,
+            fourier_orders=fourier_orders,
+            trend_mean=trend_mean,
+            trend_std=trend_std,
+            seasonality_mean=seasonality_mean,
+            seasonality_std=seasonality_std,
+            batch_size=batch_size,
+            n_variables=n_variables,
+            noise=noise,
             seed=42,
         )
 
-        batch_size = [batch_size] if not isinstance(batch_size, list) else batch_size
+        if isinstance(batch_size, int):
+            batch_size = [batch_size]
+        elif batch_size is None:
+            batch_size = []
+
         expected_shape = batch_size + [n_steps, n_variables]
         self.assertEqual(time_serie.shape, expected_shape)
 
@@ -114,6 +119,7 @@ class TestGenerate(tf.test.TestCase, parameterized.TestCase):
             (50, 1, [10, 10], [10, 10], 0, 1, 0, 1, 1, 3, False),
             (50, 1, [10], [10], 0, 1, 0, 1, 10, 3, False),
             (50, 1, [10], [10], 0, 1, 0, 1, [10, 10], 3, False),
+            (50, 1, [10], [10], 0, 1, 0, 1, None, 3, False),
         ]
     )
     def test_output_type(
@@ -132,17 +138,17 @@ class TestGenerate(tf.test.TestCase, parameterized.TestCase):
     ):
 
         time_serie = random_ts(
-            n_steps,
-            trend_degree,
-            periods,
-            fourier_orders,
-            trend_mean,
-            trend_std,
-            seasonality_std,
-            seasonality_mean,
-            batch_size,
-            n_variables,
-            noise,
+            n_steps=n_steps,
+            trend_degree=trend_degree,
+            periods=periods,
+            fourier_orders=fourier_orders,
+            trend_mean=trend_mean,
+            trend_std=trend_std,
+            seasonality_std=seasonality_std,
+            seasonality_mean=seasonality_mean,
+            batch_size=batch_size,
+            n_variables=n_variables,
+            noise=noise,
             seed=42,
         )
 

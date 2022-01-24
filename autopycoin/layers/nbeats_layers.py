@@ -92,6 +92,8 @@ class BaseBlock(Layer, AutopycoinBaseClass):
 
         # multi univariate inputs
         self._multivariate = input_shape.as_list()[:-2] if input_shape.rank > 2 else []
+        if self.n_quantiles > 1 and self._multivariate:
+            self._multivariate = self._multivariate + [1]
 
         # Computing fc layers
         dim = self.input_width
@@ -127,11 +129,14 @@ class BaseBlock(Layer, AutopycoinBaseClass):
 
         # If the model is compiling with a loss error defining uncertainty then
         # broadcast the output to take into account this uncertainty.
-        shape_fc = self._multivariate + [self._n_neurons, coef.shape[0]]
+        shape_fc = self._multivariate + [self._n_neurons, coef.shape[-2]]
 
         if self.n_quantiles > 1 and branch_name == "forecast":
             # We place quantiles after multivariates
-            shape_fc.insert(len(self._multivariate), self.n_quantiles)
+            if self._multivariate:
+                shape_fc[1] = self.n_quantiles
+            else:
+                shape_fc.insert(0, self.n_quantiles)
         # If multivariate inputs then we modify the shape of fc layers
         fc = self.add_weight(shape=shape_fc, name=f"fc_{branch_name}_{self.name}")
 
@@ -190,9 +195,6 @@ class BaseBlock(Layer, AutopycoinBaseClass):
         reconstructed_inputs = self._output(
             inputs, self.fc_backcast, self.backcast_coef
         )  # layers fc and coef created in _build_branch
-
-        if self.n_quantiles > 1 and self._multivariate:
-            inputs = tf.expand_dims(inputs, axis=1)
 
         # shape: (quantiles, Batch_size, forecast)
         outputs = self._output(
