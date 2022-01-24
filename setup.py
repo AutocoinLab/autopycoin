@@ -13,8 +13,9 @@ with open(ver_file) as f:
 
 DISTNAME = "autopycoin"
 DESCRIPTION = "Deep learning models for forecasting purposes."
-with codecs.open("README.rst", encoding="utf-8") as f:
-    LONG_DESCRIPTION = f.read()
+with open("README.md", "r", encoding="utf-8") as fh:
+    LONG_DESCRIPTION = fh.read()
+LONG_DESCRIPTION_CONTENT_TYPE = "text/markdown"
 MAINTAINER = "G. Dubuc"
 MAINTAINER_EMAIL = "gaet.dub1@gmail.com"
 URL = "https://github.com/GaetanDu/autopycoin"
@@ -65,6 +66,7 @@ setup(
     version=VERSION,
     download_url=DOWNLOAD_URL,
     long_description=LONG_DESCRIPTION,
+    long_description_content_type=LONG_DESCRIPTION_CONTENT_TYPE,
     zip_safe=False,  # the package can run out of an .egg file
     classifiers=CLASSIFIERS,
     packages=find_packages(),
