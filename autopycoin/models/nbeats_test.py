@@ -574,7 +574,7 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
                 0.0,
                 True,
                 lambda x, axis: tf.identity(x),
-                (1, 1, 2, 2),
+                (5, 1, 2, 2),
                 (10, 1, 2),
             ),
         ]
@@ -605,7 +605,7 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
                 flat=False)
         w.from_array(data, input_columns=[0, 1], label_columns=[0, 1])
 
-        model = create_generic_nbeats(
+        model = [create_generic_nbeats(
             label_width=label_width,
             g_forecast_neurons=g_forecast_neurons,
             g_backcast_neurons=g_backcast_neurons,
@@ -614,12 +614,14 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
             n_stacks=n_stacks,
             drop_rate=drop_rate,
             share=share,
-        )
+        ) for _ in range(5)]
+
+        qloss = QuantileLossError([0.5])
 
         model = PoolNBEATS(
             n_models=10,
             nbeats_models=model,
-            losses=["mse", "mae", "mape"],
+            losses=["mse", "mae", "mape", qloss],
             fn_agg=fn_agg,
         )
 
@@ -642,7 +644,7 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
 
         self.assertEqual(output.shape, shape)
 
-        for loss in ["mse", "mae", "mape"]:
+        for loss in ["mse", "mae", "mape", qloss]:
             self.assertIn(loss, model.get_pool_losses())
         model.reset_pool_losses(["mse", "msle", "mape"])
         for loss in ["mse", "msle", "mape"]:

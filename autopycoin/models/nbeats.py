@@ -7,7 +7,7 @@ from numpy.random import randint
 import keras_tuner as kt
 
 import tensorflow as tf
-from keras.engine import data_adapter
+from tensorflow.python.keras.losses import LossFunctionWrapper
 
 from ..utils.data_utils import convert_to_list
 from .training import Model
@@ -513,9 +513,9 @@ class PoolNBEATS(Model, AutopycoinBaseClass):
         self,
         n_models: int,
         nbeats_models: Union[
-            Union[Callable, List[Callable]], Union[NBEATS, List[NBEATS]]
+            Union[list[NBEATS], NBEATS], Union[Callable, list[Callable]], 
         ],
-        losses: List[Union[str, tf.keras.losses.Loss]],
+        losses: List[Union[str, Union[tf.keras.losses.Loss, LossFunctionWrapper]]],
         fn_agg: Callable = tf.reduce_mean,
         seed: Union[None, int] = None,
         **kwargs: dict,
@@ -529,24 +529,31 @@ class PoolNBEATS(Model, AutopycoinBaseClass):
 
         self._n_models = n_models
 
-        # Init pool of losses by picking randomly loss in losses list.
-        losses_idx = randint(0, len(losses), size=self.n_models - len(losses))
-        self._pool_losses = losses + [losses[idx] for idx in losses_idx]
-
         # nbeats init
-        self._init_nbeats(convert_to_list(nbeats_models))
+        self._init_nbeats(convert_to_list(nbeats_models), losses)
 
         # Layer definition and function to aggregate the multiple outputs
         self._fn_agg = fn_agg
 
-    def _init_nbeats(self, nbeats_models: Union[List[Callable], List[NBEATS]]) -> None:
+    def _init_nbeats(self, nbeats_models: Union[List[Callable], List[NBEATS]], losses: List[Union[str, Union[tf.keras.losses.Loss, LossFunctionWrapper]]]) -> None:
         """Initialize nbeats models."""
 
         self._nbeats = nbeats_models
         if not isinstance(nbeats_models[0], NBEATS) and callable(nbeats_models[0]):
             self._nbeats = self._init_nbeats_from_callable(nbeats_models)
+        else:
+            self._n_models = len(nbeats_models)
+        self._init_pool_losses(losses)
         self._check_label_width(self._nbeats)
         self._set_quantiles()
+
+    def _init_pool_losses(self, losses: List[Union[str, Union[tf.keras.losses.Loss, LossFunctionWrapper]]]):
+        # Init pool of losses by picking randomly loss in losses list.
+        if self.n_models - len(losses) < 0:
+            raise ValueError('The number of models has to be equal or larger than the number of losses.'
+                             f' Got n_models={self.n_models} and losses={len(losses)}')
+        losses_idx = randint(0, len(losses), size=self.n_models - len(losses))
+        self._pool_losses = losses + [losses[idx] for idx in losses_idx]
 
     def _init_nbeats_from_callable(self, nbeats_models: List[Callable]) -> None:
         """Initialize nbeats models from callable."""
@@ -613,43 +620,6 @@ class PoolNBEATS(Model, AutopycoinBaseClass):
         outputs = super().predict(*args, **kwargs)
         return self._fn_agg(outputs, axis=0)
 
-    def test_step(self, data: Union[tf.Tensor, tuple]):
-        """The logic for one evaluation step.
-        This method can be overridden to support custom evaluation logic.
-        This method is called by `Model.make_test_function`.
-        This function should contain the mathematical logic for one step of
-        evaluation.
-        This typically includes the forward pass, loss calculation, and metrics
-        updates.
-        Configuration details for *how* this logic is run (e.g. `tf.function` and
-        `tf.distribute.Strategy` settings), should be left to
-        `Model.make_test_function`, which can also be overridden.
-
-        Parameters
-        ----------
-            data: A nested structure of `Tensor`s.
-
-        Returns
-        -------
-            A `dict` containing values that will be passed to
-            `tf.keras.callbacks.CallbackList.on_train_batch_end`. Typically, the
-            values of the `Model`'s metrics are returned.
-        """
-        x, y, sample_weight = data_adapter.unpack_x_y_sample_weight(data)
-
-        y_pred = self._fn_agg(self(x, training=False), axis=0)
-        # Updates stateful loss metrics.
-        self.compiled_loss(y, y_pred, sample_weight, regularization_losses=self.losses)
-        self.compiled_metrics.update_state(y, y_pred, sample_weight)
-        # Collect metrics to return
-        return_metrics = {}
-        for metric in self.metrics:
-            result = metric.result()
-        if isinstance(result, dict):
-            return_metrics.update(result)
-        else:
-            return_metrics[metric.name] = result
-        return return_metrics
 
     def get_pool_losses(self) -> list:
         """Return the pool losses."""
@@ -665,8 +635,7 @@ class PoolNBEATS(Model, AutopycoinBaseClass):
 
         if seed is not None:
             tf.random.set_seed(seed)
-        losses_idx = randint(0, len(losses), size=self.n_models - len(losses))
-        self._pool_losses = losses + [losses[idx] for idx in losses_idx]
+        self._init_pool_losses(losses)
         self._set_quantiles()
 
     @property
