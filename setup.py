@@ -6,7 +6,7 @@ import os
 from setuptools import find_packages, setup
 
 # get __version__ from _version.py
-from .autopycoin._version import __version__
+from autopycoin._version import __version__
 
 DISTNAME = "autopycoin"
 DESCRIPTION = "Deep learning models for forecasting purposes."
