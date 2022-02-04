@@ -513,7 +513,7 @@ class PoolNBEATS(Model, AutopycoinBaseClass):
         self,
         n_models: int,
         nbeats_models: Union[
-            Union[list[NBEATS], NBEATS], Union[Callable, list[Callable]], 
+            Union[List[NBEATS], NBEATS], Union[Callable, List[Callable]],
         ],
         losses: List[Union[str, Union[tf.keras.losses.Loss, LossFunctionWrapper]]],
         fn_agg: Callable = tf.reduce_mean,
