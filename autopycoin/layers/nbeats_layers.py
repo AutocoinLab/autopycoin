@@ -91,7 +91,7 @@ class BaseBlock(Layer, AutopycoinBaseClass):
         self.input_spec = InputSpec(min_ndim=2, axes={-1: self.input_width})
 
         # multi univariate inputs
-        self._multivariate = input_shape.as_list()[:-2] if input_shape.rank > 2 else []
+        self._multivariate = input_shape.as_list()[:1] if input_shape.rank > 2 else []
         if self.n_quantiles > 1 and self._multivariate:
             self._multivariate = self._multivariate + [1]
 
@@ -226,7 +226,7 @@ class BaseBlock(Layer, AutopycoinBaseClass):
             )
 
         # multi univariate inputs
-        multivariate = input_shape.as_list()[:-2] if input_shape.rank > 2 else []
+        multivariate = input_shape.as_list()[:1] if input_shape.rank > 2 else []
 
         # If the model is compiled with a loss error defining uncertainty then
         # reshape the output to take into account this uncertainty.

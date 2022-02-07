@@ -70,7 +70,7 @@ class Model(tf.keras.Model):
     def __call__(self, *args, **kwargs):
         """See tensorflow documentation"""
         outputs = super().__call__(*args, **kwargs)
-        if self.n_quantiles > 1 and not isinstance(outputs, tuple):
+        if self.n_quantiles > 1 and not isinstance(outputs, (list, tuple)):
             outputs = transpose_first_to_last(outputs)
         return outputs
 
