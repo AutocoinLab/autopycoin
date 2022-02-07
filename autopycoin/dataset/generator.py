@@ -295,10 +295,10 @@ class WindowGenerator(AutopycoinBaseClass):
         self._data_columns = None  # Used in `production`
 
         # In case if columns are not defined
-        self._input_columns = input_columns if input_columns else None 
-        self._label_columns = label_columns if label_columns else None 
-        self._known_columns = known_columns if known_columns else None 
-        self._date_columns = date_columns if date_columns else None 
+        self._input_columns = input_columns if input_columns else None
+        self._label_columns = label_columns if label_columns else None
+        self._known_columns = known_columns if known_columns else None
+        self._date_columns = date_columns if date_columns else None
 
     def _split_train_valid_test(self):
         """

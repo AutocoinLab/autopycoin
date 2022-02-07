@@ -9,6 +9,8 @@ import keras_tuner as kt
 import tensorflow as tf
 from tensorflow.python.keras.losses import LossFunctionWrapper
 
+from autopycoin.losses.losses import QuantileLossError
+
 from ..utils.data_utils import convert_to_list
 from .training import Model
 from ..baseclass import AutopycoinBaseClass
@@ -252,6 +254,11 @@ class NBEATS(Model, AutopycoinBaseClass):
 
         # Stacks where blocks are defined
         self._stacks = stacks
+
+        # multi univariate inputs
+        self.strategy_input = UniVariate(last_to_first=True)
+        self.strategy_output = UniVariate(last_to_first=False)
+
         self._is_interpretable = self._set_interpretability()
         self._nbeats_type = self._set_type()
 
@@ -264,13 +271,10 @@ class NBEATS(Model, AutopycoinBaseClass):
             input_shape = input_shape[0]
 
         input_shape = tf.TensorShape(input_shape)
-        # multi univariate inputs
-        self.strategy_input = UniVariate(
-            last_to_first=True, is_multivariate=bool(input_shape.rank > 2)
-        )
-        self.strategy_output = UniVariate(
-            last_to_first=False, is_multivariate=bool(input_shape.rank > 2)
-        )
+
+        if bool(input_shape.rank > 2):
+            self.strategy_input.is_multivariate = True
+            self.strategy_output.is_multivariate = True
 
         super().build(input_shape)
 
@@ -533,9 +537,16 @@ class PoolNBEATS(Model, AutopycoinBaseClass):
         self._init_nbeats(convert_to_list(nbeats_models), losses)
 
         # Layer definition and function to aggregate the multiple outputs
-        self._fn_agg = fn_agg
+        if self.n_quantiles > 1:
+            self._fn_agg = lambda x, axis: x
+        else:
+            self._fn_agg = fn_agg
 
-    def _init_nbeats(self, nbeats_models: Union[List[Callable], List[NBEATS]], losses: List[Union[str, Union[tf.keras.losses.Loss, LossFunctionWrapper]]]) -> None:
+    def _init_nbeats(
+        self,
+        nbeats_models: Union[List[Callable], List[NBEATS]],
+        losses: List[Union[str, Union[tf.keras.losses.Loss, LossFunctionWrapper]]],
+    ) -> None:
         """Initialize nbeats models."""
 
         self._nbeats = nbeats_models
@@ -543,15 +554,21 @@ class PoolNBEATS(Model, AutopycoinBaseClass):
             self._nbeats = self._init_nbeats_from_callable(nbeats_models)
         else:
             self._n_models = len(nbeats_models)
+
         self._init_pool_losses(losses)
         self._check_label_width(self._nbeats)
         self._set_quantiles()
 
-    def _init_pool_losses(self, losses: List[Union[str, Union[tf.keras.losses.Loss, LossFunctionWrapper]]]):
+    def _init_pool_losses(
+        self, losses: List[Union[str, Union[tf.keras.losses.Loss, LossFunctionWrapper]]]
+    ):
         # Init pool of losses by picking randomly loss in losses list.
         if self.n_models - len(losses) < 0:
-            raise ValueError('The number of models has to be equal or larger than the number of losses.'
-                             f' Got n_models={self.n_models} and losses={len(losses)}')
+            raise ValueError(
+                "The number of models has to be equal or larger than the number of losses."
+                f" Got n_models={self.n_models} and losses={len(losses)}"
+            )
+
         losses_idx = randint(0, len(losses), size=self.n_models - len(losses))
         self._pool_losses = losses + [losses[idx] for idx in losses_idx]
 
@@ -583,7 +600,9 @@ class PoolNBEATS(Model, AutopycoinBaseClass):
 
         for idx, loss in enumerate(self._pool_losses):
             if hasattr(loss, "quantiles"):
-                self._nbeats[idx]._set_quantiles(loss.quantiles)
+                self.nbeats[idx]._set_quantiles(loss.quantiles)
+                self._n_quantiles = len(loss.quantiles)
+                self._quantiles = loss.quantiles
 
     def build(
         self, input_shape: Union[tf.TensorShape, Tuple[tf.TensorShape, ...]]
@@ -611,7 +630,6 @@ class PoolNBEATS(Model, AutopycoinBaseClass):
         for idx, model in enumerate(self.nbeats):
             inputs_masked = inputs[:, -self._mask[idx] :]
             outputs.append(model(inputs_masked))
-            
         return outputs
 
     def predict(self, *args: list, **kwargs: dict) -> tf.Tensor:
@@ -619,7 +637,6 @@ class PoolNBEATS(Model, AutopycoinBaseClass):
 
         outputs = super().predict(*args, **kwargs)
         return self._fn_agg(outputs, axis=0)
-
 
     def get_pool_losses(self) -> list:
         """Return the pool losses."""

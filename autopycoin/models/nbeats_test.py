@@ -563,7 +563,19 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
 
     @parameterized.parameters(
         [
-            (2, 5, 5, 5, 3, 2, 0.0, True, tf.reduce_mean, (1, 2, 2), (1, 2)),
+            (
+                2,
+                5,
+                5,
+                5,
+                3,
+                2,
+                0.0,
+                True,
+                tf.reduce_mean,
+                [(1, 2, 2), (1, 2, 2), (1, 2, 2), (1, 2, 2, 3), (1, 2, 2, 3)],
+                (1, 2),
+            ),
             (
                 2,
                 5,
@@ -574,7 +586,7 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
                 0.0,
                 True,
                 lambda x, axis: tf.identity(x),
-                (5, 1, 2, 2),
+                [(1, 2, 2), (1, 2, 2), (1, 2, 2), (1, 2, 2, 3), (1, 2, 2, 3)],
                 (10, 1, 2),
             ),
         ]
@@ -597,26 +609,30 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
         data = random_ts(n_steps=30, n_variables=2)
 
         w = WindowGenerator(
-                input_width=6,
-                label_width=label_width,
-                shift=label_width,
-                valid_size=0,
-                test_size=0,
-                flat=False)
+            input_width=6,
+            label_width=label_width,
+            shift=label_width,
+            valid_size=0,
+            test_size=0,
+            flat=False,
+        )
         w.from_array(data, input_columns=[0, 1], label_columns=[0, 1])
 
-        model = [create_generic_nbeats(
-            label_width=label_width,
-            g_forecast_neurons=g_forecast_neurons,
-            g_backcast_neurons=g_backcast_neurons,
-            n_neurons=n_neurons,
-            n_blocks=n_blocks,
-            n_stacks=n_stacks,
-            drop_rate=drop_rate,
-            share=share,
-        ) for _ in range(5)]
+        model = [
+            create_generic_nbeats(
+                label_width=label_width,
+                g_forecast_neurons=g_forecast_neurons,
+                g_backcast_neurons=g_backcast_neurons,
+                n_neurons=n_neurons,
+                n_blocks=n_blocks,
+                n_stacks=n_stacks,
+                drop_rate=drop_rate,
+                share=share,
+            )
+            for _ in range(5)
+        ]
 
-        qloss = QuantileLossError([0.5])
+        qloss = QuantileLossError([0.2, 0.5])
 
         model = PoolNBEATS(
             n_models=10,
@@ -640,9 +656,23 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
 
         # Issue 13
         model.fit(w.train)
-        output = model.predict(np.array([[[1.0, 1.0], [2.0, 2.0], [3.0, 3.0], [5.0, 5.0], [6.0, 6.0], [7.0, 7.0]]]))
+        output = model.predict(
+            np.array(
+                [
+                    [
+                        [1.0, 1.0],
+                        [2.0, 2.0],
+                        [3.0, 3.0],
+                        [5.0, 5.0],
+                        [6.0, 6.0],
+                        [7.0, 7.0],
+                    ]
+                ]
+            )
+        )
 
-        self.assertEqual(output.shape, shape)
+        for o, s in zip(output, shape):
+            self.assertEqual(o.shape, s)
 
         for loss in ["mse", "mae", "mape", qloss]:
             self.assertIn(loss, model.get_pool_losses())

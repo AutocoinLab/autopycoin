@@ -1,10 +1,8 @@
 """
 Defines layers for time series analysis.
-#TODO: doc and test unit
 """
 
 import tensorflow as tf
-from tensorflow.keras.layers import InputSpec
 
 from . import Layer
 from ..utils import transpose_first_to_last, transpose_last_to_first
@@ -28,21 +26,73 @@ class UniVariate(Layer):
         if it is the last layer.
     """
 
-    def __init__(self, last_to_first, is_multivariate, *args, **kwargs):
+    def __init__(
+        self,
+        last_to_first: bool = True,
+        is_multivariate: bool = False,
+        *args: list,
+        **kwargs: dict
+    ) -> None:
 
         super().__init__(*args, **kwargs)
 
-        if last_to_first and is_multivariate:
+        self.last_to_first = last_to_first
+        self.is_multivariate = is_multivariate
+
+    def build(self, input_shape: tf.TensorShape):
+        """ See tensorflow documentation. """
+
+        super().build(input_shape)
+
+        if self.last_to_first and self.is_multivariate:
             self.transform = transpose_last_to_first
-        elif is_multivariate:
+            if self.n_quantiles > 1:
+                self.transform = add_quantile_dim(self.transform)
+        elif self.is_multivariate:
             self.transform = transpose_first_to_last
         else:
             self.transform = tf.identity
 
-    def call(self, inputs):
+    def call(self, inputs: tf.Tensor) -> tf.Tensor:
+        """See tensorflow documentation."""
         if isinstance(inputs, tuple):
             inputs = inputs[0]
+
         return self.transform(inputs)
+
+    def get_config(self):
+        """See tensorflow documentation."""
+
+        config = super().get_config()
+        config.update(
+            {
+                "last_to_first": self.last_to_first,
+                "is_multivariate": self.is_multivariate,
+            }
+        )
+
+        return config
+
+
+def add_quantile_dim(fn_transform):
+    """
+    Add a dimension to inputs which makes it broadcastable.
+
+    Parameters
+    ----------
+    fn_transform : callable
+        function which be applied before `expand_dims`.
+
+    Returns
+    -------
+    fn : callable
+        Apply `expand_dims`
+    """
+
+    def fn(inputs):
+        return tf.expand_dims(fn_transform(inputs), axis=1)
+
+    return fn
 
 
 """class MultiVariate():

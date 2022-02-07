@@ -28,7 +28,7 @@ INSTALL_REQUIRES = [
     "tensorflow >= 2.6.0",
     "tensorflow-probability",
     "plotly",
-    "keras-tuner"
+    "keras-tuner",
 ]
 CLASSIFIERS = [
     "Intended Audience :: Science/Research",
