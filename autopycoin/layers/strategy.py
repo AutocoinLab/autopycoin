@@ -26,7 +26,13 @@ class UniVariate(Layer):
         if it is the last layer.
     """
 
-    def __init__(self, last_to_first: bool = True, is_multivariate: bool = False, *args: list, **kwargs: dict) -> None:
+    def __init__(
+        self,
+        last_to_first: bool = True,
+        is_multivariate: bool = False,
+        *args: list,
+        **kwargs: dict
+    ) -> None:
 
         super().__init__(*args, **kwargs)
 
@@ -58,12 +64,15 @@ class UniVariate(Layer):
         """See tensorflow documentation."""
 
         config = super().get_config()
-        config.update({
-            "last_to_first": self.last_to_first,
-            "is_multivariate": self.is_multivariate,
-        })
+        config.update(
+            {
+                "last_to_first": self.last_to_first,
+                "is_multivariate": self.is_multivariate,
+            }
+        )
 
         return config
+
 
 def add_quantile_dim(fn_transform):
     """
@@ -79,9 +88,12 @@ def add_quantile_dim(fn_transform):
     fn : callable
         Apply `expand_dims`
     """
+
     def fn(inputs):
         return tf.expand_dims(fn_transform(inputs), axis=1)
+
     return fn
+
 
 """class MultiVariate():
     def __init__(self, n_series, start, stop, **kwargs):

@@ -542,7 +542,11 @@ class PoolNBEATS(Model, AutopycoinBaseClass):
         else:
             self._fn_agg = fn_agg
 
-    def _init_nbeats(self, nbeats_models: Union[List[Callable], List[NBEATS]], losses: List[Union[str, Union[tf.keras.losses.Loss, LossFunctionWrapper]]]) -> None:
+    def _init_nbeats(
+        self,
+        nbeats_models: Union[List[Callable], List[NBEATS]],
+        losses: List[Union[str, Union[tf.keras.losses.Loss, LossFunctionWrapper]]],
+    ) -> None:
         """Initialize nbeats models."""
 
         self._nbeats = nbeats_models
@@ -555,11 +559,15 @@ class PoolNBEATS(Model, AutopycoinBaseClass):
         self._check_label_width(self._nbeats)
         self._set_quantiles()
 
-    def _init_pool_losses(self, losses: List[Union[str, Union[tf.keras.losses.Loss, LossFunctionWrapper]]]):
+    def _init_pool_losses(
+        self, losses: List[Union[str, Union[tf.keras.losses.Loss, LossFunctionWrapper]]]
+    ):
         # Init pool of losses by picking randomly loss in losses list.
         if self.n_models - len(losses) < 0:
-            raise ValueError('The number of models has to be equal or larger than the number of losses.'
-                             f' Got n_models={self.n_models} and losses={len(losses)}')
+            raise ValueError(
+                "The number of models has to be equal or larger than the number of losses."
+                f" Got n_models={self.n_models} and losses={len(losses)}"
+            )
 
         losses_idx = randint(0, len(losses), size=self.n_models - len(losses))
         self._pool_losses = losses + [losses[idx] for idx in losses_idx]
