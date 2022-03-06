@@ -6,6 +6,7 @@ from cProfile import label
 from typing import Callable, Union, Tuple, List, Optional
 import keras_tuner as kt
 import numpy as np
+from typing import List, Optional
 
 import tensorflow as tf
 from tensorflow.python.keras.losses import LossFunctionWrapper
@@ -277,18 +278,41 @@ class NBEATS(Model, AutopycoinBaseClass):
 
         super().build(input_shape)
 
+    def compile(self,
+              optimizer: Optional[Union[str, tf.keras.optimizers.Optimizer]]='rmsprop',
+              loss: Optional[Union[Union[Union[list, dict], tf.keras.losses.Loss], str]]=None,
+              metrics: Optional[list]=None,
+              loss_weights: Optional[Union[list, dict]]=[1],
+              weighted_metrics: Optional[list]=None,
+              run_eagerly: Optional[bool]=None,
+              steps_per_execution: Optional[int]=None,
+              jit_compile: Optional[bool]=None,
+              **kwargs: dict) -> None:
+
+        self.compile(optimizer=optimizer,
+                    loss=loss,
+                    metrics=metrics,
+                    loss_weights=loss_weights,
+                    weighted_metrics=weighted_metrics,
+                    run_eagerly=run_eagerly,
+                    steps_per_execution=steps_per_execution,
+                    jit_compile=jit_compile,
+                    **kwargs)
+
     def call(self, inputs: Union[tuple, dict, list, tf.Tensor], **kwargs: dict) -> tf.Tensor:
         """Call method from tensorflow."""
 
         inputs = self.strategy_input(inputs)
         outputs = tf.constant(0.0)
+        reconstructed_inputs = tf.constant(0.0)
         for stack in self.stacks:
             # outputs_residual is (quantiles, Batch_size, forecast)
             # inputs is (Batch_size, backcast)
             residual_outputs, inputs = stack(inputs)
             # outputs is (quantiles, Batch_size, forecast)
             outputs = tf.math.add(outputs, residual_outputs)
-        return self.strategy_output(outputs)  # , inputs - reconstructed_inputs
+            reconstructed_inputs = reconstructed_inputs + inputs
+        return self.strategy_output(outputs) #reconstructed_inputs, 
 
     def seasonality(self, data: tf.Tensor) -> tf.Tensor:
         """
