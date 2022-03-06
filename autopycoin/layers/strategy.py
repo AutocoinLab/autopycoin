@@ -2,6 +2,7 @@
 Defines layers for time series analysis.
 """
 
+from typing import Union, Tuple
 import tensorflow as tf
 
 from . import Layer
@@ -53,7 +54,7 @@ class UniVariate(Layer):
         else:
             self.transform = tf.identity
 
-    def call(self, inputs: tf.Tensor) -> tf.Tensor:
+    def call(self, inputs: Union[tf.Tensor, Tuple[tf.Tensor, ...]]) -> tf.Tensor:
         """See tensorflow documentation."""
         if isinstance(inputs, tuple):
             inputs = inputs[0]

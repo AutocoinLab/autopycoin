@@ -116,8 +116,8 @@ class BaseBlock(Layer, AutopycoinBaseClass):
 
         self.dropout = Dropout(self.drop_rate)
 
-        self._build_branch(self.label_width, branch_name="forecast")
-        self._build_branch(self.input_width, branch_name="backcast")
+        self.fc_forecast, self.forecast_coef = self._build_branch(self.label_width, branch_name="forecast")
+        self.fc_backcast, self.backcast_coef = self._build_branch(self.input_width, branch_name="backcast")
         super().build(input_shape)
 
     def _build_branch(self, output_last_dim: int, branch_name: str) -> None:
@@ -140,9 +140,7 @@ class BaseBlock(Layer, AutopycoinBaseClass):
         # If multivariate inputs then we modify the shape of fc layers
         fc = self.add_weight(shape=shape_fc, name=f"fc_{branch_name}_{self.name}")
 
-        # Set attributes dynamically
-        setattr(self, f"fc_{branch_name}", fc)
-        setattr(self, f"{branch_name}_coef", coef)
+        return fc, coef
 
     @abc.abstractmethod
     def get_coefficients(self, output_last_dim: int, branch_name: str) -> tf.Tensor:
@@ -181,7 +179,7 @@ class BaseBlock(Layer, AutopycoinBaseClass):
         )
 
     def call(
-        self, inputs: tf.Tensor
+        self, inputs: tf.Tensor, **kwargs: dict
     ) -> Tuple[tf.Tensor]:  # pylint: disable=arguments-differ
         """See tensorflow documentation."""
 

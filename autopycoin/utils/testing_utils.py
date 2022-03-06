@@ -279,7 +279,7 @@ def layer_test(
                 [
                     "mse",
                     losses.QuantileLossError([0.5]),
-                    losses.SymetricMeanAbsolutePercentageError,
+                    losses.SymetricMeanAbsolutePercentageError(),
                 ],
                 weighted_metrics=["acc"],
                 run_eagerly=should_run_eagerly(),
@@ -290,7 +290,7 @@ def layer_test(
                 [
                     "mse",
                     losses.QuantileLossError([0.5]),
-                    losses.SymetricMeanAbsolutePercentageError,
+                    losses.SymetricMeanAbsolutePercentageError(),
                 ],
                 weighted_metrics=["acc"],
             )

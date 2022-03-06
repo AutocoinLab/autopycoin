@@ -155,9 +155,10 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
             ),
             (
                 [
+                    1,
                     10,
-                    lambda: create_generic_nbeats(
-                        label_width=1,
+                    lambda label_width: create_generic_nbeats(
+                        label_width=label_width,
                         g_forecast_neurons=10,
                         g_backcast_neurons=10,
                         n_neurons=10,
@@ -299,7 +300,7 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
         )
 
     @parameterized.parameters([(2, 3, 3, 1, [2], [3], [2], [3], 0.0,)])
-    def test_nbeats_attributes(
+    def test_nbeats_methods(
         self,
         label_width,
         input_width,
@@ -565,42 +566,21 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
         [
             (
                 2,
-                5,
-                5,
-                5,
-                3,
-                2,
-                0.0,
-                True,
                 tf.reduce_mean,
-                [(1, 2, 2), (1, 2, 2), (1, 2, 2), (1, 2, 2, 3), (1, 2, 2, 3)],
+                [(1, 2, 2), (1, 2, 2), (1, 2, 2), (1, 2, 2, 3), (1, 2, 2)],
                 (1, 2),
             ),
             (
                 2,
-                5,
-                5,
-                5,
-                3,
-                2,
-                0.0,
-                True,
                 lambda x, axis: tf.identity(x),
-                [(1, 2, 2), (1, 2, 2), (1, 2, 2), (1, 2, 2, 3), (1, 2, 2, 3)],
+                [(1, 2, 2), (1, 2, 2), (1, 2, 2), (1, 2, 2, 3), (1, 2, 2)],
                 (10, 1, 2),
             ),
         ]
     )
-    def test_pool_nbeats(
+    def test_pool_nbeats_as_model(
         self,
         label_width,
-        g_forecast_neurons,
-        g_backcast_neurons,
-        n_neurons,
-        n_blocks,
-        n_stacks,
-        drop_rate,
-        share,
         fn_agg,
         shape,
         shape2,
@@ -621,17 +601,16 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
         model = [
             create_generic_nbeats(
                 label_width=label_width,
-                g_forecast_neurons=g_forecast_neurons,
-                g_backcast_neurons=g_backcast_neurons,
-                n_neurons=n_neurons,
-                n_blocks=n_blocks,
-                n_stacks=n_stacks,
-                drop_rate=drop_rate,
-                share=share,
+                g_forecast_neurons=1, 
+                g_backcast_neurons=1, 
+                n_neurons=1, 
+                n_blocks=1, 
+                n_stacks=1,
             )
             for _ in range(5)
         ]
 
+        # Check quantiles model
         qloss = QuantileLossError([0.2, 0.5])
 
         model = PoolNBEATS(
@@ -639,6 +618,7 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
             nbeats_models=model,
             losses=["mse", "mae", "mape", qloss],
             fn_agg=fn_agg,
+            seed=5
         )
 
         model.compile(
@@ -653,9 +633,15 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
             loss=model.get_pool_losses(),
             metrics=["mae"],
         )
-
+        
         # Issue 13
-        model.fit(w.train)
+        model.fit(w.train, epochs=1)
+        # Check validation_data
+        model.fit(w.train, validation_data=w.valid, epochs=1)
+        # Check tensor inputs
+        for x, y, x_val, y_val in zip(w.train.take(1), w.valid.take(1)):
+            model.fit(x=x, y=y, validation_data=(x_val, y_val), epochs=1)
+
         output = model.predict(
             np.array(
                 [
@@ -680,35 +666,82 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
         for loss in ["mse", "msle", "mape"]:
             self.assertIn(loss, model.get_pool_losses())
 
-        model2 = lambda: create_generic_nbeats(
-            label_width=label_width,
-            g_forecast_neurons=g_forecast_neurons,
-            g_backcast_neurons=g_backcast_neurons,
-            n_neurons=n_neurons,
-            n_blocks=n_blocks,
-            n_stacks=n_stacks,
-            drop_rate=drop_rate,
-            share=share,
-        )
-        model2 = PoolNBEATS(
-            n_models=10,
-            nbeats_models=model2,
-            losses=["mse", "mae", "mape"],
-            fn_agg=fn_agg,
-        )
+        # callable model
+        nbeats = [lambda label_width: create_generic_nbeats(
+                    label_width=label_width,
+                    g_forecast_neurons=1, 
+                    g_backcast_neurons=1, 
+                    n_neurons=1, 
+                    n_blocks=1, 
+                    n_stacks=1,
+                  ),
+                  lambda label_width: create_interpretable_nbeats(
+                    label_width=label_width,
+                    trend_n_neurons=1, 
+                    seasonality_n_neurons=1
+                  )]
 
-        model2.compile(
-            tf.keras.optimizers.Adam(
-                learning_rate=0.02,
-                beta_1=0.9,
-                beta_2=0.999,
-                epsilon=1e-07,
-                amsgrad=True,
-                name="Adam",
-            ),
-            loss=model.get_pool_losses(),
-            metrics=["mae"],
-        )
+        # Check randomness
+        tf.random.set_seed(5)
+
+        for i in range(2):
+            model2 = PoolNBEATS(
+                label_width=label_width,
+                n_models=10,
+                nbeats_models=nbeats,
+                losses=["mse", "mae", "mape"],
+                fn_agg=fn_agg,
+                seed=5
+            )
+
+            model2.compile(
+                tf.keras.optimizers.Adam(
+                    learning_rate=0.02,
+                    beta_1=0.9,
+                    beta_2=0.999,
+                    epsilon=1e-07,
+                    amsgrad=True,
+                    name="Adam",
+                ),
+                loss=model.get_pool_losses(),
+                metrics=["mae"],
+            )
+
+            model2.build(tf.TensorShape((None, 6)))
+
+            if i == 0:
+                mask_random_v1 = model2._mask
+                pool_losses_random_v1 = model2._pool_losses
+                types_random_v1 = [m.nbeats_type for m in model2.nbeats]
+
+        self.assertAllEqual(model2._mask, mask_random_v1)
+        self.assertAllEqual(model2._pool_losses, pool_losses_random_v1)
+        self.assertAllEqual([m.nbeats_type for m in model2.nbeats], types_random_v1)
+
         output = model2.predict(np.array([[1.0, 2.0, 3.0, 5.0, 6.0, 7.0]]))
 
         self.assertEqual(output.shape, shape2)
+ 
+    def test_pool_nbeats_as_layer(self):
+
+        kwargs_2 = {
+            'label_width': 3,
+            "n_models": 3
+        }
+
+        layer_test(
+            PoolNBEATS,
+            kwargs=kwargs_2,
+            input_dtype=floatx(),
+            input_shape=(2, 10),
+            expected_output_shape=((None, 3), (None, 3), (None, 3)),
+            expected_output_dtype=[floatx(), floatx(), floatx()],
+        )
+
+    def test_pool_nbeats_raises_error(self):
+        with self.assertRaisesRegexp(
+            AssertionError, f"""If `label_width` is not provided"""
+        ):
+            PoolNBEATS(
+                n_models=10,
+            )
