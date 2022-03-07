@@ -15,6 +15,8 @@ class Layer(tf.keras.layers.Layer):
     See tensorflow documentation for more details.
     """
 
+    NOT_INSPECT = ["call", "_output"]
+
     def __init__(self, *args, **kwargs):
 
         super().__init__(*args, **kwargs)

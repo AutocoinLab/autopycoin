@@ -279,24 +279,22 @@ class NBEATS(Model, AutopycoinBaseClass):
         super().build(input_shape)
 
     def compile(self,
-              optimizer: Optional[Union[str, tf.keras.optimizers.Optimizer]]='rmsprop',
-              loss: Optional[Union[Union[Union[list, dict], tf.keras.losses.Loss], str]]=None,
-              metrics: Optional[list]=None,
-              loss_weights: Optional[Union[list, dict]]=[1],
-              weighted_metrics: Optional[list]=None,
-              run_eagerly: Optional[bool]=None,
-              steps_per_execution: Optional[int]=None,
-              jit_compile: Optional[bool]=None,
-              **kwargs: dict) -> None:
+              optimizer='rmsprop',
+              loss=None,
+              metrics=None,
+              loss_weights=[0, 1],
+              weighted_metrics=None,
+              run_eagerly=None,
+              steps_per_execution=None,
+              **kwargs) -> None:
 
-        self.compile(optimizer=optimizer,
+        super().compile(optimizer=optimizer,
                     loss=loss,
                     metrics=metrics,
                     loss_weights=loss_weights,
                     weighted_metrics=weighted_metrics,
                     run_eagerly=run_eagerly,
                     steps_per_execution=steps_per_execution,
-                    jit_compile=jit_compile,
                     **kwargs)
 
     def call(self, inputs: Union[tuple, dict, list, tf.Tensor], **kwargs: dict) -> tf.Tensor:
@@ -312,7 +310,7 @@ class NBEATS(Model, AutopycoinBaseClass):
             # outputs is (quantiles, Batch_size, forecast)
             outputs = tf.math.add(outputs, residual_outputs)
             reconstructed_inputs = reconstructed_inputs + inputs
-        return self.strategy_output(outputs) #reconstructed_inputs, 
+        return self.strategy_output(reconstructed_inputs), self.strategy_output(outputs)
 
     def seasonality(self, data: tf.Tensor) -> tf.Tensor:
         """
@@ -516,6 +514,7 @@ class PoolNBEATS(Model, AutopycoinBaseClass):
     ...        valid_size=10,
     ...        flat=True,
     ...        batch_size=32,
+    ...        preprocessing=lambda x,y: (x, (x, y))
     ...     )
     ...
     >>> w = w.from_array(data=data,
@@ -523,7 +522,7 @@ class PoolNBEATS(Model, AutopycoinBaseClass):
     ...        label_columns=['test'])
     ...
     >>> model = PoolNBEATS(
-    ...             label_width=10,
+    ...             label_width=3,
     ...             n_models=10,
     ...             nbeats_models=create_interpretable_nbeats,
     ...             losses=['mse', 'mae', 'mape'])
@@ -668,19 +667,26 @@ class PoolNBEATS(Model, AutopycoinBaseClass):
             outputs.append(model(inputs_masked))
         return outputs
 
-    def fit(
-        self,
-        x: Union[None, Union[tf.Tensor, tf.data.Dataset]]=None,
-        validation_data: Union[None, Union[Tuple[tf.Tensor,...],tf.data.Dataset]]=None,
-        **kwargs: dict
-    ) -> List[tf.keras.callbacks.History]:
+    def fit(self,
+          x=None,
+          y=None,
+          batch_size=None,
+          epochs=1,
+          verbose='auto',
+          callbacks=None,
+          validation_split=0.,
+          validation_data=None,
+          **kwargs):
         """
         Fit sequentially the nbeats models and return a list of models history.
+        If you want to apply custom parameters during compiling to each model
+        you need to compile them before using `fit` method.
         TODO: Unit testing
         """
         history = []
 
-        apply_mask, shape = self._make_apply_mask(x)
+        apply_mask_x, shape = self._make_apply_mask(x)
+        apply_mask_y, _ = self._make_apply_mask(y)
         apply_mask_validation_data, _ = self._make_apply_mask(validation_data)
 
         # allow masks init
@@ -689,24 +695,35 @@ class PoolNBEATS(Model, AutopycoinBaseClass):
 
         for idx, model in enumerate(self.nbeats):
 
-            if kwargs.get('verbose', 1) > 0:
-                print(f'Training model {idx + 1} over {self.n_models}:') #Use a better way to log the informations
+            # Use a way to log the informations
 
             # We apply mask to x and validation_data if it exists
             x_masked = x
+            y_masked = y
             validation_data_masked = validation_data
             if x:
-                x_masked = apply_mask(x, idx)
+                x_masked = apply_mask_x(x, idx)
+            if y:
+                y_masked = apply_mask_y(y, idx)
             if validation_data:
                 validation_data_masked = apply_mask_validation_data(validation_data, idx)
 
-            model.compile(
-                loss=self.get_pool_losses()[idx],
-                optimizer=self.optimizer,
-                metrics=self.metrics,
-            )
+            if not model._is_compiled:
+                model.compile(
+                    loss=self.get_pool_losses()[idx],
+                    optimizer=self.optimizer,
+                    metrics=self.metrics,
+                )
 
-            model_history = model.fit(x=x_masked, validation_data=validation_data_masked, **kwargs)
+            model_history = model.fit(x=x_masked,
+                                    y=y_masked,
+                                    batch_size=batch_size,
+                                    epochs=epochs,
+                                    verbose=verbose,
+                                    callbacks=callbacks,
+                                    validation_split=validation_split,
+                                    validation_data=validation_data_masked,
+                                    **kwargs)
             history.append(model_history)
 
         return history
@@ -715,17 +732,25 @@ class PoolNBEATS(Model, AutopycoinBaseClass):
         self,
         x: Union[None, Union[Union[tf.Tensor,tf.data.Dataset], Tuple[tf.Tensor,...]]],
     ) -> None:
-        "prepare function applying masks and shape"
+        "Prepare function applying masks and computing the shape"
 
         if isinstance(x, tf.data.Dataset):
-            apply_mask = lambda x, idx: x.map(lambda x, y: (x[:, -self._mask[idx]:], y))
+            # case of dataset
+            apply_mask = lambda x, idx: x.map(lambda x, y: (x[:, -self._mask[idx]:], (y[0][:, -self._mask[idx]:], y[1])))
             shape = x.element_spec[0].shape
         elif isinstance(x, (tf.Tensor, np.ndarray)):
+            # case of x tensor
             apply_mask = lambda x, idx: x[:, -self._mask[idx]:]
             shape = x.shape
         elif isinstance(x, tuple):
-            apply_mask = lambda x, idx: x[0][:, -self._mask[idx]:], x[1]
-            shape = x[0].shape
+            if isinstance(x[1], tuple):
+                # case of tuple validation_data
+                apply_mask = lambda x, idx: (x[0][:, -self._mask[idx]:], (x[1][0][:, -self._mask[idx]:], x[1][1]))
+                shape = x[0].shape
+            else:
+                # case of y tuple
+                apply_mask = lambda x, idx: x[0][:, -self._mask[idx]:], x[1]
+                shape = x[0].shape
         else:
             return None, None
 

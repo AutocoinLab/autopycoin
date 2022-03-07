@@ -15,6 +15,8 @@ class Model(tf.keras.Model):
     its internal `quantiles` attribute to fit the loss `quantiles` one.
     """
 
+    NOT_INSPECT = ["call", "fit", "compile"]
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._quantiles = None
