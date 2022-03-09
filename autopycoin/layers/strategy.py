@@ -15,7 +15,7 @@ class UniVariate(Layer):
     """
     Used inside univariate models as first and last layer.
     It performs transpose operation to put the variables as the first dimensions
-    to avoid use them during calculations and get them back as last dimensions to
+    to avoid to use them during calculations and get them back as last dimensions to
     fit with tensorflow norms.
 
     Parameters
@@ -30,29 +30,34 @@ class UniVariate(Layer):
     def __init__(
         self,
         last_to_first: bool = True,
+        first_to_last: bool = False,
         is_multivariate: bool = False,
-        *args: list,
         **kwargs: dict
     ) -> None:
 
-        super().__init__(*args, **kwargs)
+        super().__init__(**kwargs)
 
         self.last_to_first = last_to_first
+        self.first_to_last = first_to_last
         self.is_multivariate = is_multivariate
+        
+    def build(self, input_shape):
+        """
+        Build the transform function.
+        """
 
-    def build(self, input_shape: tf.TensorShape):
-        """ See tensorflow documentation. """
-
-        super().build(input_shape)
+        # This is here because `is_multivariate` can be set 
+        # during build method of an higher model or layer.
+        # Inside `__init__`, the transform function is the indentity. 
 
         if self.last_to_first and self.is_multivariate:
             self.transform = transpose_last_to_first
-            if self.n_quantiles > 1:
-                self.transform = add_quantile_dim(self.transform)
-        elif self.is_multivariate:
+        elif self.first_to_last and self.is_multivariate:
             self.transform = transpose_first_to_last
         else:
             self.transform = tf.identity
+
+        super().build(input_shape)
 
     def call(self, inputs: Union[tf.Tensor, Tuple[tf.Tensor, ...]]) -> tf.Tensor:
         """See tensorflow documentation."""
@@ -75,7 +80,7 @@ class UniVariate(Layer):
         return config
 
 
-def add_quantile_dim(fn_transform):
+def add_quantile_dim(fn_transform, axis):
     """
     Add a dimension to inputs which makes it broadcastable.
 
@@ -91,7 +96,7 @@ def add_quantile_dim(fn_transform):
     """
 
     def fn(inputs):
-        return tf.expand_dims(fn_transform(inputs), axis=1)
+        return tf.expand_dims(fn_transform(inputs), axis=axis)
 
     return fn
 

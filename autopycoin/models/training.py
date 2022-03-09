@@ -3,6 +3,7 @@ Overloading Model tensorflow object
 """
 
 import tensorflow.compat.v2 as tf
+from keras.engine import data_adapter
 
 from ..utils import transpose_first_to_last
 
@@ -21,23 +22,26 @@ class Model(tf.keras.Model):
         super().__init__(*args, **kwargs)
         self._quantiles = None
         self._n_quantiles = 0
+        self._apply_quantiles_transform = True
 
-    @property
-    def quantiles(self):
-        """Return quantiles attribute."""
-        return self._quantiles
-
-    @property
-    def n_quantiles(self):
-        """Return the number of quantiles."""
-        return self._n_quantiles
+    def _check_quantiles_in_loss(self, loss):
+        if isinstance(loss, (tuple, list)):
+            quantiles = [loss_fn.quantiles for loss_fn in loss if hasattr(loss_fn, "quantiles")]
+            for qtles in quantiles[1:]:
+                if qtles != quantiles[0]:
+                    raise ValueError(f'`quantiles` has to be identical through losses. Got {quantiles}')
+            if len(quantiles) > 0:
+                self._set_quantiles(quantiles[0])
+        elif hasattr(loss, "quantiles"):
+            self._set_quantiles(loss.quantiles)
 
     # TODO: Avoid to rebuild weights when quantiles of model is not None
     def _set_quantiles(self, value):
         """Modify the shape of the layers to match with the new quantile values."""
         self.built = False
         for idx, _ in enumerate(self.layers):
-            self.layers[idx]._set_quantiles(value)  # pylint: disable=protected-access
+            if hasattr(self.layers[idx], '_set_quantiles'):
+                self.layers[idx]._set_quantiles(value)  # pylint: disable=protected-access
         self._n_quantiles = len(value)
         self._quantiles = value
 
@@ -52,11 +56,11 @@ class Model(tf.keras.Model):
         steps_per_execution=None,
         **kwargs,
     ):
-        """Compile method from tensorflow. When compiling with uncertainty loss defining quantiles
-        it defines `quantiles` attribute in thz model and sublayers."""
+        """Compile method from tensorflow. When compiling with a loss defining a quantiles attribute
+        it propagates this attribute to the model and sublayers."""
 
-        if hasattr(loss, "quantiles"):
-            self._set_quantiles(loss.quantiles)
+        # TODO: handle loss in a list
+        self._check_quantiles_in_loss(loss)
 
         return super().compile(
             optimizer=optimizer,
@@ -69,21 +73,66 @@ class Model(tf.keras.Model):
             **kwargs,
         )
 
-    def __call__(self, *args, **kwargs):
-        """See tensorflow documentation"""
-        outputs = super().__call__(*args, **kwargs)
-        if self.n_quantiles > 1 and not isinstance(outputs, (list, tuple)):
-            outputs = transpose_first_to_last(outputs)
+    def __call__(self, inputs, *args, **kwargs):
+        """Transpose quantiles dimension to the last position to fit with keras norm.
+        See tensorflow documentation for more informations.
+        """
+
+        if self._apply_quantiles_transform:
+            inputs = _expand_dims_from_quantiles(inputs, self.n_quantiles, axis=0)
+
+        outputs = super().__call__(inputs, *args, **kwargs)
+
+        if self._apply_quantiles_transform:
+            return _apply_quantiles_transpose(outputs, self.n_quantiles)
+
         return outputs
 
     def train_step(self, data):
-        """See tensorflow documentation"""
-        if self.n_quantiles > 1:
-            data = (data[0], tf.expand_dims(data[1], axis=-1))
-        return super().train_step(data)
+        """Transpose quantiles dimension to the last position to fit with keras norm.
+        See tensorflow documentation
+        """
+        
+        x, y, sample_weight = data_adapter.unpack_x_y_sample_weight(data)
+
+        y = _expand_dims_from_quantiles(y, self.n_quantiles, axis=-1)
+
+        return super().train_step((x, y, sample_weight))
 
     def test_step(self, data):
         """See tensorflow documentation"""
-        if self.n_quantiles > 1:
-            data = (data[0], tf.expand_dims(data[1], axis=-1))
-        return super().test_step(data)
+        
+        x, y, sample_weight = data_adapter.unpack_x_y_sample_weight(data)
+
+        y = _expand_dims_from_quantiles(y, self.n_quantiles, axis=-1)
+        
+        return super().test_step((x, y, sample_weight))
+
+    @property
+    def quantiles(self):
+        """Return quantiles attribute."""
+        return self._quantiles
+
+    @property
+    def n_quantiles(self):
+        """Return the number of quantiles."""
+        return self._n_quantiles
+
+
+def _expand_dims_from_quantiles(tensors, n_quantiles, axis):
+    # TODO: wrap quantiles fn
+    if n_quantiles > 1 and tensors is not None:
+        if isinstance(tensors, (list, tuple)):
+            tensors = [_expand_dims_from_quantiles(tensors_n, n_quantiles, axis=axis) for tensors_n in tensors]
+        else:
+            tensors = tf.expand_dims(tensors, axis=axis)
+    return tensors
+
+def _apply_quantiles_transpose(outputs, n_quantiles):
+    # TODO: wrap quantiles fn
+    if n_quantiles > 1:
+        if isinstance(outputs, (list, tuple)):
+            return [transpose_first_to_last(output) for output in outputs]
+        else:
+            return transpose_first_to_last(outputs)
+    return outputs

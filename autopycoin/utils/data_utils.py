@@ -200,7 +200,6 @@ def transpose_first_to_last(inputs: tf.Tensor):
 # TODO: unit testing
 def transpose_last_to_first(inputs: tf.Tensor):
     """transpose the last dimension to the first position."""
-
     perm = tf.concat([[tf.rank(inputs) - 1], tf.range(tf.rank(inputs) - 1)], axis=0)
     return tf.transpose(inputs, perm=perm)
 

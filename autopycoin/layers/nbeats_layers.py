@@ -11,6 +11,7 @@ from ..baseclass import AutopycoinBaseClass
 from ..asserts import greater_or_equal, equal_length, is_between
 
 
+# TODO: create a UnivariateModel and UnivariateLayer which take care of strategy etc...
 class BaseBlock(Layer, AutopycoinBaseClass):
     """
     Base class of a nbeats block.
@@ -73,6 +74,7 @@ class BaseBlock(Layer, AutopycoinBaseClass):
 
     def build(self, input_shape: tf.TensorShape) -> None:
         """See tensorflow documentation."""
+
         dtype = tf.as_dtype(self.dtype or tf.float32())
         if not (dtype.is_floating or dtype.is_complex):
             raise TypeError(
@@ -91,9 +93,13 @@ class BaseBlock(Layer, AutopycoinBaseClass):
         self.input_spec = InputSpec(min_ndim=2, axes={-1: self.input_width})
 
         # multi univariate inputs
-        self._multivariate = input_shape.as_list()[:1] if input_shape.rank > 2 else []
-        if self.n_quantiles > 1 and self._multivariate:
-            self._multivariate = self._multivariate + [1]
+        self._multivariate = []
+        if (bool(input_shape.rank > 2) and self.n_quantiles < 2) or (bool(input_shape.rank > 3) and self.n_quantiles > 1):
+            self._multivariate = input_shape.as_list()[:1]
+
+            # Add quantile dimension to first layers
+            if self.n_quantiles > 1:
+                self._multivariate = self._multivariate + [1]
 
         # Computing fc layers
         dim = self.input_width
@@ -118,6 +124,7 @@ class BaseBlock(Layer, AutopycoinBaseClass):
 
         self.fc_forecast, self.forecast_coef = self._build_branch(self.label_width, branch_name="forecast")
         self.fc_backcast, self.backcast_coef = self._build_branch(self.input_width, branch_name="backcast")
+
         super().build(input_shape)
 
     def _build_branch(self, output_last_dim: int, branch_name: str) -> None:
@@ -137,6 +144,7 @@ class BaseBlock(Layer, AutopycoinBaseClass):
                 shape_fc[1] = self.n_quantiles
             else:
                 shape_fc.insert(0, self.n_quantiles)
+
         # If multivariate inputs then we modify the shape of fc layers
         fc = self.add_weight(shape=shape_fc, name=f"fc_{branch_name}_{self.name}")
 
@@ -187,6 +195,7 @@ class BaseBlock(Layer, AutopycoinBaseClass):
             # shape: (Batch_size, n_neurons)
             inputs = tf.add(tf.matmul(inputs, kernel), bias)
             inputs = tf.nn.relu(inputs)
+            # TODO: change dropout to let the user choose
             inputs = self.dropout(inputs, training=True)
 
         # shape: (Batch_size, backcast)
@@ -198,6 +207,7 @@ class BaseBlock(Layer, AutopycoinBaseClass):
         outputs = self._output(
             inputs, self.fc_forecast, self.forecast_coef
         )  # layers fc and coef created in _build_branch
+
         return outputs, reconstructed_inputs
 
     def _output(

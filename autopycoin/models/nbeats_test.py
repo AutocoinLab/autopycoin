@@ -167,7 +167,6 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
                         drop_rate=0.0,
                         share=True,
                     ),
-                    ["mse"],
                 ],
                 PoolNBEATS,
                 ["label_width", "n_models"],
@@ -294,9 +293,9 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
             kwargs={"stacks": stacks},
             input_dtype=floatx(),
             input_shape=(2, 3),
-            expected_output_shape=((None, 2), (None, 3)),
+            expected_output_shape=((None, 3), (None, 2)),
             expected_output_dtype=[floatx(), floatx()],
-            expected_output=tf.constant([18.0, 9.0, 18.0, 9.0], shape=(2, 2)),
+            expected_output=[tf.constant([24.0, 8.0, 10.0, 24.0, 8.0, 10.0], shape=(2, 3)), tf.constant([18.0, 9.0, 18.0, 9.0], shape=(2, 2))],
         )
 
     @parameterized.parameters([(2, 3, 3, 1, [2], [3], [2], [3], 0.0,)])
@@ -497,12 +496,22 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
 
         # Compare output shape with expected shape
         outputs = model.predict(np.array([[1.0, 2.0, 3.0]]))
-        self.assertEqual(outputs.shape, (1, 2))
+        self.assertEqual(outputs[1].shape, (1, 2))
+        self.assertEqual(outputs[0].shape, (1, 3))
+
+        outputs = model(np.array([[1.0, 2.0, 3.0]]))
+        self.assertEqual(outputs[1].shape, (1, 2))
+        self.assertEqual(outputs[0].shape, (1, 3))
 
         # Compare output shape with expected shape when quantiles = 3
         model.compile(loss=QuantileLossError([0.1, 0.5, 0.9]))
         outputs = model.predict(np.array([[1.0, 2.0, 3.0]]))
-        self.assertEqual(outputs.shape, (1, 2, 3))
+        self.assertEqual(outputs[1].shape, (1, 2, 3))
+        self.assertEqual(outputs[0].shape, (1, 3, 1)) # No quantiles for reconstructed inputs
+
+        outputs = model(np.array([[1.0, 2.0, 3.0]]))
+        self.assertEqual(outputs[1].shape, (1, 2, 3))
+        self.assertEqual(outputs[0].shape, (1, 3, 1)) # No quantiles for reconstructed inputs
 
     @parameterized.parameters([(2, 5, 5, 5, 3, 2, 0.0, True)])
     def test_create_generic_nbeats(
@@ -517,7 +526,7 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
         share,
     ):
 
-        model = create_generic_nbeats(
+        create_model = lambda : create_generic_nbeats(
             label_width=label_width,
             g_forecast_neurons=g_forecast_neurons,
             g_backcast_neurons=g_backcast_neurons,
@@ -527,6 +536,8 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
             drop_rate=drop_rate,
             share=share,
         )
+
+        model = create_model()
 
         self.assertIsInstance(model, NBEATS)
         generic_stack_1 = model.stacks[0]
@@ -553,14 +564,32 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
             generic_stack_2.blocks[2].get_weights(),
         )
 
-        # Compare output shape with expected
-        outputs = model.predict(np.array([[1.0, 2.0, 3.0]]))
-        self.assertEqual(outputs.shape, (1, 2))
+        def check_shape(inputs, shape1, shape2):
+            outputs_predict = model.predict(inputs)
+            outputs_call = model.predict(inputs)
 
-        # Compare output shape with expected when quantiles = 2
+            for output in [outputs_predict, outputs_call]:
+                self.assertEqual(output[0].shape, shape1)
+                self.assertEqual(output[1].shape, shape2)
+
+        # Compare output shape with expected
+        check_shape(np.array([[1.0, 2.0, 3.0]]), (1, 3), (1, 2))
+
+        model = create_model()
+
+        check_shape(np.array([[[1., 1.], [2., 2.], [3., 3.]]]), (1, 3, 2), (1, 2, 2))
+
+        model = create_model()
+
+        # Compare output shape with expected when quantiles = 3
         model.compile(loss=QuantileLossError([0.1, 0.5, 0.9]))
-        outputs = model.predict(np.array([[1.0, 2.0, 3.0]]))
-        self.assertEqual(outputs.shape, (1, 2, 3))
+        check_shape(np.array([[1.0, 2.0, 3.0]]), (1, 3, 1), (1, 2, 3))
+
+        model = create_model()
+
+        model.compile(loss=QuantileLossError([0.1, 0.5, 0.9]))
+        check_shape(np.array([[[1., 1.], [2., 2.], [3., 3.]]]), (1, 3, 2, 1), (1, 2, 2, 3))
+
 
     @parameterized.parameters(
         [
@@ -595,6 +624,7 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
             valid_size=0,
             test_size=0,
             flat=False,
+            preprocessing=lambda x,y: (x,(x,y))
         )
         w.from_array(data, input_columns=[0, 1], label_columns=[0, 1])
 
@@ -616,7 +646,6 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
         model = PoolNBEATS(
             n_models=10,
             nbeats_models=model,
-            losses=["mse", "mae", "mape", qloss],
             fn_agg=fn_agg,
             seed=5
         )
@@ -630,10 +659,10 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
                 amsgrad=True,
                 name="Adam",
             ),
-            loss=model.get_pool_losses(),
+            loss=[qloss], #"mse", "mae", "mape", 
             metrics=["mae"],
         )
-        
+
         # Issue 13
         model.fit(w.train, epochs=1)
         # Check validation_data
@@ -658,7 +687,7 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
         )
 
         for o, s in zip(output, shape):
-            self.assertEqual(o.shape, s)
+            self.assertEqual(o[1].shape, s)
 
         for loss in ["mse", "mae", "mape", qloss]:
             self.assertIn(loss, model.get_pool_losses())
@@ -689,7 +718,6 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
                 label_width=label_width,
                 n_models=10,
                 nbeats_models=nbeats,
-                losses=["mse", "mae", "mape"],
                 fn_agg=fn_agg,
                 seed=5
             )
@@ -703,7 +731,7 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
                     amsgrad=True,
                     name="Adam",
                 ),
-                loss=model.get_pool_losses(),
+                loss=["mse", "mae", "mape"],
                 metrics=["mae"],
             )
 
