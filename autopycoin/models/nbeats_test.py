@@ -659,7 +659,7 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
                 amsgrad=True,
                 name="Adam",
             ),
-            loss=[qloss], #"mse", "mae", "mape", 
+            loss=["mse", "mae", "mape", qloss],
             metrics=["mae"],
         )
 

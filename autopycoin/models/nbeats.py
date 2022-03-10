@@ -289,6 +289,8 @@ class NBEATS(Model, AutopycoinBaseClass):
 
         super().__init__(**kwargs)
 
+        self._apply_quantiles_transform = True
+
         # Stacks where blocks are defined
         self._stacks = stacks
 
@@ -691,7 +693,7 @@ class PoolNBEATS(Model, AutopycoinBaseClass):
               **kwargs):
 
         """Compiles models one by one for training. See tensorflow documentation for more informations.
-        
+
         Parameters
         ----------
         loss : list of list of losses or list of losses or str.
@@ -718,6 +720,9 @@ class PoolNBEATS(Model, AutopycoinBaseClass):
               **kwargs
               )
 
+        print(f'losses compiled from {self}: ', self.compiled_loss._losses)
+        print(f'vs from {self}: ', self.losses)
+
         for idx in range(self.n_models):
             self.nbeats[idx].compile(
                 optimizer=optimizer,
@@ -731,7 +736,7 @@ class PoolNBEATS(Model, AutopycoinBaseClass):
             )
 
     def _init_pool_losses(
-        self, 
+        self,
         losses: List[Union[str, Union[tf.keras.losses.Loss, LossFunctionWrapper]]],
     ) -> None:
 
@@ -828,7 +833,7 @@ class PoolNBEATS(Model, AutopycoinBaseClass):
         """Reduce the n outputs to a single output tensor by mean operation."""
 
         outputs = super().predict(*args, **kwargs)
-        
+
         # TODO: handle case quantiloss produce dim 3 and mse not. Raise error ?
         batch_outputs = tuple(output[1] for output in outputs)
         batch_reconstructed_inputs = tuple(output[0] for output in outputs)

@@ -20,6 +20,10 @@ from ..layers import Layer
 
 class Dense(Layer):
 
+    def __init__(self, *args, **kwargs):
+
+        super().__init__(*args, **kwargs)
+
     def build(self, input_shape):
         shape = [20, 50]
         if self.n_quantiles > 1:
@@ -53,20 +57,21 @@ class ModelTest(tf.test.TestCase, parameterized.TestCase):
         model.compile(loss=QuantileLossError([0.5, 0.6]))
         self.assertEqual(model.quantiles, [0.4, 0.5, 0.6])
 
-        for layer in model.layers[1:]: # W don't take Input layer
+        for layer in model.layers[1:]: # don't take Input layer
             self.assertEqual(layer.quantiles, [0.4, 0.5, 0.6])
 
     
     @parameterized.parameters(
         [
         (QuantileLossError([0.1, 0.3, 0.5]), (213, 50, 5), None),
-        #([QuantileLossError([0.1, 0.3, 0.5]), 'mse'], (213, 50, 5), None),
+        ([QuantileLossError([0.1, 0.3, 0.5])], (213, 50, 5), None),
+        ([QuantileLossError([0.1, 0.3, 0.5]), 'mse'], (213, 50, 5), ValueError),
         ([QuantileLossError([0.1, 0.3, 0.5]), QuantileLossError([0.1, 0.3, 0.5])], (213, 50, 5), None),
         ([QuantileLossError([0.1, 0.3, 0.5]), QuantileLossError([0.1, 0.5])], (213, 50, 5), ValueError),
         ('mse', (213, 50), None)
         ]
     )
-    def test_predict_output_shape(self, loss, shape, error):
+    def test_predict_one_output_shape(self, loss, shape, error):
         data = random_ts(
             n_steps=400,
             trend_degree=2,
@@ -119,6 +124,7 @@ class ModelTest(tf.test.TestCase, parameterized.TestCase):
                 metrics=["mae"],
             )
 
+
             model.fit(w.train, validation_data=w.valid, epochs=1)
             output = model.predict(w.train)
 
@@ -137,4 +143,77 @@ class ModelTest(tf.test.TestCase, parameterized.TestCase):
                 loss=loss,
                 metrics=["mae"],
             )
+
+    @parameterized.parameters(
+        [
+        (QuantileLossError([0.1, 0.3, 0.5]), ((213, 50, 5), (213, 50, 5)), None),
+        ([QuantileLossError([0.1, 0.3, 0.5])], ((213, 50, 5), (213, 50, 5)), None),
+        ([QuantileLossError([0.1, 0.3, 0.5]), 'mse'], ((213, 50, 5), (213, 50)), None),
+        ([QuantileLossError([0.1, 0.3, 0.5]), QuantileLossError([0.1, 0.3, 0.5])], ((213, 50, 5), (213, 50, 5)), None),
+        ([QuantileLossError([0.1, 0.3, 0.5]), QuantileLossError([0.1, 0.5])], ((213, 50, 5), (213, 50, 3)), ValueError),
+        ('mse', ((213, 50), (213, 50)), None),
+        ([QuantileLossError([0.1, 0.3, 0.5]), 'mse', QuantileLossError([0.1, 0.3, 0.5]), 'mse'], ((213, 50, 5), (213, 50, 5)), None)
+        ]
+    )
+    def test_predict_multi_output_shape(self, loss, shape, error):
+        data = random_ts(
+            n_steps=400,
+            trend_degree=2,
+            periods=[10],
+            fourier_orders=[10],
+            trend_mean=0,
+            trend_std=1,
+            seasonality_mean=0,
+            seasonality_std=1,
+            batch_size=1,
+            n_variables=1,
+            noise=True,
+            seed=42,
+        )
+
+        data = pd.DataFrame(data[0].numpy(), columns=["test"])
+        data["date"] = range(400)
+
+        w = WindowGenerator(
+            input_width=20,
+            label_width=50,
+            shift=50,
+            test_size=10,
+            valid_size=10,
+            flat=True,
+            batch_size=32,
+        )
+
+        w = w.from_array(
+            data=data,
+            input_columns=["test"],
+            label_columns=["test"],
+        )
+
+        inputs = tf.keras.Input(shape=(20))
+        output = Dense()(inputs)
+        output2 = Dense()(inputs)
+        model = Model(inputs=inputs, outputs=[output, output2])
+
+        if not error:
+            model.compile(
+                tf.keras.optimizers.Adam(
+                    learning_rate=0.015,
+                    beta_1=0.9,
+                    beta_2=0.999,
+                    epsilon=1e-07,
+                    amsgrad=False,
+                    name="Adam",
+                ),
+                loss=loss,
+                metrics=["mae"],
+            )
+
+
+            model.fit(w.train, validation_data=w.valid, epochs=1)
+            output = model.predict(w.train)
+
+            for o, s in zip(output, shape):
+                self.assertEqual(o.shape, s)
+
 
