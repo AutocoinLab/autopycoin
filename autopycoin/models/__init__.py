@@ -11,7 +11,7 @@ from .nbeats import (
     interpretable_nbeats_builder,
 )
 
-from .training import Model
+from .training import UnivariateModel
 
 __ALL__ = [
     "NBEATS",

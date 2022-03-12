@@ -13,13 +13,13 @@ from tensorflow.python.keras.losses import LossFunctionWrapper
 from keras.engine import data_adapter
 
 from ..utils.data_utils import convert_to_list
-from .training import Model
+from .training import UnivariateModel
 from ..baseclass import AutopycoinBaseClass
 from ..layers import TrendBlock, SeasonalityBlock, GenericBlock, UniVariate, BaseBlock, Layer
 from ..layers.nbeats_layers import SEASONALITY_TYPE
 
 
-class Stack(Model):
+class Stack(UnivariateModel):
     """
     A stack is a series of blocks where each block produces two outputs,
     the forecast and the backcast.
@@ -169,7 +169,7 @@ class Stack(Model):
         return self.stack_type
 
 
-class NBEATS(Model, AutopycoinBaseClass):
+class NBEATS(UnivariateModel, AutopycoinBaseClass):
     """
     Tensorflow model defining the N-BEATS architecture.
 
@@ -294,10 +294,6 @@ class NBEATS(Model, AutopycoinBaseClass):
         # Stacks where blocks are defined
         self._stacks = stacks
 
-        # multi univariate inputs
-        self.strategy_input = UniVariate(last_to_first=True, first_to_last=False)
-        self.strategy_output = UniVariate(last_to_first=False, first_to_last=True)
-
         self._is_interpretable = self._set_interpretability()
         self._nbeats_type = self._set_type()
 
@@ -310,11 +306,6 @@ class NBEATS(Model, AutopycoinBaseClass):
             input_shape = input_shape[0]
 
         input_shape = tf.TensorShape(input_shape)
-
-        # Check if the inputs are multivariates
-        if (bool(input_shape.rank > 2) and self.n_quantiles < 2) or (bool(input_shape.rank > 3) and self.n_quantiles > 1):
-            self.strategy_input.is_multivariate = True
-            self.strategy_output.is_multivariate = True
 
         super().build(input_shape)
 
@@ -487,13 +478,12 @@ class NBEATS(Model, AutopycoinBaseClass):
         return self._nbeats_type
 
 
-
 NbeatsModelsOptions = Union[
             Union[List[NBEATS], NBEATS], Union[List[Callable], Callable],
         ]
 
 # TODO: finish doc and unit testing.
-class PoolNBEATS(Model, AutopycoinBaseClass):
+class PoolNBEATS(UnivariateModel, AutopycoinBaseClass):
     """
     Tensorflow model defining a pool of N-BEATS models.
 

@@ -2,15 +2,20 @@
 Overloading Model tensorflow object
 """
 
+from autopycoin.losses.losses import QuantileLossError
+from autopycoin.utils.data_utils import transpose_last_to_first
 import tensorflow.compat.v2 as tf
 from keras.engine import data_adapter
 from typing import Tuple
 from keras.losses import LossFunctionWrapper
+import math
 
 from ..utils import transpose_first_to_last
+from ..layers import UniVariate
 
 
-class Model(tf.keras.Model):
+class QuantileModel(tf.keras.Model):
+    # TODO: doc
     """
     Overloading tensorflow Model class to integrate a `quantiles` attribute which is `None`
     if the Model is not computing prediction and confidence intervals.
@@ -34,30 +39,30 @@ class Model(tf.keras.Model):
         """
 
         if isinstance(loss, (tuple, list)):
-            quantiles = [self._check_quantiles_in_loss(loss_fn) for loss_fn in loss if self._check_quantiles_in_loss(loss_fn)]
+            quantiles = [q for loss_fn in loss if (q := self._check_quantiles_in_loss(loss_fn))]
             for qtles in quantiles[1:]:
                 if qtles != quantiles[0]:
                     raise ValueError(f'`quantiles` has to be identical through losses. Got {quantiles}')
 
             if len(quantiles) > 0:
-                self._built = False
-                self._has_quantiles = True
                 return quantiles[0]
 
         elif hasattr(loss, "quantiles"):
-            self._built = False
-            self._has_quantiles = True
             return loss.quantiles
 
     # TODO: Avoid to rebuild weights when quantiles of model is not None
     def _set_quantiles(self, value):
         """Modify the shape of the layers to match with the new quantile values."""
 
-        if self.has_quantiles:
+        self._built = False
+
+        if value:
+            self._has_quantiles = True
             for idx, _ in enumerate(self.layers):
                 if hasattr(self.layers[idx], '_set_quantiles'):
                     self.layers[idx]._set_quantiles(value)  # pylint: disable=protected-access
             self._n_quantiles = len(value)
+            print('quatiles_in_model', value)
             self._quantiles = value
 
     def compile(
@@ -90,6 +95,21 @@ class Model(tf.keras.Model):
             **kwargs,
         )
 
+    def init_quantile_build(self, input_shape):
+        """We build the losses and metrics"""
+
+        outputs_shape = self.compute_output_shape(input_shape)
+
+        if self.compiled_loss:
+            if not self.compiled_loss.built:
+                self.compiled_loss.build(outputs_shape)
+
+        if self.compiled_metrics:
+            if not self.compiled_metrics.built:
+                self.compiled_metrics.build(outputs_shape, outputs_shape)
+
+        self.function_to_apply = []
+
     def __call__(self, inputs, *args, **kwargs):
         """See tensorflow documentation for more informations.
 
@@ -99,124 +119,41 @@ class Model(tf.keras.Model):
 
         print(f'inputs shape from {self}: ', inputs)
 
-        if self._apply_quantiles_transform:
-            # we add one dimension to inputs tensor if there is a quantile loss
-            # We squeeze it if we don't need it in the output.
-            #inputs = self._expand_dims_from_losses(inputs, axis=0)
-            pass
-
-        print(f'inputs shape after expand dim quantile from {self}: ', inputs)
-
         outputs = super().__call__(inputs, *args, **kwargs)
 
         print(f'outputs shape from {self}: ', outputs)
 
-        if self.compiled_loss:
-            if not self.compiled_loss.built:
-                self.compiled_loss.build(outputs)
-
-        print('fin build')
-
         if self._apply_quantiles_transform:
-            r = self._handle_quantiles_dim(outputs, losses=self.compiled_loss._losses)
-            print(f'outputs shape after quantiles transform from {self}: ', r)
-            return r
+            return self._handle_quantiles_dim(outputs)
 
         return outputs
 
-    def train_step(self, data):
-        """Transpose quantiles dimension to the last position to fit with keras norm.
-
-        See tensorflow documentation for more informations.
-        """
-
-        x, y, sample_weight = data_adapter.unpack_x_y_sample_weight(data)
-
-        # We have to know as fast as possible the nature of the output losses in order
-        # to check if it corresponds to a quantile loss.
-        if y is not None:
-            if not self.compiled_loss.built:
-                self.compiled_loss.build(y)
-
-            # We expand dimension if the output is tested with a quantile loss
-            y = self._expand_dims_from_losses(y, losses=self.compiled_loss._losses, axis=-1)
-
-        return super().train_step((x, y, sample_weight))
-
-    def test_step(self, data):
-        """See tensorflow documentation"""
-
-        x, y, sample_weight = data_adapter.unpack_x_y_sample_weight(data)
-
-        # We have to know as fast as possible the nature of the output losses in order
-        # to check if it corresponds to a quantile loss.
-        if y is not None:
-            if not self.compiled_loss.built:
-                self.compiled_loss.build(y)
-
-            # We expand dimension if the output is tested with a quantile loss
-            y = self._expand_dims_from_losses(y, losses=self.compiled_loss._losses, axis=-1)
-
-        return super().test_step((x, y, sample_weight))
-
-    def _expand_dims_from_losses(self, tensors, axis, losses=None):
-        """
-        Wrapper that expand the inputs tensors if they are associated with a quantile loss.
-        """
-
-        if self.has_quantiles:
-
-            # Case 1: multi outputs - multi losses
-            if isinstance(tensors, (list, tuple)) and losses:
-                return [self._expand_dims_from_losses(tensors_n, axis=axis, losses=loss) for tensors_n, loss in zip(tensors, losses)]
-
-            # Case 2: no losses (inputs)
-            elif isinstance(tensors, (list, tuple)) and not losses:
-                return [tf.expand_dims(tensors_n, axis=axis) for tensors_n in tensors]
-
-            # Case 3: one output - multi losses
-            elif isinstance(tensors, tf.Tensor) and isinstance(losses, (list, tuple)):
-                if any([hasattr(loss.fn, 'quantiles') for loss in losses]):
-                    print('expand', tf.expand_dims(tensors, axis=axis))
-                    return tf.expand_dims(tensors, axis=axis)
-                return tensors
-
-            # Case 4: one output - one loss
-            elif isinstance(tensors, tf.Tensor) and isinstance(losses, LossFunctionWrapper):
-                return tf.expand_dims(tensors, axis=axis) if hasattr(losses.fn, 'quantiles') else tensors
-
-            # Case 5: one output - no loss
-            elif isinstance(tensors, tf.Tensor) and losses is None:
-                return tf.expand_dims(tensors, axis=axis)
-
-        print('no_expand for y', (tensors, losses, self.has_quantiles))
-        return tensors
-
-    def _handle_quantiles_dim(self, outputs, losses):
+    def _handle_quantiles_dim(self, outputs, loss=None): # pas envie de le mettre dans call
         # TODO: wrap quantiles fn
-        print('input_transpose', (outputs, losses))
         if self.has_quantiles:
+
+            losses = loss if loss else self.compiled_loss._losses
+
+            losses_is_list = isinstance(losses, (list, tuple))
+            outputs_is_list = isinstance(outputs, (list, tuple))
+            outputs_is_tensor = isinstance(outputs, tf.Tensor)
 
             # Case 1: multi outputs != multi losses
-            if isinstance(outputs, (list, tuple)) and isinstance(losses, (list, tuple)) and len(outputs) != len(losses):
-                return [self._handle_quantiles_dim(output, losses) for output in outputs]
+            if outputs_is_list and losses_is_list and len(outputs) != len(losses):
+                return [self._handle_quantiles_dim(output) for output in outputs]
 
             # Case 2: multi outputs = multi losses
-            elif isinstance(outputs, (list, tuple)) and losses:
+            elif outputs_is_list and losses_is_list:
                 return [self._handle_quantiles_dim(output, loss) for output, loss in zip(outputs, losses)]
 
             # Case 3: one output - multi losses
-            elif isinstance(outputs, tf.Tensor) and isinstance(losses, (list, tuple)):
-                if all([not hasattr(loss.fn, 'quantiles') for loss in losses]):
-                    return outputs[0]
-                else:
+            elif outputs_is_tensor and losses_is_list:
+                if any([hasattr(loss.fn, 'quantiles') for loss in losses]):
                     return transpose_first_to_last(outputs)
 
             # Case 4: one output - one loss
-            elif isinstance(outputs, tf.Tensor) and isinstance(losses, LossFunctionWrapper):
-                if not hasattr(losses.fn, 'quantiles'):
-                    return outputs[0]
-                else:
+            elif outputs_is_tensor and isinstance(losses, LossFunctionWrapper):
+                if hasattr(losses.fn, 'quantiles'):
                     return transpose_first_to_last(outputs)
 
         return outputs
@@ -235,3 +172,129 @@ class Model(tf.keras.Model):
     def has_quantiles(self):
         """Return True if quantiles exists else False"""
         return self._has_quantiles
+
+
+class UnivariateModel(QuantileModel):
+    """
+    """
+
+    NOT_INSPECT = ["call", "fit", "compile"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self._apply_multivariate_transpose = True
+        self._is_multivariate = False
+        self._n_variates = 0
+
+        self.transpose = tf.identity
+        self.inverse_transpose = tf.identity
+
+    def init_univariate_build(self, input_shape):
+
+        self.set_is_multivariate(input_shape)
+        self.set_n_variates(input_shape)
+
+        if self.is_multivariate:
+            self.transpose = transpose_last_to_first
+            self.inverse_transpose = transpose_first_to_last
+
+    def __call__(self, inputs, *args, **kwargs):
+
+        outputs = super().__call__(inputs, *args, **kwargs)
+        print('last', outputs)
+
+        if self._apply_multivariate_transpose:
+            outputs = self.inverse_transpose(outputs)
+            print('after last', outputs)
+
+        self._wrap_losses_and_metrics(outputs)
+
+        return outputs
+
+    def call(self, inputs, **kwargs):
+        """
+        Need to wait until build is finished to have `n_variates`
+        """
+
+        if self._apply_multivariate_transpose:
+            inputs = self.transpose(inputs)
+
+        return inputs
+
+    def _wrap_losses_and_metrics(self, outputs):
+        """We have to build `compiled_loss` and `compiled_metrics` in order to wrap them."""
+
+        if self.compiled_loss:
+            if not self.compiled_loss.built:
+                self.compiled_loss.build(outputs)
+                self.compiled_loss._losses = tf.nest.map_structure(self._quantiles_and_nvariates_loss_wrapper, self.compiled_losses._losses)
+
+        if self.compiled_metrics:
+            if not self.compiled_metrics.built:
+                self.compiled_metrics.build(outputs, outputs)
+                self.compiled_metrics._metrics = tf.nest.map_structure(self._quantiles_and_nvariates_metrics_wrapper, self.compiled_metrics._metrics)
+
+    def set_is_multivariate(self, input_shape):
+        self._is_multivariate = bool(input_shape.rank > 2)
+
+    def set_n_variates(self, input_shape):
+        if self.is_multivariate:
+            self._n_variates = input_shape[-1]
+
+    @property
+    def is_multivariate(self):
+        return self._is_multivariate
+
+    @property
+    def n_variates(self):
+        return self._n_variates
+
+    def _quantiles_and_nvariates_metrics_wrapper(self, metrics):
+        if not hasattr(metrics, 'quantiles') and not self.is_multivariate:
+            metrics.update_state = _remove_last_dimension_to_ypred(metrics.update_state)
+        elif not hasattr(metrics, 'quantiles') and self.is_multivariate:
+            metrics.update_state = _remove_second_last_dimension_to_ypred(metrics.update_state)
+        return metrics
+
+    def _quantiles_and_nvariates_loss_wrapper(self, loss):
+        if not hasattr(loss.fn, 'quantiles') and not self.is_multivariate:
+            loss.fn = _remove_last_dimension_to_ypred(loss.fn)
+        elif not hasattr(loss.fn, 'quantiles') and self.is_multivariate:
+            loss.fn = _remove_second_last_dimension_to_ypred(loss.fn)
+        return loss
+
+def _remove_last_dimension_to_ypred(fn):
+    """We remove the quantile dimension from y_pred if it is not needed,
+    then y_true and y_pred are broadcastable.
+    """
+
+    def new_fn(y_true, y_pred, *args, **kwargs):
+
+        if len(y_pred.shape) > len(y_true.shape):
+            q = math.ceil(y_pred.shape[-1] / 2)
+            y_pred = y_pred[..., q]
+
+        return fn(y_true, y_pred, *args, **kwargs)
+    return new_fn
+
+
+def _remove_second_last_dimension_to_ypred(fn):
+    """We remove the quantile dimension from y_pred if it is not needed,
+    then y_true and y_pred are broadcastable.
+    """
+
+    def new_fn(y_true, y_pred, *args, **kwargs):
+
+        if len(y_pred.shape) > len(y_true.shape):
+            q = math.ceil(y_pred.shape[-1] / 2)
+            y_pred = y_pred[..., q, :]
+
+        return fn(y_true, y_pred, *args, **kwargs)
+    return new_fn
+
+
+class UnivariateTensor(tf.experimental.ExtensionType):
+    values: tf.Tensor
+    is_multivariate: bool
+    is_quantile: bool
