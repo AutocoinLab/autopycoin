@@ -205,6 +205,15 @@ def transpose_last_to_first(inputs: tf.Tensor):
     return tf.transpose(inputs, perm=perm)
 
 
+# TODO: unit testing
+def transpose_first_to_second_last(inputs: tf.Tensor):
+    """transpose the first dimension to the second last position."""
+
+    rank = tf.rank(inputs)
+    perm = tf.concat([tf.range(1, rank - 1), [0], [rank - 1]], axis=0)
+    return tf.transpose(inputs, perm=perm)
+
+
 def features(inputs, features_slice, columns_index):
     """Return an input and output date tensors from the features tensor."""
 

@@ -9,6 +9,7 @@ from .data_utils import (
     convert_to_list,
     transpose_first_to_last,
     transpose_last_to_first,
+    transpose_first_to_second_last,
     features,
     date_features,
 )
@@ -24,6 +25,7 @@ __ALL__ = [
     "fill_none",
     "transpose_first_to_last",
     "transpose_last_to_first",
+    "transpose_first_to_second_last",
     "features",
     "date_features",
 ]

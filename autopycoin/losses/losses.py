@@ -94,13 +94,11 @@ def quantile_loss(
     y_true = tf.cast(y_true, dtype=y_pred.dtype)
     quantiles = tf.convert_to_tensor(quantiles)
 
-    if tf.rank(y_pred) > tf.rank(y_true):
-        y_true = tf.expand_dims(y_true, -1)
-
-    diff = y_pred - y_true
-    q_loss = quantiles * tf.clip_by_value(diff, 0.0, np.inf) + (
+    tf.print(y_pred.shape, tf.shape(y_true))
+    diff = tf.math.subtract(y_pred, y_true)
+    q_loss = tf.math.add(quantiles * tf.clip_by_value(diff, 0.0, np.inf), (
         1 - quantiles
-    ) * tf.clip_by_value(-diff, 0.0, np.inf)
+    ) * tf.clip_by_value(tf.math.negative(diff), 0.0, np.inf))
 
     error = tf.reduce_mean(q_loss, axis=-2)
     return tf.reduce_sum(error, axis=[-1])

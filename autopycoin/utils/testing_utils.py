@@ -70,7 +70,7 @@ def layer_test(
         be tested for this layer. This is only relevant for PreprocessingLayers.
     custom_objects: Optional dictionary mapping name strings to custom objects
         in the layer class. This is helpful for testing custom layers.
-        test_harness: The Tensorflow test, if any, that this function is being
+    test_harness: The Tensorflow test, if any, that this function is being
         called in.
     supports_masking: Optional boolean to check the `supports_masking` property
         of the layer. If None, the check will not be performed.
@@ -90,7 +90,7 @@ def layer_test(
             raise ValueError("input_shape is None")
         if not input_dtype:
             input_dtype = "float32"
-        input_data_shape = list(input_shape)
+        input_data_shape = list(input_shape or type_spec.shape)
         for i, e in enumerate(input_data_shape):
             if e is None:
                 input_data_shape[i] = np.random.randint(1, 4)
@@ -241,6 +241,7 @@ def layer_test(
             actual_output[idx] if isinstance(actual_output, tuple) else actual_output
         )
         actual_output_shape = actual_output.shape
+
         assert_shapes_equal(computed_output_shape, actual_output_shape)
         assert_shapes_equal(computed_output_signature.shape, actual_output_shape)
         if computed_output_signature.dtype != actual_output.dtype:
