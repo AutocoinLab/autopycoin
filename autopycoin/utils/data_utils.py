@@ -2,6 +2,8 @@
 
 from typing import Any, Union, Tuple, List
 import numpy as np
+from functools import reduce
+import operator
 
 import tensorflow as tf
 from tensorflow.keras.backend import floatx
@@ -52,15 +54,14 @@ def range_dims(tensor: tf.Tensor, shape: Tuple, dtype: str = floatx()) -> tf.Ten
 
 
 # corriger
-def quantiles_handler(quantiles: List[Union[int, float]]) -> tf.Tensor:
+def quantiles_handler(quantiles: Union[None, int, float, List[Union[int, float, List[Union[int, float]]]]]) -> List[float]:
     """
-    Convenient function which ensures that quantiles contains the 0.5 quantile
-    and is symetric around 0.5. You can feed this function with an int or a float list.
+    Convenient function which ensures that quantiles are sorted and unique.
     Negative quantiles are not allowed.
 
     Parameters
     ----------
-    quantiles : list[int or float]
+    quantiles : list[int or float] or float or int
         List of quantiles.
 
     Returns
@@ -70,18 +71,27 @@ def quantiles_handler(quantiles: List[Union[int, float]]) -> tf.Tensor:
     Raises
     ------
     ValueError
-        If a quantile is negative then ValueError is raised.
+        If a quantile is negative or quantiles is None then ValueError is raised.
     """
+    
+    def process_quantiles(quantile):
+        quantile = np.array(quantile)
+        for q in quantile:
+            if not q:
+                raise ValueError(f'None value or empty list are not supported, got {quantiles}')
+            if q < 0:
+                raise ValueError(f'Negative valueq are nos supported, got {quantiles}')
+        
+        quantile = np.where(quantile < 1, quantile * 100, quantile)
+        quantile = np.sort(quantile)
+        quantile = np.unique(quantile)        
+        return (quantile / 100).tolist()
 
-    quantiles = np.append(quantiles, 0.5)
-    # *100 in order to suppress float approximation
-    quantiles = np.where(quantiles < 1, quantiles * 100, quantiles)
+    quantiles = convert_to_list(quantiles)
+    if all(isinstance(q, (tuple, list)) for q in quantiles):
+        return [process_quantiles(quantile) for quantile in quantiles] 
 
-    # symmetry
-    quantiles = np.concatenate([quantiles, 100 - quantiles], axis=0)
-    quantiles = np.sort(quantiles)
-    quantiles = np.unique(quantiles)
-    return (quantiles / 100).tolist()
+    return [process_quantiles(quantiles)]
 
 
 def example_handler(
@@ -190,28 +200,28 @@ def convert_to_list(to_convert: Any) -> list:
 
 
 # TODO: unit testing
-def transpose_first_to_last(inputs: tf.Tensor):
+def transpose_first_to_last(inputs: tf.Tensor, name=None):
     """transpose the first dimension to the last position."""
 
     perm = tf.concat([tf.range(1, tf.rank(inputs)), [0]], axis=0)
-    return tf.transpose(inputs, perm=perm)
+    return tf.transpose(inputs, perm=perm, name=name)
 
 
 # TODO: unit testing
-def transpose_last_to_first(inputs: tf.Tensor):
+def transpose_last_to_first(inputs: tf.Tensor, name=None):
     """transpose the last dimension to the first position."""
 
     perm = tf.concat([[tf.rank(inputs) - 1], tf.range(tf.rank(inputs) - 1)], axis=0)
-    return tf.transpose(inputs, perm=perm)
+    return tf.transpose(inputs, perm=perm, name=name)
 
 
 # TODO: unit testing
-def transpose_first_to_second_last(inputs: tf.Tensor):
+def transpose_first_to_second_last(inputs: tf.Tensor, name=None):
     """transpose the first dimension to the second last position."""
 
     rank = tf.rank(inputs)
     perm = tf.concat([tf.range(1, rank - 1), [0], [rank - 1]], axis=0)
-    return tf.transpose(inputs, perm=perm)
+    return tf.transpose(inputs, perm=perm, name=name)
 
 
 def features(inputs, features_slice, columns_index):

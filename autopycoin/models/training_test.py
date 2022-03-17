@@ -11,11 +11,9 @@ import pytest
 
 import tensorflow as tf
 from tensorflow.python.keras import keras_parameterized
-from tensorflow.keras.backend import floatx
+from keras.backend import floatx
 
-from autopycoin.utils.testing_utils import layer_test
-
-
+from ..utils.testing_utils import model_test
 from ..data.generate import random_ts
 from ..dataset.generator import WindowGenerator
 from ..losses.losses import QuantileLossError
@@ -26,7 +24,7 @@ class DenseModel(UnivariateModel):
 
     def build(self, input_shape):
 
-        shape = self._additional_shape + [20, 50]
+        shape = self.get_additional_shapes(0) + [20, 50]
 
         self.dense = self.add_weight(
             shape=shape,
@@ -48,8 +46,10 @@ class DoubleDenseModel(DenseModel):
 
     def build(self, input_shape):
 
+        shape = self.get_additional_shapes(1) + [20, 50]
+
         self.dense2 = self.add_weight(
-            shape=[20, 50],
+            shape=shape,
             name=f"fc",
         )
 
@@ -58,7 +58,7 @@ class DoubleDenseModel(DenseModel):
     def call(
         self, inputs, **kwargs
     ):
-        return tf.matmul(inputs, self.dense), tf.matmul(inputs, self.dense)
+        return tf.matmul(inputs, self.dense), tf.matmul(inputs, self.dense2)
 
 
 class DoubleDenseModel2(DoubleDenseModel):
@@ -77,6 +77,11 @@ class DoubleDenseModel2(DoubleDenseModel):
     ):
         return tf.matmul(inputs, self.dense), tf.matmul(inputs, self.dense2)
 
+def bonjour(f):
+    def call(self, inputs, *args, **g):
+        print('ttttttt')
+        return f(self, inputs, *args, **g)
+    return call
 
 class DenseUnivariateModel(UnivariateModel):
 
@@ -84,7 +89,7 @@ class DenseUnivariateModel(UnivariateModel):
 
         self.init_univariate_params(input_shape)
 
-        shape = self._additional_shape + [20, 50]
+        shape = self.get_additional_shapes(0) + [20, 50]
 
         self.dense = self.add_weight(
             shape=shape,
@@ -96,7 +101,7 @@ class DenseUnivariateModel(UnivariateModel):
     def call(
         self, inputs, **kwargs
     ):
-        return inputs @ self.dense
+        return tf.matmul(inputs, self.dense)
 
 
 @pytest.fixture(scope="class")
@@ -165,218 +170,79 @@ class ModelTest(tf.test.TestCase, parameterized.TestCase):
 
         self.assertEqual(model.quantiles, None)
         model.compile(loss=QuantileLossError([0.5, 0.6]))
-        self.assertEqual(model.quantiles, [0.4, 0.5, 0.6])
+        self.assertEqual(model.quantiles, [[0.5, 0.6]])
 
         for layer in model.layers[1:]: # don't take Input layer
-            self.assertEqual(layer.quantiles, [0.4, 0.5, 0.6])
-
-        layer_test(
-            DenseModel,
-            kwargs={},
-            input_shape=(2, 20),
-            input_dtype=tf.float32,
-            expected_output_shape=(None, 50),
-            expected_output_dtype=floatx(),
-        )
+            self.assertEqual(layer.quantiles, [[0.5, 0.6]])
 
     
     @parameterized.parameters(
         [
-        (QuantileLossError([0.1, 0.3, 0.5]), (213, 50, 5), None, None),
-        ([QuantileLossError([0.1, 0.3, 0.5])], (213, 50, 5), None, None),
-        ([QuantileLossError([0.1, 0.3, 0.5]), 'mse'], (213, 50, 5), None, None),
-        ([QuantileLossError([0.1, 0.3, 0.5]), QuantileLossError([0.1, 0.3, 0.5])], (213, 50, 5), None, None),
-        ([QuantileLossError([0.1, 0.3, 0.5]), QuantileLossError([0.1, 0.5])], (213, 50, 5), ValueError, "`quantiles` has to be identical through losses"),
+        (QuantileLossError([0.1, 0.3, 0.5]), (213, 50, 3), None, None),
+        ([QuantileLossError([0.1, 0.3, 0.5])], (213, 50, 3), None, None),
+        ([QuantileLossError([0.1, 0.3, 0.5]), 'mse'], (213, 50, 3), None, None),
+        ([QuantileLossError([0.1, 0.3, 0.5]), QuantileLossError([0.1, 0.3, 0.5])], (213, 50, 3), None, None),
+        ([QuantileLossError([0.1, 0.3, 0.5]), QuantileLossError([0.1, 0.5])], (213, 50, 3), ValueError, "`quantiles` has to be identical through losses"),
         ('mse', (213, 50), None, None)
         ]
     )
     def test_predict_one_output_shape(self, loss, shape, error, msg):
 
-        model = DenseModel()
-
         if not error:
-            model.compile(
-                tf.keras.optimizers.Adam(
-                    learning_rate=0.015,
-                    beta_1=0.9,
-                    beta_2=0.999,
-                    epsilon=1e-07,
-                    amsgrad=False,
-                    name="Adam",
-                ),
-                loss=loss,
-                metrics=["mae"],
-            )
-
-
-            model.fit(self.w_uni.train, validation_data=self.w_uni.valid, epochs=1)
-            output = model.predict(self.w_uni.train)
-
-            self.assertEqual(output.shape, shape)
+            model_test(DenseModel, (shape,), loss, self.w_uni.train, self.w_uni.valid, expected_output_shape=(None, 50))
         else:
             with self.assertRaisesRegexp(error, msg):
-                model.compile(
-                tf.keras.optimizers.Adam(
-                    learning_rate=0.015,
-                    beta_1=0.9,
-                    beta_2=0.999,
-                    epsilon=1e-07,
-                    amsgrad=False,
-                    name="Adam",
-                ),
-                loss=loss,
-                metrics=["mae"],
-            )
+                model_test(DenseModel, (shape,), loss, self.w_uni.train, self.w_uni.valid, expected_output_shape=(None, 50))
 
     @parameterized.parameters(
         [
-        (QuantileLossError([0.1, 0.3, 0.5]), ((213, 50, 5), (213, 50, 5)), None, None),
-        ([QuantileLossError([0.1, 0.3, 0.5])], ((213, 50, 5), (213, 50, 5)), None, None),
-        ([QuantileLossError([0.1, 0.3, 0.5]), 'mse'], ((213, 50, 5), (213, 50)), ValueError, "It is not allowed to train a quantile model without a quantile loss"),
-        ([QuantileLossError([0.1, 0.3, 0.5]), QuantileLossError([0.1, 0.3, 0.5])], ((213, 50, 5), (213, 50, 5)), None, None),
-        ([QuantileLossError([0.1, 0.3, 0.5]), QuantileLossError([0.1, 0.5])], ((213, 50, 5), (213, 50, 3)), ValueError, "`quantiles` has to be identical through losses"),
+        (QuantileLossError([0.1, 0.3, 0.5]), ((213, 50, 3), (213, 50, 3)), ValueError, "It is not allowed to train a no quantile model with a quantile loss"),
+        ([QuantileLossError([0.1, 0.3, 0.5])], ((213, 50, 3), (213, 50, 3)), ValueError, "It is not allowed to train a no quantile model with a quantile loss"),
+        ([QuantileLossError([0.1, 0.3, 0.5]), 'mse'], ((213, 50, 3), (213, 50)), None, None),
+        ([QuantileLossError([0.1, 0.3, 0.5]), QuantileLossError([0.1, 0.3, 0.5])], ((213, 50, 3), (213, 50, 3)), None, None),
+        ([QuantileLossError([0.1, 0.3, 0.5]), QuantileLossError([0.1, 0.5])], ((213, 50, 3), (213, 50, 2)), None, None),
         ('mse', ((213, 50), (213, 50)), None, None),
-        ([QuantileLossError([0.1, 0.3, 0.5]), 'mse', QuantileLossError([0.1, 0.3, 0.5]), 'mse'], ((213, 50, 5), (213, 50, 5)), None, None),
+        ([QuantileLossError([0.1, 0.3, 0.5]), 'mse', QuantileLossError([0.1, 0.3, 0.5]), 'mse'], ((213, 50, 3), (213, 50, 3)), None, None),
         ]
     )
     def test_predict_multi_output_shape(self, loss, shape, error, msg):
 
-        model = DoubleDenseModel()
-
         if not error:
-            model.compile(
-                tf.keras.optimizers.Adam(
-                    learning_rate=0.015,
-                    beta_1=0.9,
-                    beta_2=0.999,
-                    epsilon=1e-07,
-                    amsgrad=False,
-                    name="Adam",
-                ),
-                loss=loss,
-                metrics=["mae"],
-            )
-
-            model.fit(self.w_uni.train, validation_data=self.w_uni.valid, epochs=1)
-            output = model.predict(self.w_uni.train)
-
-            for o, s in zip(output, shape):
-                self.assertEqual(o.shape, s)
-
+            model_test(DoubleDenseModel, shape, loss, self.w_uni.train, self.w_uni.valid, expected_output_shape=(None, 50))
         else:
             with self.assertRaisesRegexp(error, msg):
-                model.compile(
-                tf.keras.optimizers.Adam(
-                    learning_rate=0.015,
-                    beta_1=0.9,
-                    beta_2=0.999,
-                    epsilon=1e-07,
-                    amsgrad=False,
-                    name="Adam",
-                    ),
-                loss=loss,
-                metrics=["mae"],
-                )
-
-                model.fit(self.w_uni.train, validation_data=self.w_uni.valid, epochs=1)
-
+                model_test(DoubleDenseModel, shape, loss, self.w_uni.train, self.w_uni.valid, expected_output_shape=(None, 50))
     
     @parameterized.parameters(
         [
-        (QuantileLossError([0.1, 0.3, 0.5]), ((213, 50, 5), (213, 50, 5)), ValueError, "It is not allowed to train a no quantile model with a quantile loss"),
-        ([QuantileLossError([0.1, 0.3, 0.5]), 'mse'], ((213, 50, 5), (213, 50)), None, None),
+        (QuantileLossError([0.1, 0.3, 0.5]), ((213, 50, 3), (213, 50, 3)), ValueError, "It is not allowed to train a no quantile model with a quantile loss"),
+        ([QuantileLossError([0.1, 0.3, 0.5]), 'mse'], ((213, 50, 3), (213, 50)), None, None),
         ('mse', ((213, 50), (213, 50)), None, None),
         ]
     )
     def test_predict_multi_output2_shape(self, loss, shape, error, msg):
 
-        model = DoubleDenseModel2()
-
         if not error:
-            model.compile(
-                tf.keras.optimizers.Adam(
-                    learning_rate=0.015,
-                    beta_1=0.9,
-                    beta_2=0.999,
-                    epsilon=1e-07,
-                    amsgrad=False,
-                    name="Adam",
-                ),
-                loss=loss,
-                metrics=["mae"],
-            )
-
-            model.fit(self.w_uni.train, validation_data=self.w_uni.valid, epochs=1)
-            output = model.predict(self.w_uni.train)
-
-            for o, s in zip(output, shape):
-                self.assertEqual(o.shape, s)
-
+            model_test(DoubleDenseModel2, shape, loss, self.w_uni.train, self.w_uni.valid, expected_output_shape=(None, 50))
         else:
             with self.assertRaisesRegexp(error, msg):
-                model.compile(
-                tf.keras.optimizers.Adam(
-                    learning_rate=0.015,
-                    beta_1=0.9,
-                    beta_2=0.999,
-                    epsilon=1e-07,
-                    amsgrad=False,
-                    name="Adam",
-                    ),
-                loss=loss,
-                metrics=["mae"],
-                )
-
-                model.fit(self.w_uni.train, validation_data=self.w_uni.valid, epochs=1)
-
+                model_test(DoubleDenseModel2, shape, loss, self.w_uni.train, self.w_uni.valid, expected_output_shape=(None, 50))
 
     @parameterized.parameters(
         [
-            (QuantileLossError([0.1, 0.3, 0.5]), (213, 50, 2, 5), None, None),
-            ([QuantileLossError([0.1, 0.3, 0.5])], (213, 50, 2, 5), None, None),
-            ([QuantileLossError([0.1, 0.3, 0.5]), 'mse'], (213, 50, 2, 5), None, None),
-            ([QuantileLossError([0.1, 0.3, 0.5]), QuantileLossError([0.1, 0.3, 0.5])], (213, 50, 2, 5), None, None),
-            ([QuantileLossError([0.1, 0.3, 0.5]), QuantileLossError([0.1, 0.5])], (213, 50, 2, 5), ValueError, "`quantiles` has to be identical through losses"),
+            (QuantileLossError([0.1, 0.3, 0.5]), (213, 50, 2, 3), None, None),
+            ([QuantileLossError([0.1, 0.3, 0.5])], (213, 50, 2, 3), None, None),
+            ([QuantileLossError([0.1, 0.3, 0.5]), 'mse'], (213, 50, 2, 3), None, None),
+            ([QuantileLossError([0.1, 0.3, 0.5]), QuantileLossError([0.1, 0.3, 0.5])], (213, 50, 2, 3), None, None),
+            ([QuantileLossError([0.1, 0.3, 0.5]), QuantileLossError([0.1, 0.5])], (213, 50, 2, 3), ValueError, "`quantiles` has to be identical through losses"),
             ('mse', (213, 50, 2), None, None),
-            ([QuantileLossError([0.1, 0.3, 0.5]), 'mse', QuantileLossError([0.1, 0.3, 0.5]), 'mse'], (213, 50, 2, 5), None, None)
+            ([QuantileLossError([0.1, 0.3, 0.5]), 'mse', QuantileLossError([0.1, 0.3, 0.5]), 'mse'], (213, 50, 2, 3), None, None)
         ]
     )
     def test_predict_one_output_multivariate_shape(self, loss, shape, error, msg):
-
-        model = DenseUnivariateModel()
-
         if not error:
-            model.compile(
-                tf.keras.optimizers.Adam(
-                    learning_rate=0.015,
-                    beta_1=0.9,
-                    beta_2=0.999,
-                    epsilon=1e-07,
-                    amsgrad=False,
-                    name="Adam",
-                ),
-                loss=loss,
-                metrics=["mae"],
-            )
-            model.fit(self.w_multi.train, validation_data=self.w_multi.valid, epochs=1)
-            output = model.predict(self.w_multi.train)
-
-            self.assertEqual(output.shape, shape)
-
+            model_test(DenseUnivariateModel, (shape,), loss, self.w_multi.train, self.w_multi.valid, expected_output_shape=(None, 50, 2))
         else:
             with self.assertRaisesRegexp(error, msg):
-                model.compile(
-                tf.keras.optimizers.Adam(
-                    learning_rate=0.015,
-                    beta_1=0.9,
-                    beta_2=0.999,
-                    epsilon=1e-07,
-                    amsgrad=False,
-                    name="Adam",
-                    ),
-                loss=loss,
-                metrics=["mae"],
-                )
-
-                model.fit(self.w_uni.train, validation_data=self.w_uni.valid, epochs=1)
+                model_test(DenseUnivariateModel, (shape,), loss, self.w_multi.train, self.w_multi.valid, expected_output_shape=(None, 50, 2))
 

@@ -59,7 +59,7 @@ def smape(y_true: Yannotation, y_pred: Yannotation):
 
 
 def quantile_loss(
-    y_true: Yannotation, y_pred: Yannotation, quantiles: List[float]
+    y_true: Yannotation, y_pred: Yannotation, quantiles: List[float] = [0.5]
 ) -> tf.Tensor:
     """
     Calculate the quantile loss function, summed across all quantile outputs.
@@ -94,7 +94,6 @@ def quantile_loss(
     y_true = tf.cast(y_true, dtype=y_pred.dtype)
     quantiles = tf.convert_to_tensor(quantiles)
 
-    tf.print(y_pred.shape, tf.shape(y_true))
     diff = tf.math.subtract(y_pred, y_true)
     q_loss = tf.math.add(quantiles * tf.clip_by_value(diff, 0.0, np.inf), (
         1 - quantiles
@@ -225,23 +224,17 @@ class QuantileLossError(LossFunctionWrapper, AutopycoinBaseClass):
 
     def __init__(
         self,
-        quantiles: List[Union[float, int]],
+        quantiles: Union[float, int, List[Union[float, int]]] = 0.5,
         reduction: Optional[str] = losses_utils.ReductionV2.SUM,
         name: Optional[str] = "q_loss",
+        **kwargs: dict
     ):
 
         self.quantiles = quantiles_handler(quantiles)
 
         super().__init__(
-            quantile_loss, quantiles=self.quantiles, name=name, reduction=reduction
+            quantile_loss, quantiles=self.quantiles, name=name, reduction=reduction, **kwargs
         )
-
-    def _val___init__(self, output, *args, **kwargs):
-        """Validates attributes and args for the init method."""
-        quantiles = self._get_parameter(args, kwargs, name="quantiles", position=0)
-        assert quantiles == [
-            abs(quantile) for quantile in quantiles
-        ], f"Negative quantiles are not allowed. got {quantiles}"
 
 
 # TODO: write doc, test and use LossFunctionWrapper, autpycoinBaseClass.

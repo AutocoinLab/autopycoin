@@ -10,7 +10,7 @@ import pandas as pd
 
 import tensorflow as tf
 from tensorflow.compat.v1 import Dimension
-from tensorflow.keras import layers, models
+from keras import layers, models
 from tensorflow.python.eager import context
 from tensorflow.python.keras.utils import tf_contextlib
 from tensorflow.python.keras.utils import tf_inspect
@@ -29,6 +29,49 @@ def string_test(actual, expected):
 def numeric_test(actual, expected):
     np.testing.assert_allclose(
         tf.round(actual, 3), tf.round(expected, 3), rtol=1e-3, atol=1e-5
+    )
+
+
+def model_test(
+    cls,
+    expected_output_shape_model,
+    loss,
+    input_dataset,
+    valid_dataset,
+    **kwargs
+):
+
+    # subclassing
+    model = cls(**kwargs.get('kwargs', {}))
+
+    model.compile(
+        tf.keras.optimizers.Adam(
+            learning_rate=0.015,
+            beta_1=0.9,
+            beta_2=0.999,
+            epsilon=1e-07,
+            amsgrad=False,
+            name="Adam",
+        ),
+        loss=loss,
+        metrics=["mae"],
+    )
+
+    model.fit(input_dataset, validation_data=valid_dataset, epochs=1)
+    output = model.predict(input_dataset)
+
+    if isinstance(expected_output_shape_model, (list, tuple)):
+        output = (output,) if not isinstance(output, (list, tuple)) else output
+        for o, eo in zip(output, expected_output_shape_model):
+            assert o.shape == eo, f'shapes not equals, got {o.shape} and {eo}'
+    else:
+        assert output.shape == expected_output_shape_model, f'shapes not equals, got {output.shape} and {expected_output_shape_model}'
+
+    # functional test
+    layer_test(
+        cls,
+        input_shape=input_dataset.element_spec[0].shape,
+        **kwargs
     )
 
 
@@ -90,7 +133,7 @@ def layer_test(
             raise ValueError("input_shape is None")
         if not input_dtype:
             input_dtype = "float32"
-        input_data_shape = list(input_shape or type_spec.shape)
+        input_data_shape = list(input_shape)
         for i, e in enumerate(input_data_shape):
             if e is None:
                 input_data_shape[i] = np.random.randint(1, 4)
@@ -129,7 +172,7 @@ def layer_test(
 
     # test in functional API
     x = layers.Input(shape=input_shape[1:], dtype=input_dtype)
-    y = layer(x)
+    y = layer(inputs=x)
 
     # test get_weights, set_weights at layer level
     weights = layer.get_weights()
@@ -231,7 +274,7 @@ def layer_test(
             assert_shapes_equal(tf.TensorShape(expected_output_shape), y.shape)
 
         # check shape inference
-        model = models.Model(x, y)
+        model = models.Model(inputs=x, outputs=y)
         if isinstance(layer, tf.keras.Model):
             actual_output = layer.predict(input_data)
         else:
@@ -273,7 +316,9 @@ def layer_test(
     # Rebuild the model to avoid the graph being reused between predict() and
     # See b/120160788 for more details. This should be mitigated after 2.0.
     if validate_training:
-        model = models.Model(x, layer(x))
+        x = layers.Input(shape=input_shape[1:], dtype=input_dtype)
+        y = layer(inputs=x)
+        model = models.Model(x, y)
         if _thread_local_data.run_eagerly is not None:
             model.compile(
                 "rmsprop",
@@ -295,7 +340,8 @@ def layer_test(
                 ],
                 weighted_metrics=["acc"],
             )
-        model.train_on_batch(input_data, model.predict(input_data))
+
+        model.train_on_batch(x=input_data, y=model.predict(input_data))
 
     if not isinstance(layer, tf.keras.Model):
         # test as first layer in Sequential API
