@@ -12,11 +12,14 @@ import tensorflow as tf
 from tensorflow.python.keras.losses import LossFunctionWrapper
 from keras.engine import data_adapter
 
+from autopycoin.extension_type import QuantileTensor, UnivariateTensor
+
 from ..utils.data_utils import convert_to_list
 from .training import UnivariateModel
 from ..baseclass import AutopycoinBaseClass
-from ..layers import TrendBlock, SeasonalityBlock, GenericBlock, UniVariate, BaseBlock, Layer
+from ..layers import TrendBlock, SeasonalityBlock, GenericBlock, UniVariate, BaseBlock
 from ..layers.nbeats_layers import SEASONALITY_TYPE
+from .pool import BasePool
 
 
 class Stack(UnivariateModel):
@@ -94,7 +97,8 @@ class Stack(UnivariateModel):
         self._blocks = blocks
         self._stack_type = self._set_type()
         self._is_interpretable = self._set_interpretability()
-        self._apply_quantiles_transform = False
+        self._apply_quantiles_transpose = False
+        self._apply_multivariate_transpose = False
 
     def call(
         self, inputs: Union[tuple, dict, list, tf.Tensor], **kwargs: dict
@@ -169,7 +173,7 @@ class Stack(UnivariateModel):
         return self.stack_type
 
 
-class NBEATS(UnivariateModel, AutopycoinBaseClass):
+class NBEATS(UnivariateModel):
     """
     Tensorflow model defining the N-BEATS architecture.
 
@@ -290,6 +294,7 @@ class NBEATS(UnivariateModel, AutopycoinBaseClass):
         super().__init__(**kwargs)
 
         self._apply_quantiles_transform = True
+        self._apply_multivariates_transpose = True
 
         # Stacks where blocks are defined
         self._stacks = stacks
@@ -304,8 +309,6 @@ class NBEATS(UnivariateModel, AutopycoinBaseClass):
 
         if isinstance(input_shape, tuple):
             input_shape = input_shape[0]
-
-        input_shape = tf.TensorShape(input_shape)
 
         super().build(input_shape)
 
@@ -331,8 +334,6 @@ class NBEATS(UnivariateModel, AutopycoinBaseClass):
     def call(self, inputs: Union[tuple, dict, list, tf.Tensor], **kwargs: dict) -> tf.Tensor:
         """Call method from tensorflow."""
 
-        inputs = self.strategy_input(inputs)
-
         residual_inputs = tf.identity(inputs)
         outputs = tf.constant(0.0)
         for stack in self.stacks:
@@ -344,7 +345,7 @@ class NBEATS(UnivariateModel, AutopycoinBaseClass):
 
         reconstructed_inputs = inputs - residual_inputs
 
-        return self.strategy_output(reconstructed_inputs), self.strategy_output(outputs)
+        return reconstructed_inputs, outputs
 
     def seasonality(self, data: tf.Tensor) -> tf.Tensor:
         """
@@ -481,371 +482,6 @@ class NBEATS(UnivariateModel, AutopycoinBaseClass):
 NbeatsModelsOptions = Union[
             Union[List[NBEATS], NBEATS], Union[List[Callable], Callable],
         ]
-
-# TODO: finish doc and unit testing.
-class PoolNBEATS(UnivariateModel, AutopycoinBaseClass):
-    """
-    Tensorflow model defining a pool of N-BEATS models.
-
-    As described in the paper https://arxiv.org/abs/1905.10437, the state-of-the-art results
-    are reached with a bagging method of N-BEATS models including interpretable and generic ones.
-
-    Parameters
-    ----------
-    label_width : int
-        Width of the targets.
-        It can be not defined if `nbeats_model` is a list of NBEATS instances.
-        Default to None.
-    n_models : int
-        Number of models inside the pool.
-        The minimum value according to the paper to get SOTA results is 18.
-        If NBEATS instances are provided then n_models is not used.
-        Default to 18.
-    nbeats_models : list[callable] or list[NBEATS]
-        A list of callables which create a NBEATS model.
-        If None then use a mix of generic and interpretable NBEATs model.
-        Default to None.
-    fn_agg : Callable
-        Function of aggregation which takes an parameter axis.
-        It aggregates the models outputs. Default to mean.
-    seed: int
-        Used in combination with tf.random.set_seed to create a
-        reproducible sequence of tensors across multiple calls.
-
-    Attributes
-    ----------
-
-    Examples
-    --------
-    >>> from autopycoin.data import random_ts
-    >>> from autopycoin.models import PoolNBEATS, create_interpretable_nbeats
-    >>> from autopycoin.dataset import WindowGenerator
-    >>> import tensorflow as tf
-    >>> import pandas as pd
-    ...
-    >>> data = random_ts(n_steps=1000,
-    ...                  trend_degree=2,
-    ...                  periods=[10],
-    ...                  fourier_orders=[10],
-    ...                  trend_mean=0,
-    ...                  trend_std=1,
-    ...                  seasonality_mean=0,
-    ...                  seasonality_std=1,
-    ...                  batch_size=1,
-    ...                  n_variables=1,
-    ...                  noise=True,
-    ...                  seed=42)
-    >>> data = pd.DataFrame(data[0].numpy(), columns=['test'])
-    ...
-    >>> w = WindowGenerator(
-    ...        input_width=70,
-    ...        label_width=10,
-    ...        shift=10,
-    ...        test_size=50,
-    ...        valid_size=10,
-    ...        flat=True,
-    ...        batch_size=32,
-    ...        preprocessing=lambda x,y: (x, (x, y))
-    ...     )
-    ...
-    >>> w = w.from_array(data=data,
-    ...        input_columns=['test'],
-    ...        label_columns=['test'])
-    ...
-    >>> model = PoolNBEATS(
-    ...             label_width=10,
-    ...             n_models=10,
-    ...             nbeats_models=create_interpretable_nbeats,
-    ...             )
-    >>> model.compile(tf.keras.optimizers.Adam(
-    ...    learning_rate=0.015, beta_1=0.9, beta_2=0.999, epsilon=1e-07, amsgrad=True,
-    ...    name='Adam'), loss=['mse', 'mae', 'mape'], metrics=['mae'])
-    >>> history = model.fit(w.train, validation_data=w.valid, epochs=1, verbose=0)
-    >>> model.predict(w.test.take(1)).shape
-    TensorShape([32, 10])
-
-    Notes
-    -----
-    """
-
-    def __init__(
-        self,
-        label_width: int = None,
-        n_models: int = 18,
-        nbeats_models: Union[None, NbeatsModelsOptions] = None,
-        fn_agg: Callable = tf.reduce_mean,
-        seed: Optional[int] = None,
-        **kwargs: dict,
-    ):
-
-        super().__init__(**kwargs)
-
-        # Reproducible instance
-        tf.random.set_seed(seed)
-        self.seed = seed
-        self._apply_quantiles_transform = False
-
-        self._label_width = label_width
-        self._n_models = n_models
-
-        # models init
-        if not nbeats_models:
-            nbeats_models = [create_interpretable_nbeats, create_generic_nbeats]
-
-        nbeats_models = convert_to_list(nbeats_models)
-        assert isinstance(nbeats_models[0], NBEATS) or label_width, (
-            'If `label_width` is not provided `nbeats_models` '
-            'has to be a list of NBEATS instances or a single NBEATS instance'
-            )
-
-        self._init_nbeats(nbeats_models)
-
-        # Layer definition and function to aggregate the multiple outputs
-        if self.n_quantiles > 1:
-            self._fn_agg = lambda x, axis: x
-        else:
-            self._fn_agg = fn_agg
-
-    def _init_nbeats(
-        self,
-        nbeats_models: Union[List[Callable], List[NBEATS]],
-    ) -> None:
-        """Initialize nbeats models."""
-
-        self._nbeats = nbeats_models
-        if not isinstance(nbeats_models[0], NBEATS) and callable(nbeats_models[0]):
-            self._nbeats = self._init_nbeats_from_callable(nbeats_models)
-        else:
-            self._n_models = len(nbeats_models)
-            # Check only if bench of nbeats instances is provided
-            self._check_label_width(self._nbeats)
-
-    def _init_nbeats_from_callable(self, nbeats_models: List[Callable]) -> None:
-        """Initialize nbeats models from callable."""
-
-        nbeats = []
-        # Init pool of models by picking randomly model in nbeats_models list.
-        for nbeats_idx in tf.random.uniform((self.n_models,), 0, len(nbeats_models), dtype=tf.int32, seed=self.seed):
-            model = nbeats_models[nbeats_idx](label_width=self.label_width)
-            nbeats.append(model)
-        return nbeats
-
-    def _check_label_width(
-        self, nbeats_models: List[NBEATS]
-    ) -> None:
-        """Check if `label_width` are equals through models instances."""
-
-        labels_width = [model.label_width for model in nbeats_models]
-        # If `label_width` is defined in the init then use it to check models else use the first model value.
-        self._label_width = self.label_width or labels_width[0]
-        assert all([label_width==self.label_width for label_width in labels_width]), (
-            f"`label_width` parameter has to be identical through models and against the value given in the init method. "
-            f"Got {labels_width} for models and `label_width` = {self.label_width}"
-        )
-
-    def build(
-        self, input_shape: Union[tf.TensorShape, Tuple[tf.TensorShape, ...]]
-    ) -> None:
-        """See tensorflow documentation."""
-
-        if isinstance(input_shape, tuple):
-            input_shape = input_shape[0]
-
-        # Defines masks
-        mask = tf.random.uniform(
-            (self.n_models,),
-            minval=0,
-            maxval=int(input_shape[1] / self.label_width) or 1,
-            dtype=tf.int32,
-            seed=self.seed
-        )
-        self._mask = input_shape[1] - (mask * self.label_width)
-
-        super().build(input_shape)
-
-    def call(self, inputs: Union[tuple, dict, list, tf.Tensor], **kwargs: dict) -> tf.Tensor:
-        """Call method from tensorflow Model."""
-
-        outputs = []
-        for idx, model in enumerate(self.nbeats):
-            inputs_masked = inputs[:, -self._mask[idx] :, ...]
-            outputs.append(model(inputs_masked))
-        return outputs
-
-    def compile(self,
-              optimizer='rmsprop',
-              loss=None,
-              metrics=None,
-              loss_weights=None,
-              weighted_metrics=None,
-              run_eagerly=None,
-              steps_per_execution=None,
-              **kwargs):
-
-        """Compiles models one by one for training. See tensorflow documentation for more informations.
-
-        Parameters
-        ----------
-        loss : list of list of losses or list of losses or str.
-            loss doesn't behave like in tensorflow compile method. Ussually, if you provide a list of losses 
-            shorter than the number of outputs then all losses are used for each output.
-            To get the same behavior, here, you need to provide a list of one list of losses.
-            Hence, if you provide a list of losses shorter than the number models a pool of losses will be initialized randomly to fit
-            the models.
-            The total loss of a PoolNBEATS model is then the sum of all losses. Keep in mind that the total loss is not used in the descent gradient
-            to ensure the bagging method avaibility but for comparison.
-
-        """
-
-        loss = self._init_pool_losses(loss)
-
-        super().compile(
-              optimizer=optimizer,
-              loss=loss, # TODO: Handle list of lists
-              metrics=metrics,
-              loss_weights=loss_weights,
-              weighted_metrics=weighted_metrics,
-              run_eagerly=run_eagerly,
-              steps_per_execution=steps_per_execution,
-              **kwargs
-              )
-
-        print(f'losses compiled from {self}: ', self.compiled_loss._losses)
-        print(f'vs from {self}: ', self.losses)
-
-        for idx in range(self.n_models):
-            self.nbeats[idx].compile(
-                optimizer=optimizer,
-                loss=loss[idx] if loss else loss,
-                metrics=metrics,
-                loss_weights=loss_weights, # TODO: Handle multiple losses for each output
-                weighted_metrics=weighted_metrics,
-                run_eagerly=run_eagerly,
-                steps_per_execution=steps_per_execution,
-                **kwargs
-            )
-
-    def _init_pool_losses(
-        self,
-        losses: List[Union[str, Union[tf.keras.losses.Loss, LossFunctionWrapper]]],
-    ) -> None:
-
-        losses = convert_to_list(losses)
-        # Init pool of losses by picking randomly loss in losses list.
-        if self.n_models - len(losses) < 0:
-            raise ValueError(
-                "The number of models has to be equal or larger than the number of losses."
-                f" Got n_models={self.n_models} and losses={len(losses)}"
-            )
-
-        losses_idx = tf.random.uniform((self.n_models - len(losses),), 0, len(losses), dtype=tf.int32, seed=self.seed)
-        return losses + [losses[idx] for idx in losses_idx]
-        
-    def train_step(self, data: tuple) -> dict:
-        """The logic for one training step.
-        This method can be overridden to support custom training logic.
-        For concrete examples of how to override this method see
-        [Customizing what happends in fit](https://www.tensorflow.org/guide/keras/customizing_what_happens_in_fit).
-        This method is called by `Model.make_train_function`.
-        This method should contain the mathematical logic for one step of training.
-        This typically includes the forward pass, loss calculation, backpropagation,
-        and metric updates.
-        Configuration details for *how* this logic is run (e.g. `tf.function` and
-        `tf.distribute.Strategy` settings), should be left to
-        `Model.make_train_function`, which can also be overridden.
-        Args:
-        data: A nested structure of `Tensor`s.
-        Returns:
-        A `dict` containing values that will be passed to
-        `tf.keras.callbacks.CallbackList.on_train_batch_end`. Typically, the
-        values of the `Model`'s metrics are returned. Example:
-        `{'loss': 0.2, 'accuracy': 0.7}`.
-        """
-        x, y, sample_weight = data_adapter.unpack_x_y_sample_weight(data)
-
-        # Build masks from PoolNBEATS `build` method
-        self._maybe_build(x)
-
-        # Run forward pass.
-        for idx in range(self.n_models):
-            masked_x, masked_y = self._apply_mask(x, y, idx)
-            model = self.nbeats[idx]
-
-            # Compute every model forward pass
-            model.train_step((masked_x, masked_y, sample_weight))
-            # return_metrics = {metric + f'_model_{idx}': value for metric, value in return_metrics.items()}
-            # returns_metrics = {**returns_metrics, **return_metrics}
-
-        # TODO: replace this step for rapidity
-        return self.test_step((x, y, sample_weight))
-
-    def test_step(self, data: tuple) -> None:
-        """The logic for one evaluation step.
-        This method can be overridden to support custom evaluation logic.
-        This method is called by `Model.make_test_function`.
-        This function should contain the mathematical logic for one step of
-        evaluation.
-        This typically includes the forward pass, loss calculation, and metrics
-        updates.
-        Configuration details for *how* this logic is run (e.g. `tf.function` and
-        `tf.distribute.Strategy` settings), should be left to
-        `Model.make_test_function`, which can also be overridden.
-        Args:
-        data: A nested structure of `Tensor`s.
-        Returns:
-        A `dict` containing values that will be passed to
-        `tf.keras.callbacks.CallbackList.on_train_batch_end`. Typically, the
-        values of the `Model`'s metrics are returned.
-        """
-        x, y, sample_weight = data_adapter.unpack_x_y_sample_weight(data)
-
-        y = [self._apply_mask(x, y, idx)[1] for idx in range(self.n_models)]
-        return super().test_step((x, y, sample_weight))
-
-    def _apply_mask(
-        self,
-        x: Union[None, Union[Union[tf.Tensor,tf.data.Dataset], Tuple[tf.Tensor,...]]],
-        y: Union[None, Union[Union[tf.Tensor,tf.data.Dataset], Tuple[tf.Tensor,...]]],
-        idx: int
-    ) -> Union[Tuple[None, None], Tuple[Callable, tuple]]:
-        "Apply mask"
-
-        masked_x = None
-        masked_y = None
-        if x is not None:
-            masked_x = x[:, -self._mask[idx]:]
-        if y is not None:
-            masked_y = (y[0][:, -self._mask[idx]:], y[1])
-
-        return masked_x, masked_y
-
-    def predict(self, *args: list, **kwargs: dict) -> Tuple[Tuple[tf.Tensor], ...]:
-        """Reduce the n outputs to a single output tensor by mean operation."""
-
-        outputs = super().predict(*args, **kwargs)
-
-        # TODO: handle case quantiloss produce dim 3 and mse not. Raise error ?
-        batch_outputs = tuple(output[1] for output in outputs)
-        batch_reconstructed_inputs = tuple(output[0] for output in outputs)
-        return batch_reconstructed_inputs, self._fn_agg(batch_outputs, axis=0)
-
-    @property
-    def label_width(self) -> int:
-        """Return the `label_width` parameter."""
-
-        return self._label_width
-
-    @property
-    def n_models(self) -> int:
-        """Return the `n_models` parameter."""
-
-        return self._n_models
-
-    @property
-    def nbeats(self) -> list:
-        """Return the nbeats pool."""
-
-        return self._nbeats
 
 
 def create_interpretable_nbeats(
@@ -1126,3 +762,187 @@ def interpretable_nbeats_builder(label_width: int, **kwargs: dict) -> Callable:
         return model
 
     return model_builder
+
+
+# TODO: finish doc and unit testing.
+class PoolNBEATS(BasePool):
+    """
+    Tensorflow model defining a pool of N-BEATS models.
+
+    As described in the paper https://arxiv.org/abs/1905.10437, the state-of-the-art results
+    are reached with a bagging method of N-BEATS models including interpretable and generic ones.
+
+    Parameters
+    ----------
+    label_width : int
+        Width of the targets.
+        It can be not defined if `nbeats_model` is a list of NBEATS instances.
+        Default to None.
+    n_models : int
+        Number of models inside the pool.
+        The minimum value according to the paper to get SOTA results is 18.
+        If NBEATS instances are provided then n_models is not used.
+        Default to 18.
+    nbeats_models : list[callable] or list[NBEATS]
+        A list of callables which create a NBEATS model.
+        If None then use a mix of generic and interpretable NBEATs model.
+        Default to None.
+    fn_agg : Callable
+        Function of aggregation which takes an parameter axis.
+        It aggregates the models outputs. Default to mean.
+    seed: int
+        Used in combination with tf.random.set_seed to create a
+        reproducible sequence of tensors across multiple calls.
+
+    Attributes
+    ----------
+
+    Examples
+    --------
+    >>> from autopycoin.data import random_ts
+    >>> from autopycoin.models import PoolNBEATS, create_interpretable_nbeats
+    >>> from autopycoin.dataset import WindowGenerator
+    >>> import tensorflow as tf
+    >>> import pandas as pd
+    ...
+    >>> data = random_ts(n_steps=1000,
+    ...                  trend_degree=2,
+    ...                  periods=[10],
+    ...                  fourier_orders=[10],
+    ...                  trend_mean=0,
+    ...                  trend_std=1,
+    ...                  seasonality_mean=0,
+    ...                  seasonality_std=1,
+    ...                  batch_size=1,
+    ...                  n_variables=1,
+    ...                  noise=True,
+    ...                  seed=42)
+    >>> data = pd.DataFrame(data[0].numpy(), columns=['test'])
+    ...
+    >>> w = WindowGenerator(
+    ...        input_width=70,
+    ...        label_width=10,
+    ...        shift=10,
+    ...        test_size=50,
+    ...        valid_size=10,
+    ...        flat=True,
+    ...        batch_size=32,
+    ...        preprocessing=lambda x,y: (x, (x, y))
+    ...     )
+    ...
+    >>> w = w.from_array(data=data,
+    ...        input_columns=['test'],
+    ...        label_columns=['test'])
+    ...
+    >>> model = PoolNBEATS(
+    ...             label_width=10,
+    ...             n_models=10,
+    ...             nbeats_models=create_interpretable_nbeats,
+    ...             )
+    >>> model.compile(tf.keras.optimizers.Adam(
+    ...    learning_rate=0.015, beta_1=0.9, beta_2=0.999, epsilon=1e-07, amsgrad=True,
+    ...    name='Adam'), pool_loss=['mse', 'mae', 'mape'], metrics=['mae'])
+    >>> history = model.fit(w.train, validation_data=w.valid, epochs=1, verbose=0)
+    >>> model.predict(w.test.take(1)).shape
+    TensorShape([32, 10])
+
+    Notes
+    -----
+    """
+
+    def __init__(
+        self,
+        label_width: int = None,
+        n_models: int = 18,
+        nbeats_models: Union[None, NbeatsModelsOptions] = [create_interpretable_nbeats, create_generic_nbeats],
+        fn_agg: Callable = tf.reduce_mean,
+        seed: Optional[int] = None,
+        **kwargs: dict,
+    ):
+
+        super().__init__(
+            label_width=label_width,
+            n_models=n_models,
+                models=nbeats_models,
+            fn_agg=fn_agg,
+            seed=seed,
+            **kwargs
+            )
+
+    def _checks(
+        self, nbeats_models: List[NBEATS]
+        ) -> None:
+        """Check if `label_width` are equals through models instances."""
+
+        labels_width = [model.label_width for model in nbeats_models]
+        # If `label_width` is defined in the init then use it to check models else use the first model value.
+        self._label_width = self.label_width or labels_width[0]
+        assert all([label_width==self.label_width for label_width in labels_width]), (
+            f"`label_width` parameter has to be identical through models and against the value given in the init method. "
+            f"Got {labels_width} for models and `label_width` = {self.label_width}"
+        )
+
+    def build(
+        self, input_shape: Union[tf.TensorShape, Tuple[tf.TensorShape, ...]]
+    ) -> None:
+        """See tensorflow documentation."""
+
+        # Defines masks
+        mask = tf.random.uniform(
+            (self.n_models,),
+            minval=0,
+            maxval=int(input_shape[1] / self.label_width) or 1,
+            dtype=tf.int32,
+            seed=self.seed
+        )
+        self._mask = input_shape[1] - (mask * self.label_width)
+
+        super().build(input_shape)
+
+    def call(self, inputs: Union[tuple, dict, list, tf.Tensor], **kwargs: dict) -> tf.Tensor:
+        """Call method from tensorflow Model."""
+
+        output_fn = lambda idx: self.models[idx](inputs[:, -self._mask[idx]:])
+        outputs = tf.nest.map_structure(
+                    output_fn,
+                    [idx for idx in range(self.n_models)]
+                )
+        return outputs
+
+    def preprocessing_x(
+        self,
+        x: Union[None, Union[Union[tf.Tensor,tf.data.Dataset], Tuple[tf.Tensor,...]]],
+    ) -> Union[Tuple[None, None], Tuple[Callable, tuple]]:
+        "Apply mask inside `train_step`"
+
+        # Build masks from PoolNBEATS `build` method
+        self._maybe_build(x)
+
+        masked_x = None
+        if x is not None:
+            masked_x = [x[:, -self._mask[idx]:] for idx in range(self.n_models)]
+
+        return masked_x
+
+    def preprocessing_y(
+        self,
+        y: Union[None, Union[Union[tf.Tensor,tf.data.Dataset], Tuple[tf.Tensor,...]]],
+    ) -> Union[Tuple[None, None], Tuple[Callable, tuple]]:
+        "Apply mask inside `train_step`, `test_step`"
+
+        masked_y = None
+        if y is not None:
+            masked_y = [(y[0][:, -self._mask[idx]:], y[1]) for idx in range(self.n_models)]
+
+        return masked_y
+
+    def postprocessing_y(self, y):
+        "Apply mask inside `predict_step`"
+
+        inputs_reconstucted = [outputs[0] for outputs in y]
+        y =  [outputs[1] for outputs in y]
+
+        if any(outputs.quantiles for outputs in y):
+            return inputs_reconstucted, y
+
+        return inputs_reconstucted, self.fn_agg(y, axis=0)

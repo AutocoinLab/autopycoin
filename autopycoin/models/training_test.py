@@ -17,7 +17,7 @@ from ..utils.testing_utils import model_test
 from ..data.generate import random_ts
 from ..dataset.generator import WindowGenerator
 from ..losses.losses import QuantileLossError
-from .training import QuantileTensor, UnivariateModel
+from .training import UnivariateModel
 
 
 class DenseModel(UnivariateModel):
@@ -31,16 +31,15 @@ class DenseModel(UnivariateModel):
             name=f"fc",
         )
 
+        self.dropout = tf.keras.layers.Dropout(0.)
+
         super().build(input_shape)
 
     def call(
         self, inputs, **kwargs
     ):
 
-        return tf.matmul(inputs, self.dense)
-
-    def compute_output_shape(self, input_shape):
-        return input_shape[:1] + [50] 
+        return tf.matmul(inputs, self.dropout(self.dense))
 
 class DoubleDenseModel(DenseModel):
 
@@ -77,11 +76,6 @@ class DoubleDenseModel2(DoubleDenseModel):
     ):
         return tf.matmul(inputs, self.dense), tf.matmul(inputs, self.dense2)
 
-def bonjour(f):
-    def call(self, inputs, *args, **g):
-        print('ttttttt')
-        return f(self, inputs, *args, **g)
-    return call
 
 class DenseUnivariateModel(UnivariateModel):
 

@@ -3,7 +3,7 @@ Initialization of layers.
 """
 
 from .nbeats_layers import TrendBlock, SeasonalityBlock, GenericBlock, BaseBlock
-from .base_layer import Layer
+from .base_layer import UnivariateLayer
 from .strategy import UniVariate
 
 __ALL__ = [
@@ -11,6 +11,6 @@ __ALL__ = [
     "SeasonalityBlock",
     "GenericBlock",
     "BaseBlock",
-    "Layer",
+    "UnivariateLayer",
     "UniVariate",
 ]

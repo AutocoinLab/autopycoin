@@ -6,13 +6,13 @@ import tensorflow as tf
 from tensorflow.keras.layers import Dropout, InputSpec
 
 from ..utils import range_dims, convert_to_list
-from .base_layer import Layer
+from .base_layer import UnivariateLayer
 from ..baseclass import AutopycoinBaseClass
 from ..asserts import greater_or_equal, equal_length, is_between
 
 
-# TODO: create a UnivariateModel and UnivariateLayer which take care of strategy etc...
-class BaseBlock(Layer, AutopycoinBaseClass):
+# TODO: create a UnivariateModel and UnivariateUnivariateLayer which take care of strategy etc...
+class BaseBlock(UnivariateLayer, AutopycoinBaseClass):
     """
     Base class of a nbeats block.
 
@@ -72,6 +72,7 @@ class BaseBlock(Layer, AutopycoinBaseClass):
         self._is_interpretable = interpretable
         self._block_type = block_type
 
+    # TODO: put input_spec in UnivariateLayer
     def build(self, input_shape: tf.TensorShape) -> None:
         """See tensorflow documentation."""
 
@@ -92,15 +93,6 @@ class BaseBlock(Layer, AutopycoinBaseClass):
 
         self.input_spec = InputSpec(min_ndim=2, axes={-1: self.input_width})
 
-        # multi univariate inputs
-        self._multivariate = []
-        if (bool(input_shape.rank > 2) and self.n_quantiles < 2) or (bool(input_shape.rank > 3) and self.n_quantiles > 1):
-            self._multivariate = input_shape.as_list()[:1]
-
-            # Add quantile dimension to first layers
-            if self.n_quantiles > 1:
-                self._multivariate = self._multivariate + [1]
-
         # Computing fc layers
         dim = self.input_width
         self.fc_stack = []
@@ -108,11 +100,11 @@ class BaseBlock(Layer, AutopycoinBaseClass):
             self.fc_stack.append(
                 (
                     self.add_weight(
-                        shape=self._multivariate + [dim, self._n_neurons],
+                        shape=self.n_variates + [dim, self._n_neurons],
                         name=f"fc_kernel_{self.name}_{count}",
                     ),
                     self.add_weight(
-                        shape=self._multivariate + [1, self._n_neurons],
+                        shape=self.n_variates + [1, self._n_neurons],
                         initializer="zeros",
                         name=f"fc_bias_{self.name}_{count}",
                     ),
@@ -136,14 +128,13 @@ class BaseBlock(Layer, AutopycoinBaseClass):
 
         # If the model is compiling with a loss error defining uncertainty then
         # broadcast the output to take into account this uncertainty.
-        shape_fc = self._multivariate + [self._n_neurons, coef.shape[-2]]
+        shape_fc = [self._n_neurons, coef.shape[-2]]
 
-        if self.n_quantiles > 1 and branch_name == "forecast":
+        if branch_name == "forecast":
             # We place quantiles after multivariates
-            if self._multivariate:
-                shape_fc[1] = self.n_quantiles
-            else:
-                shape_fc.insert(0, self.n_quantiles)
+            shape_fc =  self.get_additional_shapes(0) + shape_fc
+        elif branch_name == "backcast":
+            shape_fc =  self.n_variates + shape_fc
 
         # If multivariate inputs then we modify the shape of fc layers
         fc = self.add_weight(shape=shape_fc, name=f"fc_{branch_name}_{self.name}")
@@ -194,7 +185,7 @@ class BaseBlock(Layer, AutopycoinBaseClass):
         for kernel, bias in self.fc_stack:
             # shape: (Batch_size, n_neurons)
             inputs = tf.add(tf.matmul(inputs, kernel), bias)
-            inputs = tf.nn.relu(inputs)
+            inputs = tf.keras.activations.relu(inputs)
             # TODO: change dropout to let the user choose
             inputs = self.dropout(inputs, training=True)
 
@@ -233,15 +224,7 @@ class BaseBlock(Layer, AutopycoinBaseClass):
                 % (input_shape,)
             )
 
-        # multi univariate inputs
-        multivariate = input_shape.as_list()[:1] if input_shape.rank > 2 else []
-
-        # If the model is compiled with a loss error defining uncertainty then
-        # reshape the output to take into account this uncertainty.
-        output_shape_forecast = input_shape[:-1] + [self.label_width]
-        if self.n_quantiles > 1:
-            # We place quantiles after multivariates dim
-            output_shape_forecast.insert(len(multivariate), self.n_quantiles)
+        output_shape_forecast = self.get_additional_shapes(0) + [self.label_width]
 
         return [
             tf.TensorShape(output_shape_forecast),
@@ -600,14 +583,10 @@ class SeasonalityBlock(BaseBlock, AutopycoinBaseClass):
 
         # if None then set an default value based on the *input shape*
         self._backcast_periods = (
-            self._backcast_periods
-            if self._backcast_periods
-            else int(input_shape[-1] / 2)
+            self._backcast_periods or int(input_shape[-1] / 2)
         )
         self._backcast_fourier_order = (
-            self._backcast_fourier_order
-            if self._backcast_fourier_order
-            else self._backcast_periods
+            self._backcast_fourier_order or self._backcast_periods
         )
 
         super().build(input_shape)
@@ -823,7 +802,7 @@ class GenericBlock(BaseBlock, AutopycoinBaseClass):
         """
 
         coefficients = tf.keras.initializers.GlorotUniform(seed=42)(
-            shape=self._multivariate + [neurons, output_last_dim]
+            shape=self.n_variates + [neurons, output_last_dim]
         )
 
         return coefficients

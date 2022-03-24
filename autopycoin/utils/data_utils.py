@@ -80,7 +80,7 @@ def quantiles_handler(quantiles: Union[None, int, float, List[Union[int, float, 
             if not q:
                 raise ValueError(f'None value or empty list are not supported, got {quantiles}')
             if q < 0:
-                raise ValueError(f'Negative valueq are nos supported, got {quantiles}')
+                raise ValueError(f'Negative values are not supported, got {quantiles}')
         
         quantile = np.where(quantile < 1, quantile * 100, quantile)
         quantile = np.sort(quantile)

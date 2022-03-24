@@ -82,7 +82,7 @@ def quantile_loss(
     --------
     >>> from autopycoin.losses import quantile_loss
     >>> import tensorflow as tf
-    >>> y_true = [[0., 1.], [0., 0.]]
+    >>> y_true = [[[0.], [1.]], [[0.], [0.]]]
     >>> y_pred = [[[1.], [1.]], [[1.], [0.]]]
     >>> quantile_loss(y_true, y_pred, quantiles=[0.5]).numpy()
     array([0.25, 0.25], dtype=float32)
@@ -196,7 +196,7 @@ class QuantileLossError(LossFunctionWrapper, AutopycoinBaseClass):
     --------
     >>> import tensorflow as tf
     >>> from autopycoin.losses import QuantileLossError
-    >>> y_true = [[0., 1.], [0., 0.]]
+    >>> y_true = [[[0.], [1.]], [[0.], [0.]]]
     >>> y_pred = [[[1.], [1.]], [[1.], [0.]]]
     >>> # Using 'auto'/'sum_over_batch_size' reduction type.
     >>> ql = QuantileLossError(quantiles=[0.5])

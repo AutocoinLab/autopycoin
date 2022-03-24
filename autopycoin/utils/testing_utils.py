@@ -58,6 +58,8 @@ def model_test(
     )
 
     model.fit(input_dataset, validation_data=valid_dataset, epochs=1)
+    for x, y in input_dataset.take(1):
+        model.train_on_batch(x, y)
     output = model.predict(input_dataset)
 
     if isinstance(expected_output_shape_model, (list, tuple)):
@@ -316,9 +318,7 @@ def layer_test(
     # Rebuild the model to avoid the graph being reused between predict() and
     # See b/120160788 for more details. This should be mitigated after 2.0.
     if validate_training:
-        x = layers.Input(shape=input_shape[1:], dtype=input_dtype)
-        y = layer(inputs=x)
-        model = models.Model(x, y)
+        model = models.Model(x, layer(inputs=x))
         if _thread_local_data.run_eagerly is not None:
             model.compile(
                 "rmsprop",

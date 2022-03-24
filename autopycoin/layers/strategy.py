@@ -5,13 +5,13 @@ Defines layers for time series analysis.
 from typing import Union, Tuple
 import tensorflow as tf
 
-from . import Layer
+from . import UnivariateLayer
 from ..utils import transpose_first_to_last, transpose_last_to_first
 
 # from ..dataset import features, date_features
 
 
-class UniVariate(Layer):
+class UniVariate(UnivariateLayer):
     """
     Used inside univariate models as first and last layer.
     It performs transpose operation to put the variables as the first dimensions
