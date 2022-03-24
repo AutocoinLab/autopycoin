@@ -3,6 +3,7 @@
 from typing import Union, List
 
 import tensorflow as tf
+import keras
 
 class QuantileTensor(tf.experimental.ExtensionType):
     """Extension type to introduce quantiles in tensor"""
@@ -137,13 +138,30 @@ def transpose(a: Union[QuantileTensor, UnivariateTensor], perm=None, conjugate=F
 
 
 @tf.experimental.dispatch_for_api(tf.math.reduce_mean)
-def reduce_mean(input_tensor: Union[QuantileTensor, UnivariateTensor], axis=None, keepdims=False, name=None):
-    return tf.math.reduce_mean(input_tensor, axis=axis, keepdims=keepdims, name=name)
+def reduce_mean(input_tensor: Union[List[Union[QuantileTensor, UnivariateTensor]], Union[QuantileTensor, UnivariateTensor]], axis=None, keepdims=False, name=None):
+    if isinstance(input_tensor, list):
+        input_tensor = [input.values for input in input_tensor]
+        return tf.math.reduce_mean(input_tensor, axis=axis, keepdims=keepdims, name=name)
+    return tf.math.reduce_mean(input_tensor.values, axis=axis, keepdims=keepdims, name=name)
 
 
 @tf.experimental.dispatch_for_api(tf.math.reduce_sum)
 def reduce_sum(input_tensor: Union[QuantileTensor, UnivariateTensor], axis=None, keepdims=False, name=None):
     return tf.math.reduce_sum(input_tensor.values, axis=axis, keepdims=keepdims, name=name)
+
+
+@tf.experimental.dispatch_for_api(keras.backend.maximum)
+def maximum(x: Union[QuantileTensor, UnivariateTensor, tf.Tensor, tf.Variable], y: Union[QuantileTensor, UnivariateTensor, tf.Tensor, tf.Variable]):
+    x = x.values if isinstance(x, (QuantileTensor, UnivariateTensor)) else x
+    y = y.values if isinstance(y, (QuantileTensor, UnivariateTensor)) else y
+    return tf.maximum(x, y)
+
+@tf.experimental.dispatch_for_api(tf.keras.losses.mean_absolute_percentage_error)
+def mean_absolute_percentage_error(y_true: Union[QuantileTensor, UnivariateTensor, tf.Tensor, tf.Variable], 
+                                   y_pred: Union[QuantileTensor, UnivariateTensor, tf.Tensor, tf.Variable]):
+    y_true = y_true.values if isinstance(y_true, (QuantileTensor, UnivariateTensor)) else y_true
+    y_pred = y_pred.values if isinstance(y_pred, (QuantileTensor, UnivariateTensor)) else y_pred
+    return tf.keras.losses.mean_absolute_percentage_error(y_true, y_pred)
 
 
 def dispatch(tensor, fn, **kwargs):

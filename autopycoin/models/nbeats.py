@@ -841,7 +841,7 @@ class PoolNBEATS(BasePool):
     ...             )
     >>> model.compile(tf.keras.optimizers.Adam(
     ...    learning_rate=0.015, beta_1=0.9, beta_2=0.999, epsilon=1e-07, amsgrad=True,
-    ...    name='Adam'), pool_loss=['mse', 'mae', 'mape'], metrics=['mae'])
+    ...    name='Adam'), loss=['mse', 'mae', 'mape'], metrics=['mae'])
     >>> history = model.fit(w.train, validation_data=w.valid, epochs=1, verbose=0)
     >>> model.predict(w.test.take(1)).shape
     TensorShape([32, 10])
