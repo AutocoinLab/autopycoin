@@ -109,11 +109,11 @@ class Stack(UnivariateModel):
         for block in self.blocks:
             # outputs is (quantiles, Batch_size, forecast)
             # reconstructed_inputs is (Batch_size, backcast)
-            residual_outputs, reconstructed_inputs = block(inputs)
+            reconstructed_inputs, residual_outputs = block(inputs)
             inputs = tf.subtract(inputs, reconstructed_inputs)
             # outputs is (quantiles, Batch_size, forecast)
             outputs = tf.add(outputs, residual_outputs)
-        return outputs, inputs
+        return inputs, outputs
 
     def get_config(self) -> dict:
         """See tensorflow documentation."""
@@ -339,7 +339,7 @@ class NBEATS(UnivariateModel):
         for stack in self.stacks:
             # outputs_residual is (quantiles, Batch_size, forecast)
             # inputs is (Batch_size, backcast)
-            residual_outputs, residual_inputs = stack(residual_inputs)
+            residual_inputs, residual_outputs = stack(residual_inputs)
             # outputs is (quantiles, Batch_size, forecast)
             outputs = tf.math.add(outputs, residual_outputs)
 
@@ -388,9 +388,9 @@ class NBEATS(UnivariateModel):
             raise AttributeError(f"No `SeasonalityStack` defined. Got {self.stacks}")
 
         for stack in self.stacks[:start]:
-            _, data = stack(data)
+            data, _ = stack(data)
         for stack in self.stacks[start : idx + 1]:
-            residual_seas, data = stack(data)
+            data, residual_seas = stack(data)
             if "seasonality" not in locals():
                 seasonality = residual_seas
             else:
@@ -421,7 +421,7 @@ class NBEATS(UnivariateModel):
             raise AttributeError(msg)
 
         for stack in self.stacks[: idx + 1]:
-            residual_trend, data = stack(data)
+            data, residual_trend = stack(data)
             if "trend" not in locals():
                 trend = residual_trend
             else:
@@ -843,8 +843,8 @@ class PoolNBEATS(BasePool):
     ...    learning_rate=0.015, beta_1=0.9, beta_2=0.999, epsilon=1e-07, amsgrad=True,
     ...    name='Adam'), loss=['mse', 'mae', 'mape'], metrics=['mae'])
     >>> history = model.fit(w.train, validation_data=w.valid, epochs=1, verbose=0)
-    >>> model.predict(w.test.take(1)).shape
-    TensorShape([32, 10])
+    >>> model.predict(w.test.take(1))[1].shape
+    (32, 10)
 
     Notes
     -----

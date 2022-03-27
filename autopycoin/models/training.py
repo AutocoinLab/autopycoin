@@ -21,31 +21,28 @@ class AutopycoinMetaModel(abc.ABCMeta):
     """Metaclass for autopycoin models."""
 
     def __init__(cls, name, bases, namespace):
-        cls.build = cls._wrap_build(cls.build)
-        cls.call = cls._wrap_call(cls.call)
-        
+        cls.build = _wrap_build(cls.build)
+        cls.call = _wrap_call(cls.call)
+
         super().__init__(name, bases, namespace)
 
-    @classmethod
-    def _wrap_call(cls, fn):
-        """ Wrap the call method with a _preprocessing and _post_processing methods """
+def _wrap_call(fn):
+    """Wrap the call method with a _preprocessing and _post_processing methods"""
 
-        def call_wrapper(self, inputs, *args, **kwargs):
-            inputs = self._preprocessing_wrapper(inputs)
-            outputs = fn(self, inputs, *args, **kwargs)
-            outputs = self._post_processing_wrapper(outputs)
-            return outputs
-        return call_wrapper
+    def call_wrapper(self, inputs, *args, **kwargs):
+        inputs = self._preprocessing_wrapper(inputs)
+        outputs = fn(self, inputs, *args, **kwargs)
+        outputs = self._post_processing_wrapper(outputs)
+        return outputs
+    return call_wrapper
 
-    @classmethod
-    def _wrap_build(cls, fn):
-        """ Wrap the build method with a init_params """
+def _wrap_build(fn):
+    """Wrap the build method with a init_params function"""
 
-        def build_wrapper(self, inputs_shape):
-            if self._apply_multivariate_transpose:
-                self.init_params(inputs_shape)
-            return fn(self, inputs_shape)
-        return build_wrapper
+    def build_wrapper(self, inputs_shape):
+        self.init_params(inputs_shape)
+        return fn(self, inputs_shape)
+    return build_wrapper
 
 
 class BaseModel(keras.Model, metaclass=AutopycoinMetaModel):
@@ -228,7 +225,7 @@ class QuantileModel(BaseModel): # # pylint: disable=abstract-method
     def _set_quantiles(self, value: List[Union[List[int], int]], additional_shapes=None, n_quantiles=None) -> None:
         """Set attributes linked to the quantiles found in the losses functions."""
 
-        self.built = False
+        self._built = False
         self._has_quantiles = True
         self._quantiles = value
         self._additional_shapes = additional_shapes or [[len(q)] for q in self.quantiles]
@@ -241,6 +238,8 @@ class QuantileModel(BaseModel): # # pylint: disable=abstract-method
 
     def losses_wrapper(self, loss: LossFunctionWrapper) -> Union[Callable, LossFunctionWrapper]:
         """Add or remove the quantile dimension to y_pred and y_true respectively."""
+
+        print(loss)
 
         # TODO: We override the fn function which can be a Loss instance and turn it into function.
         # As below we have to recreate an instance of the loss otherwise we lose informations as the attributes etc...
@@ -278,7 +277,8 @@ class QuantileModel(BaseModel): # # pylint: disable=abstract-method
         if self._apply_quantiles_transpose:
             if self._check_quantiles_requirements(outputs, losses):
                 outputs = transpose_first_to_last(outputs)
-                outputs = tf.squeeze(outputs, axis=-1)
+                if outputs.shape[-1] == 1:
+                    outputs = tf.squeeze(outputs, axis=-1)
                 return QuantileTensor(outputs, quantiles=True)
             return QuantileTensor(outputs, quantiles=False)
         return outputs
@@ -317,8 +317,8 @@ class QuantileModel(BaseModel): # # pylint: disable=abstract-method
                 elif self._is_single_quantile(quantiles_in_losses):
                     return False
 
-                raise ValueError(f"Quantiles in losses and outputs are not the same, maybe you are trying to train a no quantile model"
-                        f"with a quantile loss. It is possible only if there is only one quantile defined. "
+                raise ValueError(f"Quantiles in losses and outputs are not the same. Maybe you are trying to train a no quantile model "
+                        f"with a quantile loss. It is possible only if there is one quantile defined as [[0.5]]. "
                         f"got outputs shape: {outputs.shape} and quantiles in losses: {quantiles_in_losses}")
 
         return False
@@ -335,7 +335,9 @@ class QuantileModel(BaseModel): # # pylint: disable=abstract-method
 
         # TODO: find an other way to find if an outputs contains quantiles dimension
 
-        return any(s == outputs.shape[:len(s)] for s in self._additional_shapes) or self._additional_shapes
+        print([any(s == outputs.shape[:len(s)] for s in self._additional_shapes)])
+
+        return any(s == outputs.shape[:len(s)] for s in self._additional_shapes) # or self._additional_shapes
 
     def _compare_quantiles_in_outputs_and_losses(self, outputs, quantiles_in_losses):
         """Return True if the outputs and the quantile loss have the same `quantiles` attribute"""
@@ -376,6 +378,7 @@ def _remove_dimension_to_ypred(fn):
     """We remove the quantile dimension from y_pred if it is not needed,
     then y_true and y_pred are broadcastable.
     """
+    print('fn', fn)
     @tf.function(experimental_relax_shapes=True)
     def new_fn(y_true, y_pred, *args, **kwargs):
 
@@ -392,6 +395,7 @@ def _add_dimension_to_ytrue(fn, obj):
     """We add the quantile dimension from y_true if it is needed,
     then y_true and y_pred are broadcastable.
     """
+    print('fn', fn)
     @tf.function(experimental_relax_shapes=True)
     def new_fn(y_true, y_pred, *args, **kwargs):
 
@@ -455,9 +459,7 @@ class UnivariateModel(QuantileModel):
         return self.is_multivariate
 
     def init_params(self, input_shape, n_variates=None, is_multivariate=None, additional_shapes=None):
-        """It can be called inside `build` method to initiate the multivariates attributes.
-
-        If not then it is called inside `__call__` method.
+        """it is called before `build`.
 
         Parameters
         ----------

@@ -23,12 +23,11 @@ class QuantileLayer(tf.keras.layers.Layer):
         self._quantiles = None
         self._n_quantiles = 0
         self._additional_shapes = [[]]
-        self._apply_quantiles_transpose = True
 
     def _set_quantiles(self, value, additional_shapes=None, n_quantiles=None):
         """Reset the `built` attribute to False and change the value of `quantiles`"""
 
-        self.built = False
+        self._built = False
         self._quantiles = value
         self._additional_shapes = additional_shapes
         self._n_quantiles = n_quantiles
@@ -57,10 +56,10 @@ class QuantileLayer(tf.keras.layers.Layer):
 class UnivariateLayer(QuantileLayer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self._apply_multivariate_transpose = True
         self._init_multivariates_params = False
 
     def init_params(self, input_shape, n_variates, is_multivariate, additional_shapes):
-        """Reset the `built` attribute to False and change the value of `quantiles`"""
 
         self._n_variates = n_variates
         self._additional_shapes = additional_shapes

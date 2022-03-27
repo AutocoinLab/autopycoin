@@ -27,6 +27,15 @@ from . import (
 from ..data import random_ts
 
 
+def check_shape(model, inputs, shape1, shape2):
+    outputs_predict = model.predict(inputs)
+    outputs_call = model(inputs)
+
+    for output in [outputs_predict, outputs_call]:
+        assert output[0].shape == shape1
+        assert output[1].shape == shape2
+
+
 def trend_weights(n_neurons, p_degree):
     return [
         np.zeros(shape=(3, 3)),
@@ -456,7 +465,7 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
         share,
     ):
 
-        model = create_interpretable_nbeats(
+        create_model = lambda :create_interpretable_nbeats(
             label_width=label_width,
             forecast_periods=forecast_periods,
             backcast_periods=backcast_periods,
@@ -468,6 +477,8 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
             drop_rate=drop_rate,
             share=share,
         )
+
+        model = create_model()
 
         self.assertIsInstance(model, NBEATS)
         trend_stack = model.stacks[0]
@@ -494,24 +505,23 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
             seasonality_stack.blocks[2].get_weights(),
         )
 
-        # Compare output shape with expected shape
-        outputs = model.predict(np.array([[1.0, 2.0, 3.0]]))
-        self.assertEqual(outputs[1].shape, (1, 2))
-        self.assertEqual(outputs[0].shape, (1, 3))
+        # Compare output shape with expected
+        check_shape(model, np.array([[1.0, 2.0, 3.0]]), (1, 3), (1, 2))
 
-        outputs = model(np.array([[1.0, 2.0, 3.0]]))
-        self.assertEqual(outputs[1].shape, (1, 2))
-        self.assertEqual(outputs[0].shape, (1, 3))
+        model = create_model()
 
-        # Compare output shape with expected shape when quantiles = 3
-        model.compile(loss=QuantileLossError([0.1, 0.5, 0.9]))
-        outputs = model.predict(np.array([[1.0, 2.0, 3.0]]))
-        self.assertEqual(outputs[1].shape, (1, 2, 3))
-        self.assertEqual(outputs[0].shape, (1, 3, 1)) # No quantiles for reconstructed inputs
+        check_shape(model, np.array([[[1., 1.], [2., 2.], [3., 3.]]]), (1, 3, 2), (1, 2, 2))
 
-        outputs = model(np.array([[1.0, 2.0, 3.0]]))
-        self.assertEqual(outputs[1].shape, (1, 2, 3))
-        self.assertEqual(outputs[0].shape, (1, 3, 1)) # No quantiles for reconstructed inputs
+        model = create_model()
+
+        # Compare output shape with expected when quantiles = 3
+        model.compile(loss=['mse', QuantileLossError([0.1, 0.5, 0.9])])
+        check_shape(model, np.array([[1.0, 2.0, 3.0]]), (1, 3), (1, 2, 3))
+
+        model = create_model()
+
+        model.compile(loss=['mse', QuantileLossError([0.1, 0.5, 0.9])])
+        check_shape(model, np.array([[[1., 1.], [2., 2.], [3., 3.]]]), (1, 3, 2), (1, 2, 2, 3))
 
     @parameterized.parameters([(2, 5, 5, 5, 3, 2, 0.0, True)])
     def test_create_generic_nbeats(
@@ -564,31 +574,23 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
             generic_stack_2.blocks[2].get_weights(),
         )
 
-        def check_shape(inputs, shape1, shape2):
-            outputs_predict = model.predict(inputs)
-            outputs_call = model.predict(inputs)
-
-            for output in [outputs_predict, outputs_call]:
-                self.assertEqual(output[0].shape, shape1)
-                self.assertEqual(output[1].shape, shape2)
-
         # Compare output shape with expected
-        check_shape(np.array([[1.0, 2.0, 3.0]]), (1, 3), (1, 2))
+        check_shape(model, np.array([[1.0, 2.0, 3.0]]), (1, 3), (1, 2))
 
         model = create_model()
 
-        check_shape(np.array([[[1., 1.], [2., 2.], [3., 3.]]]), (1, 3, 2), (1, 2, 2))
+        check_shape(model, np.array([[[1., 1.], [2., 2.], [3., 3.]]]), (1, 3, 2), (1, 2, 2))
 
         model = create_model()
 
         # Compare output shape with expected when quantiles = 3
-        model.compile(loss=QuantileLossError([0.1, 0.5, 0.9]))
-        check_shape(np.array([[1.0, 2.0, 3.0]]), (1, 3, 1), (1, 2, 3))
+        model.compile(loss=['mse', QuantileLossError([0.1, 0.5, 0.9])])
+        check_shape(model, np.array([[1.0, 2.0, 3.0]]), (1, 3), (1, 2, 3))
 
         model = create_model()
 
-        model.compile(loss=QuantileLossError([0.1, 0.5, 0.9]))
-        check_shape(np.array([[[1., 1.], [2., 2.], [3., 3.]]]), (1, 3, 2, 1), (1, 2, 2, 3))
+        model.compile(loss=['mse', QuantileLossError([0.1, 0.5, 0.9])])
+        check_shape(model, np.array([[[1., 1.], [2., 2.], [3., 3.]]]), (1, 3, 2), (1, 2, 2, 3))
 
 
     @parameterized.parameters(
@@ -707,7 +709,7 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
                   lambda label_width: create_interpretable_nbeats(
                     label_width=label_width,
                     trend_n_neurons=1, 
-                    seasonality_n_neurons=1
+                    seasonality_n_neurtest_create_genericons=1
                   )]
 
         # Check randomness
@@ -754,7 +756,8 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
 
         kwargs_2 = {
             'label_width': 3,
-            "n_models": 3
+            "n_models": 3,
+            "seed": 0
         }
 
         layer_test(
@@ -762,7 +765,7 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
             kwargs=kwargs_2,
             input_dtype=floatx(),
             input_shape=(2, 10),
-            expected_output_shape=((None, 3), (None, 3), (None, 3)),
+            expected_output_shape=(((None, 10), (None, 3)), ((None, 10), (None, 3)), ((None, 10), (None, 3))),
             expected_output_dtype=[floatx(), floatx(), floatx()],
         )
 

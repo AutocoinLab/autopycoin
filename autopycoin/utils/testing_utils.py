@@ -9,6 +9,8 @@ import threading
 import pandas as pd
 
 import tensorflow as tf
+from autopycoin.extension_type import QuantileTensor, UnivariateTensor
+from autopycoin.utils.data_utils import convert_to_list
 from tensorflow.compat.v1 import Dimension
 from keras import layers, models
 from tensorflow.python.eager import context
@@ -18,15 +20,28 @@ from tensorflow.python.keras.utils import tf_inspect
 from .. import losses
 
 
+def compare_types(y, expected_output_dtype):
+    y = convert_to_list(y)
+    return all(i==expected_output_dtype for i in y)
+
+
 def dtype(obj):
     return obj.dtype.base_dtype.name
 
 
 def string_test(actual, expected):
+    if isinstance(actual, (QuantileTensor, UnivariateTensor)):
+        actual = actual.values
+    if isinstance(expected, (QuantileTensor, UnivariateTensor)):
+        actual = expected.values
     np.testing.assert_array_equal(actual, expected)
 
 
 def numeric_test(actual, expected):
+    if isinstance(actual, (QuantileTensor, UnivariateTensor)):
+        actual = actual.values
+    if isinstance(expected, (QuantileTensor, UnivariateTensor)):
+        actual = expected.values
     np.testing.assert_allclose(
         tf.round(actual, 3), tf.round(expected, 3), rtol=1e-3, atol=1e-5
     )
@@ -244,7 +259,7 @@ def layer_test(
             else:
                 assert_equal = numeric_test
 
-        if dtype(y) != expected_output_dtype:
+        if compare_types(y, expected_output_dtype):
             raise AssertionError(
                 "When testing layer %s, for input %s, found output "
                 "dtype=%s but expected to find %s.\nFull kwargs: %s"
@@ -273,22 +288,39 @@ def layer_test(
                     )
 
         if expected_output_shape is not None:
-            assert_shapes_equal(tf.TensorShape(expected_output_shape), y.shape)
+            if any(tf.nest.is_nested(e) for e in expected_output_shape):
+                for idx, (e, i) in enumerate(zip(expected_output_shape, y)):
+                    if hasattr(layer, '_mask') and idx == 0:
+                        e = (e[0], layer._mask[idx].numpy())
+                    assert_shapes_equal(tf.TensorShape(e), i.shape)
+            else:
+                assert_shapes_equal(tf.TensorShape(expected_output_shape), y.shape)
 
         # check shape inference
         model = models.Model(inputs=x, outputs=y)
         if isinstance(layer, tf.keras.Model):
-            actual_output = layer.predict(input_data)
+            actual_output = layer.predict(input_data) # TODO: Predict agrgrege
+            print('y', layer(input_data))
         else:
             actual_output = model.predict(input_data)
+            print('t')
         # Handle multiple outputs
+        for i in actual_output:
+            print('actual', i[0])
+            print("actual2", i[1])
         actual_output = (
             actual_output[idx] if isinstance(actual_output, tuple) else actual_output
         )
-        actual_output_shape = actual_output.shape
+        print(actual_output)
+        actual_output_shape = (output.shape for output in actual_output) if tf.nest.is_nested(actual_output) else actual_output.shape
+        print(actual_output_shape)
+        if any(isinstance(e, tf.TensorShape) for e in computed_output_shape):
+            for idx, (e, i) in enumerate(zip(expected_output_shape, actual_output_shape)):
+                assert_shapes_equal(e, i)
+        else:
+            assert_shapes_equal(computed_output_shape, actual_output_shape)
+            assert_shapes_equal(computed_output_signature.shape, actual_output_shape)
 
-        assert_shapes_equal(computed_output_shape, actual_output_shape)
-        assert_shapes_equal(computed_output_signature.shape, actual_output_shape)
         if computed_output_signature.dtype != actual_output.dtype:
             raise AssertionError(
                 "When testing layer %s, for input %s, found output_dtype="

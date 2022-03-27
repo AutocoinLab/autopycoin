@@ -199,7 +199,7 @@ class BaseBlock(UnivariateLayer, AutopycoinBaseClass):
             inputs, self.fc_forecast, self.forecast_coef
         )  # layers fc and coef created in _build_branch
 
-        return outputs, reconstructed_inputs
+        return reconstructed_inputs, outputs
 
     def _output(
         self, inputs: tf.Tensor, fc: tf.Tensor, coef: tf.Tensor
@@ -227,8 +227,8 @@ class BaseBlock(UnivariateLayer, AutopycoinBaseClass):
         output_shape_forecast = self.get_additional_shapes(0) + [self.label_width]
 
         return [
-            tf.TensorShape(output_shape_forecast),
             input_shape,
+            tf.TensorShape(output_shape_forecast),   
         ]
 
     @property
