@@ -239,8 +239,6 @@ class QuantileModel(BaseModel): # # pylint: disable=abstract-method
     def losses_wrapper(self, loss: LossFunctionWrapper) -> Union[Callable, LossFunctionWrapper]:
         """Add or remove the quantile dimension to y_pred and y_true respectively."""
 
-        print(loss)
-
         # TODO: We override the fn function which can be a Loss instance and turn it into function.
         # As below we have to recreate an instance of the loss otherwise we lose informations as the attributes etc...
         if not hasattr(loss.fn, 'quantiles') and not isinstance(loss, type(None)):
@@ -335,8 +333,6 @@ class QuantileModel(BaseModel): # # pylint: disable=abstract-method
 
         # TODO: find an other way to find if an outputs contains quantiles dimension
 
-        print([any(s == outputs.shape[:len(s)] for s in self._additional_shapes)])
-
         return any(s == outputs.shape[:len(s)] for s in self._additional_shapes) # or self._additional_shapes
 
     def _compare_quantiles_in_outputs_and_losses(self, outputs, quantiles_in_losses):
@@ -378,7 +374,7 @@ def _remove_dimension_to_ypred(fn):
     """We remove the quantile dimension from y_pred if it is not needed,
     then y_true and y_pred are broadcastable.
     """
-    print('fn', fn)
+
     @tf.function(experimental_relax_shapes=True)
     def new_fn(y_true, y_pred, *args, **kwargs):
 
@@ -395,7 +391,7 @@ def _add_dimension_to_ytrue(fn, obj):
     """We add the quantile dimension from y_true if it is needed,
     then y_true and y_pred are broadcastable.
     """
-    print('fn', fn)
+
     @tf.function(experimental_relax_shapes=True)
     def new_fn(y_true, y_pred, *args, **kwargs):
 

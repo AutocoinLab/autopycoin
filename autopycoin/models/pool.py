@@ -86,9 +86,10 @@ class BasePool(tf.keras.Model):
         if any(isinstance(model, tf.keras.Model) for model in models):
             # We modify n_models
             self._n_models = len(models)
-            self._models = self._init_callable_models(models, distribution=list(range(self.n_models)), **kwargs)
+
             # Check only if instances are provided
-            self._checks(self.models)
+            self.checks((model for model in models if isinstance(model, tf.keras.Model)))
+            self._models = self._init_callable_models(models, distribution=list(range(self.n_models)), **kwargs)
 
         else:
             distribution = model_distribution or tf.random.uniform(
@@ -99,13 +100,13 @@ class BasePool(tf.keras.Model):
                                                     seed=self.seed
                                                     ).numpy().tolist()
 
-            self._models = self._init_callable_models(models, distribution=distribution, **kwargs)
-
             assert self.label_width and self.n_models, (
-                f'When models are callable `label_width` and `n_models` has to be integers. '
-                f'Got label_width: {self.label_width} and n_models: {self.n_models}'
+                f'When `models` are callable, `label_width` and `n_models` have to be integers. '
+                f'Got label_width: {self.label_width} and n_models: {self.n_models} '
                 f'and models: {models}.'
             )
+
+            self._models = self._init_callable_models(models, distribution=distribution, **kwargs)
 
     def _init_callable_models(self, models: List[Callable], distribution: List[int], **kwargs) -> List[tf.keras.Model]:
         """Initialize models from callable."""
@@ -122,7 +123,7 @@ class BasePool(tf.keras.Model):
 
         return tf.nest.map_structure(init, distribution)
 
-    def _checks(self, models):
+    def checks(self, models):
         raise NotImplementedError('You need to override this function.')
 
     def compile(self,

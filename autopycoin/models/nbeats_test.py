@@ -238,15 +238,15 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
             kwargs={"blocks": blocks},
             input_dtype=floatx(),
             input_shape=(2, 3),
-            expected_output_shape=((None, 2), (None, 3)),
+            expected_output_shape=((None, 3), (None, 2)),
             expected_output_dtype=[floatx(), floatx()],
             expected_output=[
-                tf.constant([9.0, 4.5, 9.0, 4.5], shape=(2, 2)),
                 -1
                 * tf.constant(
                     [12.0, y1 + 3 + 1, y2 + 3 + 2, 12.0, y1 + 3 + 1, y2 + 3 + 2,],
                     shape=(2, 3),
                 ),
+                tf.constant([9.0, 4.5, 9.0, 4.5], shape=(2, 2))
             ],
             custom_objects={"Stack": Stack},
         )
@@ -738,16 +738,16 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
 
             if i == 0:
                 mask_random_v1 = model2._mask
-                pool_losses_random_v1 = tf.nest.map_structure(lambda x: x.name, model2.compiled_loss._losses)
-                types_random_v1 = [m.nbeats_type for m in model2.nbeats]
+                pool_losses_random_v1 = model2.compiled_loss._losses
+                types_random_v1 = [m.nbeats_type for m in model2.models]
 
         self.assertAllEqual(model2._mask, mask_random_v1)
-        self.assertAllEqual(tf.nest.map_structure(lambda x: x.name, model2.compiled_loss._losses), pool_losses_random_v1)
-        self.assertAllEqual([m.nbeats_type for m in model2.nbeats], types_random_v1)
+        self.assertAllEqual(model2.compiled_loss._losses, pool_losses_random_v1)
+        self.assertAllEqual([m.nbeats_type for m in model2.models], types_random_v1)
 
         output = model2.predict(np.array([[1.0, 2.0, 3.0, 5.0, 6.0, 7.0]]))
 
-        self.assertEqual(output.shape, shape2)
+        self.assertEqual(output[1].shape, shape2)
  
     def test_pool_nbeats_as_layer(self):
 
@@ -768,7 +768,7 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
 
     def test_pool_nbeats_raises_error(self):
         with self.assertRaisesRegexp(
-            AssertionError, f"""If `label_width` is not provided"""
+            AssertionError, f"""When `models` are callable, `label_width` and `n_models` have to be integers."""
         ):
             PoolNBEATS(
                 n_models=10,

@@ -2,22 +2,13 @@
 N-BEATS implementation
 """
 
-from cProfile import label
 from typing import Callable, Union, Tuple, List, Optional
-import keras_tuner as kt
-import numpy as np
 from typing import List, Optional
 
 import tensorflow as tf
-from tensorflow.python.keras.losses import LossFunctionWrapper
-from keras.engine import data_adapter
 
-from autopycoin.extension_type import QuantileTensor, UnivariateTensor
-
-from ..utils.data_utils import convert_to_list
 from .training import UnivariateModel
-from ..baseclass import AutopycoinBaseClass
-from ..layers import TrendBlock, SeasonalityBlock, GenericBlock, UniVariate, BaseBlock
+from ..layers import TrendBlock, SeasonalityBlock, GenericBlock, BaseBlock
 from ..layers.nbeats_layers import SEASONALITY_TYPE
 from .pool import BasePool
 
@@ -109,14 +100,19 @@ class Stack(UnivariateModel):
         for block in self.blocks:
             # outputs is (quantiles, Batch_size, forecast)
             # reconstructed_inputs is (Batch_size, backcast)
+            tf.print('preoutch', inputs)
             reconstructed_inputs, residual_outputs = block(inputs)
+            tf.print('outch2', reconstructed_inputs)
             inputs = tf.subtract(inputs, reconstructed_inputs)
+            tf.print(inputs)
             # outputs is (quantiles, Batch_size, forecast)
             outputs = tf.add(outputs, residual_outputs)
+        tf.print(inputs)
         return inputs, outputs
 
     def get_config(self) -> dict:
         """See tensorflow documentation."""
+
         config = super().get_config()
         config.update({"blocks": self.blocks})
         return config
@@ -869,7 +865,7 @@ class PoolNBEATS(BasePool):
             **kwargs
             )
 
-    def _checks(
+    def checks(
         self, nbeats_models: List[NBEATS]
         ) -> None:
         """Check if `label_width` are equals through models instances."""

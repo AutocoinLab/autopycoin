@@ -166,6 +166,18 @@ def reduce_sum(input_tensor: Union[QuantileTensor, UnivariateTensor], axis=None,
     return tf.math.reduce_sum(input_tensor.values, axis=axis, keepdims=keepdims, name=name)
 
 
+@tf.experimental.dispatch_for_api(tf.identity)
+def identity(input: List[Union[QuantileTensor, UnivariateTensor, tf.Tensor]], name=None):
+    val = [v.values if isinstance(v, (QuantileTensor, UnivariateTensor)) else v for v in input]
+    quantiles = any([v.quantiles if isinstance(v, (QuantileTensor, UnivariateTensor)) else False for v in input])
+    if any([isinstance(v, UnivariateTensor) for v in input]):
+        multivariates = any([v.multivariates if isinstance(v, (QuantileTensor, UnivariateTensor)) else False for v in input])
+        return UnivariateTensor(tf.identity(val, name=name), quantiles=quantiles, multivariates=multivariates)
+    elif any([isinstance(v, QuantileTensor) for v in input]):
+        return QuantileTensor(tf.identity(val, name=name), quantiles=quantiles)
+    return tf.identity(input, name)
+
+
 @tf.experimental.dispatch_for_api(keras.backend.maximum)
 def maximum(x: Union[QuantileTensor, UnivariateTensor, tf.Tensor, tf.Variable], y: Union[QuantileTensor, UnivariateTensor, tf.Tensor, tf.Variable]):
     x = x.values if isinstance(x, (QuantileTensor, UnivariateTensor)) else x
