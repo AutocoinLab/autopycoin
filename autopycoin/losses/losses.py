@@ -10,6 +10,7 @@ import tensorflow as tf
 from tensorflow.keras.backend import epsilon, maximum
 from tensorflow.python.keras.losses import LossFunctionWrapper
 from tensorflow.python.keras.utils import losses_utils
+from tensorflow.python.util import dispatch
 
 from ..utils import quantiles_handler
 from .. import AutopycoinBaseClass
@@ -17,7 +18,8 @@ from .. import AutopycoinBaseClass
 
 Yannotation = Union[tf.Tensor, pd.DataFrame, np.array, list]
 
-
+@dispatch.register_binary_elementwise_api
+@dispatch.add_dispatch_support
 def smape(y_true: Yannotation, y_pred: Yannotation):
     """
     Calculate the symmetric mean absolute percentage error between `y_true`and `y_pred`.
@@ -52,7 +54,7 @@ def smape(y_true: Yannotation, y_pred: Yannotation):
 
     y_true = tf.cast(y_true, dtype=y_pred.dtype)
     error = tf.abs(y_true - y_pred) / (
-        maximum(tf.abs(y_true), epsilon()) + tf.abs(y_pred)
+        tf.maximum(tf.abs(y_true), epsilon()) + tf.abs(y_pred)
     )
     error = 200.0 * tf.reduce_mean(error, axis=-1)
     return error

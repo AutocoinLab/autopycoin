@@ -303,7 +303,7 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
             input_dtype=floatx(),
             input_shape=(2, 3),
             expected_output_shape=((None, 3), (None, 2)),
-            expected_output_dtype=[floatx(), floatx()],
+            expected_output_dtype=[floatx()],
             expected_output=[tf.constant([24.0, 8.0, 10.0, 24.0, 8.0, 10.0], shape=(2, 3)), tf.constant([18.0, 9.0, 18.0, 9.0], shape=(2, 2))],
         )
 
@@ -598,13 +598,13 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
             (
                 2,
                 tf.reduce_mean,
-                [(1, 2, 2), (1, 2, 2), (1, 2, 2), (1, 2, 2, 3), (1, 2, 2)],
+                [(1, 2, 2), (1, 2, 2), (1, 2, 2), (1, 2, 2, 2), (1, 2, 2)],
                 (1, 2),
             ),
             (
                 2,
                 lambda x, axis: tf.identity(x),
-                [(1, 2, 2), (1, 2, 2), (1, 2, 2), (1, 2, 2, 3), (1, 2, 2)],
+                [(1, 2, 2), (1, 2, 2), (1, 2, 2), (1, 2, 2, 2), (1, 2, 2)],
                 (10, 1, 2),
             ),
         ]
@@ -688,14 +688,11 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
             )
         )
 
-        for o, s in zip(output, shape):
-            self.assertEqual(o[1].shape, s)
+        for o, s in zip(output[1], shape):
+            self.assertEqual(o.shape, s)
 
         for loss in ["mse", "mae", "mape", qloss]:
-            self.assertIn(loss, model.get_pool_losses())
-        model.reset_pool_losses(["mse", "msle", "mape"])
-        for loss in ["mse", "msle", "mape"]:
-            self.assertIn(loss, model.get_pool_losses())
+            self.assertIn(loss, model.loss)
 
         # callable model
         nbeats = [lambda label_width: create_generic_nbeats(
@@ -709,7 +706,7 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
                   lambda label_width: create_interpretable_nbeats(
                     label_width=label_width,
                     trend_n_neurons=1, 
-                    seasonality_n_neurtest_create_genericons=1
+                    seasonality_n_neurons=1
                   )]
 
         # Check randomness
@@ -741,11 +738,11 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
 
             if i == 0:
                 mask_random_v1 = model2._mask
-                pool_losses_random_v1 = model2._pool_losses
+                pool_losses_random_v1 = tf.nest.map_structure(lambda x: x.name, model2.compiled_loss._losses)
                 types_random_v1 = [m.nbeats_type for m in model2.nbeats]
 
         self.assertAllEqual(model2._mask, mask_random_v1)
-        self.assertAllEqual(model2._pool_losses, pool_losses_random_v1)
+        self.assertAllEqual(tf.nest.map_structure(lambda x: x.name, model2.compiled_loss._losses), pool_losses_random_v1)
         self.assertAllEqual([m.nbeats_type for m in model2.nbeats], types_random_v1)
 
         output = model2.predict(np.array([[1.0, 2.0, 3.0, 5.0, 6.0, 7.0]]))

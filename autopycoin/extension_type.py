@@ -93,13 +93,21 @@ def concat(values: List[Union[QuantileTensor, UnivariateTensor, tf.Tensor]], axi
         return UnivariateTensor(tf.concat(val, axis=axis, name=name), quantiles=quantiles, multivariates=multivariates)
     elif any(isinstance(v, QuantileTensor) for v in values):
         return QuantileTensor(tf.concat(val, axis=axis, name=name), quantiles=quantiles)
-    
+
     return tf.concat(values, axis, name)
+
+
+from tensorflow.python.ops import array_ops
 
 
 @tf.experimental.dispatch_for_api(tf.rank)
 def rank(input: Union[QuantileTensor, UnivariateTensor], name=None):
     return tf.rank(input.values, name=name)
+
+
+@tf.experimental.dispatch_for_api(array_ops.size)
+def size_v1(input: Union[QuantileTensor, UnivariateTensor], name=None, out_type=tf.int32):
+    return tf.size(input.values, out_type=out_type, name=name)
 
 
 @tf.experimental.dispatch_for_api(tf.size)
@@ -127,6 +135,14 @@ def add_n(inputs: List[Union[QuantileTensor, UnivariateTensor, tf.Tensor]], name
     elif any([isinstance(v, QuantileTensor) for v in inputs]):
         return QuantileTensor(tf.add_n(val, name=name), quantiles=quantiles)
     return tf.add_n(inputs, name)
+
+
+@tf.experimental.dispatch_for_api(tf.round)
+def round(x: Union[QuantileTensor, UnivariateTensor], name=None):
+    if isinstance(x, UnivariateTensor):
+        return UnivariateTensor(tf.round(x.values, name=name), quantiles=x.quantiles, multivariates=x.multivariates)
+    elif isinstance(x, QuantileTensor):
+        return QuantileTensor(tf.round(x.values, name=name), quantiles=x.quantiles)
 
 
 @tf.experimental.dispatch_for_api(tf.transpose)
