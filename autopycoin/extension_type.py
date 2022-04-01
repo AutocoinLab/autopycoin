@@ -3,7 +3,9 @@
 from typing import Union, List
 
 import tensorflow as tf
+from tensorflow.python.ops import array_ops
 import keras
+import autopycoin
 
 class QuantileTensor(tf.experimental.ExtensionType):
     """Extension type to introduce quantiles in tensor"""
@@ -85,7 +87,7 @@ def convert_to_tensor(input: Union[QuantileTensor, UnivariateTensor], axis=None,
 
 
 @tf.experimental.dispatch_for_api(tf.concat)
-def concat(values: List[Union[QuantileTensor, UnivariateTensor, tf.Tensor]], axis, name='concat'):
+def concat(values: List[Union[QuantileTensor, UnivariateTensor, tf.Tensor, tf.Variable]], axis, name='concat'):
     val = [v.values if isinstance(v, (QuantileTensor, UnivariateTensor)) else v for v in values]
     quantiles = any(v.quantiles if isinstance(v, (QuantileTensor, UnivariateTensor)) else False for v in values)
     if any(isinstance(v, UnivariateTensor) for v in values):
@@ -95,9 +97,6 @@ def concat(values: List[Union[QuantileTensor, UnivariateTensor, tf.Tensor]], axi
         return QuantileTensor(tf.concat(val, axis=axis, name=name), quantiles=quantiles)
 
     return tf.concat(values, axis, name)
-
-
-from tensorflow.python.ops import array_ops
 
 
 @tf.experimental.dispatch_for_api(tf.rank)
@@ -126,7 +125,7 @@ def argmax(input: Union[QuantileTensor, UnivariateTensor], axis=None, output_typ
 
 
 @tf.experimental.dispatch_for_api(tf.add_n)
-def add_n(inputs: List[Union[QuantileTensor, UnivariateTensor, tf.Tensor]], name=None):
+def add_n(inputs: List[Union[QuantileTensor, UnivariateTensor, tf.Tensor, tf.Variable]], name=None):
     val = [v.values if isinstance(v, (QuantileTensor, UnivariateTensor)) else v for v in inputs]
     quantiles = any([v.quantiles if isinstance(v, (QuantileTensor, UnivariateTensor)) else False for v in inputs])
     if any([isinstance(v, UnivariateTensor) for v in inputs]):
@@ -167,7 +166,7 @@ def reduce_sum(input_tensor: Union[QuantileTensor, UnivariateTensor], axis=None,
 
 
 @tf.experimental.dispatch_for_api(tf.identity)
-def identity(input: List[Union[QuantileTensor, UnivariateTensor, tf.Tensor]], name=None):
+def identity(input: List[Union[QuantileTensor, UnivariateTensor, tf.Tensor, tf.Variable]], name=None):
     val = [v.values if isinstance(v, (QuantileTensor, UnivariateTensor)) else v for v in input]
     quantiles = any([v.quantiles if isinstance(v, (QuantileTensor, UnivariateTensor)) else False for v in input])
     if any([isinstance(v, UnivariateTensor) for v in input]):
@@ -184,12 +183,21 @@ def maximum(x: Union[QuantileTensor, UnivariateTensor, tf.Tensor, tf.Variable], 
     y = y.values if isinstance(y, (QuantileTensor, UnivariateTensor)) else y
     return tf.maximum(x, y)
 
+
 @tf.experimental.dispatch_for_api(tf.keras.losses.mean_absolute_percentage_error)
 def mean_absolute_percentage_error(y_true: Union[QuantileTensor, UnivariateTensor, tf.Tensor, tf.Variable], 
                                    y_pred: Union[QuantileTensor, UnivariateTensor, tf.Tensor, tf.Variable]):
     y_true = y_true.values if isinstance(y_true, (QuantileTensor, UnivariateTensor)) else y_true
     y_pred = y_pred.values if isinstance(y_pred, (QuantileTensor, UnivariateTensor)) else y_pred
     return tf.keras.losses.mean_absolute_percentage_error(y_true, y_pred)
+
+
+@tf.experimental.dispatch_for_api(autopycoin.losses.smape)
+def symetric_mean_absolute_percentage_error(y_true: Union[QuantileTensor, UnivariateTensor, tf.Tensor, tf.Variable], 
+                                   y_pred: Union[QuantileTensor, UnivariateTensor, tf.Tensor, tf.Variable]):
+    y_true = y_true.values if isinstance(y_true, (QuantileTensor, UnivariateTensor)) else y_true
+    y_pred = y_pred.values if isinstance(y_pred, (QuantileTensor, UnivariateTensor)) else y_pred
+    return autopycoin.losses.smape(y_true, y_pred)
 
 
 def dispatch(tensor, fn, **kwargs):
@@ -218,7 +226,10 @@ def tensor_unary_elementwise_api_handler(api_func, x):
         return QuantileTensor(api_func(x.values), quantiles=x.quantiles)
 
 
-@tf.experimental.dispatch_for_binary_elementwise_apis(Union[QuantileTensor, UnivariateTensor, tf.Tensor, tf.Variable], Union[QuantileTensor, UnivariateTensor, tf.Tensor, tf.Variable])
+@tf.experimental.dispatch_for_binary_elementwise_apis(
+    Union[QuantileTensor, UnivariateTensor, tf.Tensor, tf.Variable], 
+    Union[QuantileTensor, UnivariateTensor, tf.Tensor, tf.Variable]
+    )
 def tensor_binary_elementwise_api_handler(api_func, x, y):
     x_values = x.values if isinstance(x, (UnivariateTensor, QuantileTensor)) else x
     y_values = y.values if isinstance(y, (UnivariateTensor, QuantileTensor)) else y

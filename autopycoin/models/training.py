@@ -5,7 +5,6 @@ Overloading Model tensorflow object
 import abc
 import math
 from typing import List, Union, Callable, Any
-from autopycoin.utils.data_utils import quantiles_handler
 import itertools
 
 import keras
@@ -13,7 +12,7 @@ import keras
 import tensorflow.compat.v2 as tf
 from keras.losses import LossFunctionWrapper
 
-from ..utils import transpose_first_to_last, transpose_last_to_first, transpose_first_to_second_last, convert_to_list
+from ..utils import transpose_first_to_last, transpose_last_to_first, transpose_first_to_second_last, convert_to_list, quantiles_handler
 from ..extension_type import QuantileTensor, UnivariateTensor
 
 
@@ -26,6 +25,16 @@ class AutopycoinMetaModel(abc.ABCMeta):
 
         super().__init__(name, bases, namespace)
 
+
+def _wrap_build(fn):
+    """Wrap the build method with a init_params function"""
+
+    def build_wrapper(self, inputs_shape):
+        self.init_params(inputs_shape)
+        return fn(self, inputs_shape)
+    return build_wrapper
+
+
 def _wrap_call(fn):
     """Wrap the call method with a _preprocessing and _post_processing methods"""
 
@@ -35,14 +44,6 @@ def _wrap_call(fn):
         outputs = self._post_processing_wrapper(outputs)
         return outputs
     return call_wrapper
-
-def _wrap_build(fn):
-    """Wrap the build method with a init_params function"""
-
-    def build_wrapper(self, inputs_shape):
-        self.init_params(inputs_shape)
-        return fn(self, inputs_shape)
-    return build_wrapper
 
 
 class BaseModel(keras.Model, metaclass=AutopycoinMetaModel):
@@ -123,12 +124,17 @@ class BaseModel(keras.Model, metaclass=AutopycoinMetaModel):
             return outputs[0] if len(outputs) == 1 else outputs
 
     def post_processing(self, output, losses=None):
-        """Public API to apply post-processing logics to your inputs data."""
+        """Public API to apply post-processing logics to your outputs data."""
 
         raise NotImplementedError('`post_processing` has to be overriden.')
 
+    def init_params(self, input_shape, **kwargs):
+        """Public API to initialize parameters before `build` method."""
 
-class QuantileModel(BaseModel): # # pylint: disable=abstract-method
+        raise NotImplementedError('`init_params` has to be overriden.')
+
+
+class QuantileModel(BaseModel): # pylint: disable=abstract-method
     """Overloads tensorflow Model class to integrate a `quantiles` attribute.
 
     During the compiling phase, the model checks the existence of the attribute `quantiles` in each loss function.
@@ -351,6 +357,9 @@ class QuantileModel(BaseModel): # # pylint: disable=abstract-method
         except IndexError:
             return []
 
+    def init_params(self, input_shape, **kwargs):
+        pass
+
     @property
     def quantiles(self):
         """Return quantiles attribute."""
@@ -419,8 +428,8 @@ class UnivariateModel(QuantileModel):
     ----------
     is_multivariate : bool
         True if the inputs rank is higher than 2. Default to False.
-    n_variates : int
-        the number of variates in the inputs. Default to 0.
+    n_variates : list[int]
+        the number of variates in the inputs. Default to [].
     """
 
     def __init__(self, *args, **kwargs):
@@ -455,7 +464,14 @@ class UnivariateModel(QuantileModel):
         return self.is_multivariate
 
     def init_params(self, input_shape, n_variates=None, is_multivariate=None, additional_shapes=None):
-        """it is called before `build`.
+        """Initialize attributes related to univariate model.
+        
+        It is called before `build`.
+        Three steps are done:
+        - Filter the first shape in case of multiple inputs tensors.
+        - Initialize attributes: `is_multivariate`, `n_variates`.
+        - Add the n_variates dimension to `additional_shape` and propagate these attributes
+        to the internal layers.
 
         Parameters
         ----------

@@ -11,9 +11,8 @@ import pytest
 
 import tensorflow as tf
 from tensorflow.python.keras import keras_parameterized
-from keras.backend import floatx
 
-from ..utils.testing_utils import model_test
+from ..test_utils import model_test
 from ..data.generate import random_ts
 from ..dataset.generator import WindowGenerator
 from ..losses.losses import QuantileLossError
@@ -80,8 +79,6 @@ class DoubleDenseModel2(DoubleDenseModel):
 class DenseUnivariateModel(UnivariateModel):
 
     def build(self, input_shape):
-
-        self.init_univariate_params(input_shape)
 
         shape = self.get_additional_shapes(0) + [20, 50]
 
@@ -190,8 +187,8 @@ class ModelTest(tf.test.TestCase, parameterized.TestCase):
 
     @parameterized.parameters(
         [
-        (QuantileLossError([0.1, 0.3, 0.5]), ((213, 50, 3), (213, 50, 3)), ValueError, "It is not allowed to train a no quantile model with a quantile loss"),
-        ([QuantileLossError([0.1, 0.3, 0.5])], ((213, 50, 3), (213, 50, 3)), ValueError, "It is not allowed to train a no quantile model with a quantile loss"),
+        (QuantileLossError([0.1, 0.3, 0.5]), ((213, 50, 3), (213, 50, 3)), ValueError, "Quantiles in losses and outputs are not the same"),
+        ([QuantileLossError([0.1, 0.3, 0.5])], ((213, 50, 3), (213, 50, 3)), ValueError, "Quantiles in losses and outputs are not the same"),
         ([QuantileLossError([0.1, 0.3, 0.5]), 'mse'], ((213, 50, 3), (213, 50)), None, None),
         ([QuantileLossError([0.1, 0.3, 0.5]), QuantileLossError([0.1, 0.3, 0.5])], ((213, 50, 3), (213, 50, 3)), None, None),
         ([QuantileLossError([0.1, 0.3, 0.5]), QuantileLossError([0.1, 0.5])], ((213, 50, 3), (213, 50, 2)), None, None),
@@ -209,7 +206,7 @@ class ModelTest(tf.test.TestCase, parameterized.TestCase):
     
     @parameterized.parameters(
         [
-        (QuantileLossError([0.1, 0.3, 0.5]), ((213, 50, 3), (213, 50, 3)), ValueError, "It is not allowed to train a no quantile model with a quantile loss"),
+        (QuantileLossError([0.1, 0.3, 0.5]), ((213, 50, 3), (213, 50, 3)), ValueError, "Quantiles in losses and outputs are not the same."),
         ([QuantileLossError([0.1, 0.3, 0.5]), 'mse'], ((213, 50, 3), (213, 50)), None, None),
         ('mse', ((213, 50), (213, 50)), None, None),
         ]

@@ -7,7 +7,7 @@ from tensorflow.python.keras import keras_parameterized
 from tensorflow.keras.backend import floatx
 import tensorflow as tf
 
-from ..utils import layer_test, check_attributes
+from ..test_utils import layer_test, check_attributes
 from . import GenericBlock, TrendBlock, SeasonalityBlock, BaseBlock
 
 

@@ -15,7 +15,7 @@ from autopycoin.dataset.generator import WindowGenerator
 
 from ..models import PoolNBEATS
 
-from ..utils import layer_test, check_attributes
+from ..test_utils import layer_test, check_attributes
 from ..losses import QuantileLossError
 from ..layers.nbeats_layers import GenericBlock, TrendBlock, SeasonalityBlock
 from . import (
@@ -243,7 +243,7 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
             expected_output=[
                 -1
                 * tf.constant(
-                    [12.0, y1 + 3 + 1, y2 + 3 + 2, 12.0, y1 + 3 + 1, y2 + 3 + 2,],
+                    [12.5, 4.5, 5.5, 12.5, 4.5, 5.5,],
                     shape=(2, 3),
                 ),
                 tf.constant([9.0, 4.5, 9.0, 4.5], shape=(2, 2))

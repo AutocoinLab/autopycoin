@@ -188,14 +188,12 @@ class BaseBlock(UnivariateLayer, AutopycoinBaseClass):
             inputs = tf.keras.activations.relu(inputs)
             # TODO: change dropout to let the user choose
             inputs = self.dropout(inputs, training=True)
-            tf.print('inputs_trend', inputs)
 
         # shape: (Batch_size, backcast)
         reconstructed_inputs = self._output(
             inputs, self.fc_backcast, self.backcast_coef
         )  # layers fc and coef created in _build_branch
 
-        tf.print('reconstructed_inputs', reconstructed_inputs)
         # shape: (quantiles, Batch_size, forecast)
         outputs = self._output(
             inputs, self.fc_forecast, self.forecast_coef
@@ -210,7 +208,6 @@ class BaseBlock(UnivariateLayer, AutopycoinBaseClass):
 
         # shape: (Batch_size, output_first_dim_backcast)
         theta = tf.matmul(inputs, fc)
-        tf.print('theta', theta)
         return tf.matmul(theta, coef)
 
     def compute_output_shape(

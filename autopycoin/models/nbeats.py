@@ -100,14 +100,10 @@ class Stack(UnivariateModel):
         for block in self.blocks:
             # outputs is (quantiles, Batch_size, forecast)
             # reconstructed_inputs is (Batch_size, backcast)
-            tf.print('preoutch', inputs)
             reconstructed_inputs, residual_outputs = block(inputs)
-            tf.print('outch2', reconstructed_inputs)
             inputs = tf.subtract(inputs, reconstructed_inputs)
-            tf.print(inputs)
             # outputs is (quantiles, Batch_size, forecast)
             outputs = tf.add(outputs, residual_outputs)
-        tf.print(inputs)
         return inputs, outputs
 
     def get_config(self) -> dict:
@@ -329,6 +325,9 @@ class NBEATS(UnivariateModel):
 
     def call(self, inputs: Union[tuple, dict, list, tf.Tensor], **kwargs: dict) -> tf.Tensor:
         """Call method from tensorflow."""
+
+        if isinstance(inputs, (tuple, list)):
+            inputs = inputs[0]
 
         residual_inputs = tf.identity(inputs)
         outputs = tf.constant(0.0)

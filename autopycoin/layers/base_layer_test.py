@@ -14,7 +14,7 @@ from ..losses.losses import QuantileLossError
 
 
 @keras_parameterized.run_all_keras_modes
-class ModelTest(tf.test.TestCase, parameterized.TestCase):
+class LayerTest(tf.test.TestCase, parameterized.TestCase):
     """
     Unit tests for the nbeats model.
     """
@@ -33,10 +33,10 @@ class ModelTest(tf.test.TestCase, parameterized.TestCase):
             share=True,
         )
 
-        self.assertEqual(model.quantiles, None)
         model.compile(loss=QuantileLossError([0.5, 0.6]))
-        self.assertEqual(model.quantiles, [0.4, 0.5, 0.6])
 
         for block in model.stacks[0].blocks:
-            self.assertEqual(block.quantiles, [0.4, 0.5, 0.6])
-            self.assertEqual(block._n_quantiles, 3)
+            self.assertEqual(block.quantiles, [[0.5, 0.6]])
+            self.assertEqual(block.n_quantiles, [[2]])
+            self.assertEqual(block.is_multivariate, False)
+            self.assertEqual(block.n_variates, [])

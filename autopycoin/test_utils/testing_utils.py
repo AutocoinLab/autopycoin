@@ -10,7 +10,6 @@ import pandas as pd
 
 import tensorflow as tf
 from autopycoin.extension_type import QuantileTensor, UnivariateTensor
-from autopycoin.utils.data_utils import convert_to_list
 from tensorflow.compat.v1 import Dimension
 from keras import layers, models
 from tensorflow.python.eager import context
@@ -19,6 +18,7 @@ from tensorflow.python.keras.utils import tf_inspect
 
 from .. import losses
 from ..models.pool import BasePool
+from ..utils.data_utils import convert_to_list
 
 
 def compare_types(y, expected_output_dtype):

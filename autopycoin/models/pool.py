@@ -2,7 +2,6 @@
 
 
 from typing import Union, List, Callable, Optional, Tuple
-import numpy as np
 import tensorflow as tf
 from keras.engine import data_adapter
 

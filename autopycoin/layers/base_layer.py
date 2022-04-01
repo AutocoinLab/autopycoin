@@ -5,6 +5,44 @@ Overloading Layers tensorflow object
 import tensorflow as tf
 
 
+class BaseLayer(tf.keras.layers.Layer, metaclass=AutopycoinMetaModel):
+    """Base model which defines pre/post-processing methods to override.
+
+    Currently, four wrappers can be overriden:
+    - preprocessing : Preprocess the inputs data
+    - post_processing : Preprocess the outputs data
+    - metrics_wrapper : Preprocess y_true or y_pred
+    - losses_wrapper : Preprocess y_true or y_pred
+
+    `Compute_output_shape` needs also to be implemented.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def _preprocessing_wrapper(self, inputs):
+        return self.preprocessing(inputs)
+
+    def preprocessing(self, inputs):
+        """Public API to apply preprocessing logics to your inputs data."""
+
+        raise NotImplementedError('`preprocessing` has to be overriden.')
+
+    def _post_processing_wrapper(self, outputs):
+        """Post-processing wrapper."""
+
+        outputs_is_nested = tf.nest.is_nested(outputs)
+        outputs = tuple(outputs) if outputs_is_nested else (outputs,)
+        outputs = tf.nest.map_structure(lambda output: self.post_processing(output), outputs)
+    
+        return outputs[0] if len(outputs) == 1 else outputs
+
+    def post_processing(self, output):
+        """Public API to apply post-processing logics to your outputs data."""
+
+        raise NotImplementedError('`post_processing` has to be overriden.')
+
+
 class QuantileLayer(tf.keras.layers.Layer):
     """
     Override tensorflow Layer class to integrate a `quantiles` attribute which is `None`
@@ -59,6 +97,9 @@ class UnivariateLayer(QuantileLayer):
         self._apply_multivariate_transpose = True
         self._init_multivariates_params = False
 
+        self._n_variates = []
+        self._is_multivariate = False
+
     def init_params(self, input_shape, n_variates, is_multivariate, additional_shapes):
 
         self._n_variates = n_variates
@@ -68,7 +109,7 @@ class UnivariateLayer(QuantileLayer):
 
     def get_additional_shapes(self, index):
         if not self._init_multivariates_params:
-            raise AssertionError('Please call `init_univariate_params` at the beginning of build.')
+            raise AssertionError('Please call `init_params` at the beginning of build.')
         return super().get_additional_shapes(index)
 
     @property

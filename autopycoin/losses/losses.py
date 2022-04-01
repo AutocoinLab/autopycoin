@@ -18,7 +18,7 @@ from .. import AutopycoinBaseClass
 
 Yannotation = Union[tf.Tensor, pd.DataFrame, np.array, list]
 
-@dispatch.register_binary_elementwise_api
+
 @dispatch.add_dispatch_support
 def smape(y_true: Yannotation, y_pred: Yannotation):
     """
@@ -26,18 +26,15 @@ def smape(y_true: Yannotation, y_pred: Yannotation):
 
     Parameters
     ----------
-    y_true : array, `dataframe`, list or `tensor of shape (batch_size, d0, .. dN)`
-        Ground truth values.
-    y_pred : array, `dataframe`, list or `tensor of shape (batch_size, d0, .. dN)`
-        The predicted values.
-    mask : bool, `Optional`
-        set a mask to not take into account infinite values.
-        Defaults to False.
+    y_true : array, `dataframe`, list or `tensor`
+        Ground truth values. shape = `[batch_size, d0, .. dN]`.
+    y_pred : array, `dataframe`, list or `tensor`
+        The predicted values. shape = `[batch_size, d0, .. dN]`.
 
     Returns
     -------
     error : `tensor`
-        The error in %.
+        Symetric mean absolute percentage error values. shape = `[batch_size, d0, .. dN-1]`.
 
     Examples
     --------
@@ -56,8 +53,8 @@ def smape(y_true: Yannotation, y_pred: Yannotation):
     error = tf.abs(y_true - y_pred) / (
         tf.maximum(tf.abs(y_true), epsilon()) + tf.abs(y_pred)
     )
-    error = 200.0 * tf.reduce_mean(error, axis=-1)
-    return error
+
+    return 200.0 * tf.reduce_mean(error, axis=-1)
 
 
 def quantile_loss(
@@ -102,7 +99,7 @@ def quantile_loss(
     ) * tf.clip_by_value(tf.math.negative(diff), 0.0, np.inf))
 
     error = tf.reduce_mean(q_loss, axis=-2)
-    return tf.reduce_sum(error, axis=[-1])
+    return tf.reduce_sum(error, axis=-1)
 
 
 class SymetricMeanAbsolutePercentageError(LossFunctionWrapper, AutopycoinBaseClass):
