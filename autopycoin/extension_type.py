@@ -5,7 +5,7 @@ from typing import Union, List
 import tensorflow as tf
 from tensorflow.python.ops import array_ops
 import keras
-import autopycoin
+from . import losses
 
 class QuantileTensor(tf.experimental.ExtensionType):
     """Extension type to introduce quantiles in tensor"""
@@ -192,12 +192,12 @@ def mean_absolute_percentage_error(y_true: Union[QuantileTensor, UnivariateTenso
     return tf.keras.losses.mean_absolute_percentage_error(y_true, y_pred)
 
 
-@tf.experimental.dispatch_for_api(autopycoin.losses.smape)
+@tf.experimental.dispatch_for_api(losses.smape)
 def symetric_mean_absolute_percentage_error(y_true: Union[QuantileTensor, UnivariateTensor, tf.Tensor, tf.Variable], 
                                    y_pred: Union[QuantileTensor, UnivariateTensor, tf.Tensor, tf.Variable]):
     y_true = y_true.values if isinstance(y_true, (QuantileTensor, UnivariateTensor)) else y_true
     y_pred = y_pred.values if isinstance(y_pred, (QuantileTensor, UnivariateTensor)) else y_pred
-    return autopycoin.losses.smape(y_true, y_pred)
+    return losses.smape(y_true, y_pred)
 
 
 def dispatch(tensor, fn, **kwargs):

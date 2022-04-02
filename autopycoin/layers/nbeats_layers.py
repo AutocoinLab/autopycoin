@@ -12,7 +12,7 @@ from ..asserts import greater_or_equal, equal_length, is_between
 
 
 # TODO: create a UnivariateModel and UnivariateUnivariateLayer which take care of strategy etc...
-class BaseBlock(UnivariateLayer, AutopycoinBaseClass):
+class BaseBlock(UnivariateLayer):
     """
     Base class of a nbeats block.
 
@@ -277,7 +277,7 @@ class BaseBlock(UnivariateLayer, AutopycoinBaseClass):
             raise ValueError(f"`name` has to contain `Block`. Got {self.name}")
 
 
-class TrendBlock(BaseBlock, AutopycoinBaseClass):
+class TrendBlock(BaseBlock):
     """
     Trend block definition.
 
@@ -448,7 +448,7 @@ class TrendBlock(BaseBlock, AutopycoinBaseClass):
 SEASONALITY_TYPE = Union[Union[int, float], List[Union[int, float]]]
 
 
-class SeasonalityBlock(BaseBlock, AutopycoinBaseClass):
+class SeasonalityBlock(BaseBlock):
     """
     Seasonality block definition.
 
@@ -703,7 +703,7 @@ class SeasonalityBlock(BaseBlock, AutopycoinBaseClass):
             )
 
 
-class GenericBlock(BaseBlock, AutopycoinBaseClass):
+class GenericBlock(BaseBlock):
     """
     Generic block definition as described in the paper.
 
