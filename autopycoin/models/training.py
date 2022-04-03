@@ -197,9 +197,10 @@ class QuantileModel(BaseModel, QuantileLayer):  # pylint: disable=abstract-metho
 
         # Case of multiple losses
         if isinstance(loss, (tuple, list)):
-            quantiles = [
-                q for loss_fn in loss if (q := self._check_quantiles_in_loss(loss_fn))
-            ]
+            quantiles = (
+                self._check_quantiles_in_loss(loss_fn) for loss_fn in loss
+            )
+            quantiles = [q for q in quantiles if q]
             return list(itertools.chain.from_iterable(quantiles))
 
         # One loss

@@ -89,7 +89,9 @@ def matmul(
 ):
     x_values = a.values if isinstance(a, (UnivariateTensor, QuantileTensor)) else a
     y_values = b.values if isinstance(b, (UnivariateTensor, QuantileTensor)) else b
-    if (x_is_univariate := isinstance(a, UnivariateTensor)) or isinstance(
+    x_is_univariate = isinstance(a, UnivariateTensor)
+    x_is_quantile = isinstance(a, QuantileTensor)
+    if x_is_univariate or isinstance(
         b, UnivariateTensor
     ):
         a = a if x_is_univariate else b
@@ -110,7 +112,7 @@ def matmul(
             multivariates=a.multivariates,
             shape=a.shape,
         )
-    elif (x_is_quantile := isinstance(a, QuantileTensor)) or isinstance(
+    elif x_is_quantile or isinstance(
         b, QuantileTensor
     ):
         a = a if x_is_quantile else b
@@ -471,7 +473,10 @@ def tensor_unary_elementwise_api_handler(api_func, x):
 def tensor_binary_elementwise_api_handler(api_func, x, y):
     x_values = x.values if isinstance(x, (UnivariateTensor, QuantileTensor)) else x
     y_values = y.values if isinstance(y, (UnivariateTensor, QuantileTensor)) else y
-    if (x_is_univariate := isinstance(x, UnivariateTensor)) or isinstance(
+    x_is_univariate = isinstance(x, UnivariateTensor)
+    x_is_quantile = isinstance(x, QuantileTensor)
+
+    if x_is_univariate or isinstance(
         y, UnivariateTensor
     ):
         x = x if x_is_univariate else y
@@ -481,7 +486,7 @@ def tensor_binary_elementwise_api_handler(api_func, x, y):
             multivariates=x.multivariates,
             shape=x.shape,
         )
-    elif (x_is_quantile := isinstance(x, QuantileTensor)) or isinstance(
+    elif x_is_quantile or isinstance(
         y, QuantileTensor
     ):
         x = x if x_is_quantile else y
