@@ -82,9 +82,21 @@ class Stack(UnivariateModel):
     If you add 2 variables, the output would have shape (variables, quantiles, batch_size, units).
     """
 
-    def __init__(self, blocks: Tuple[BaseBlock, ...], apply_quantiles_transpose: bool=False, apply_multivariate_transpose: bool=False, *args: list, **kwargs: dict):
+    def __init__(
+        self,
+        blocks: Tuple[BaseBlock, ...],
+        apply_quantiles_transpose: bool = False,
+        apply_multivariate_transpose: bool = False,
+        *args: list,
+        **kwargs: dict,
+    ):
 
-        super().__init__(apply_quantiles_transpose=apply_quantiles_transpose, apply_multivariate_transpose=apply_multivariate_transpose, *args, **kwargs)
+        super().__init__(
+            apply_quantiles_transpose=apply_quantiles_transpose,
+            apply_multivariate_transpose=apply_multivariate_transpose,
+            *args,
+            **kwargs,
+        )
         self._blocks = blocks
         self._stack_type = self._set_type()
         self._is_interpretable = self._set_interpretability()
@@ -301,26 +313,32 @@ class NBEATS(UnivariateModel):
 
         super().build(input_shape)
 
-    def compile(self,
-              optimizer='rmsprop',
-              loss=None,
-              metrics=None,
-              loss_weights=[0., 1.],
-              weighted_metrics=None,
-              run_eagerly=None,
-              steps_per_execution=None,
-              **kwargs) -> None:
+    def compile(
+        self,
+        optimizer="rmsprop",
+        loss=None,
+        metrics=None,
+        loss_weights=[0.0, 1.0],
+        weighted_metrics=None,
+        run_eagerly=None,
+        steps_per_execution=None,
+        **kwargs,
+    ) -> None:
 
-        super().compile(optimizer=optimizer,
-                    loss=loss,
-                    metrics=metrics,
-                    loss_weights=loss_weights,
-                    weighted_metrics=weighted_metrics,
-                    run_eagerly=run_eagerly,
-                    steps_per_execution=steps_per_execution,
-                    **kwargs)
+        super().compile(
+            optimizer=optimizer,
+            loss=loss,
+            metrics=metrics,
+            loss_weights=loss_weights,
+            weighted_metrics=weighted_metrics,
+            run_eagerly=run_eagerly,
+            steps_per_execution=steps_per_execution,
+            **kwargs,
+        )
 
-    def call(self, inputs: Union[tuple, dict, list, tf.Tensor], **kwargs: dict) -> tf.Tensor:
+    def call(
+        self, inputs: Union[tuple, dict, list, tf.Tensor], **kwargs: dict
+    ) -> tf.Tensor:
         """Call method from tensorflow."""
 
         if isinstance(inputs, (tuple, list)):
@@ -472,8 +490,8 @@ class NBEATS(UnivariateModel):
 
 
 NbeatsModelsOptions = Union[
-            Union[List[NBEATS], NBEATS], Union[List[Callable], Callable],
-        ]
+    Union[List[NBEATS], NBEATS], Union[List[Callable], Callable],
+]
 
 
 def create_interpretable_nbeats(
@@ -595,9 +613,7 @@ def create_interpretable_nbeats(
 
     trend_stacks = Stack(trend_blocks, name="trend_stack")
     seasonality_stacks = Stack(seasonality_blocks, name="seasonality_stack")
-    model = NBEATS(
-        [trend_stacks, seasonality_stacks], name=name, **kwargs
-    )
+    model = NBEATS([trend_stacks, seasonality_stacks], name=name, **kwargs)
 
     return model
 
@@ -813,7 +829,10 @@ class PoolNBEATS(BasePool):
         self,
         label_width: int = None,
         n_models: int = 18,
-        nbeats_models: Union[None, NbeatsModelsOptions] = [create_interpretable_nbeats, create_generic_nbeats],
+        nbeats_models: Union[None, NbeatsModelsOptions] = [
+            create_interpretable_nbeats,
+            create_generic_nbeats,
+        ],
         fn_agg: Callable = tf.reduce_mean,
         seed: Optional[int] = None,
         **kwargs: dict,
@@ -825,18 +844,16 @@ class PoolNBEATS(BasePool):
             models=nbeats_models,
             fn_agg=fn_agg,
             seed=seed,
-            **kwargs
-            )
+            **kwargs,
+        )
 
-    def checks(
-        self, nbeats_models: List[NBEATS]
-        ) -> None:
+    def checks(self, nbeats_models: List[NBEATS]) -> None:
         """Check if `label_width` are equals through models instances."""
 
         labels_width = [model.label_width for model in nbeats_models]
         # If `label_width` is defined in the init then use it to check models else use the first model value.
         self._label_width = self.label_width or labels_width[0]
-        assert all([label_width==self.label_width for label_width in labels_width]), (
+        assert all([label_width == self.label_width for label_width in labels_width]), (
             f"`label_width` parameter has to be identical through models and against the value given in the init method. "
             f"Got {labels_width} for models and `label_width` = {self.label_width}"
         )
@@ -852,28 +869,29 @@ class PoolNBEATS(BasePool):
             minval=0,
             maxval=int(input_shape[1] / self.label_width) or 1,
             dtype=tf.int32,
-            seed=self.seed
+            seed=self.seed,
         )
         self._mask = input_shape[1] - (mask * self.label_width)
 
         super().build(input_shape)
 
-    def call(self, inputs: Union[tuple, dict, list, tf.Tensor], **kwargs: dict) -> tf.Tensor:
+    def call(
+        self, inputs: Union[tuple, dict, list, tf.Tensor], **kwargs: dict
+    ) -> tf.Tensor:
         """Call method from tensorflow Model.
         
         Make prediction with every models generated during the constructor method.
         """
 
-        output_fn = lambda idx: self.models[idx](inputs[:, -self._mask[idx]:])
+        output_fn = lambda idx: self.models[idx](inputs[:, -self._mask[idx] :])
         outputs = tf.nest.map_structure(
-                    output_fn,
-                    [idx for idx in range(self.n_models)]
-                )
+            output_fn, [idx for idx in range(self.n_models)]
+        )
         return outputs
 
     def preprocessing_x(
         self,
-        x: Union[None, Union[Union[tf.Tensor,tf.data.Dataset], Tuple[tf.Tensor,...]]],
+        x: Union[None, Union[Union[tf.Tensor, tf.data.Dataset], Tuple[tf.Tensor, ...]]],
     ) -> Union[Tuple[None, None], Tuple[Callable, tuple]]:
         "Apply mask inside `train_step`"
 
@@ -882,19 +900,21 @@ class PoolNBEATS(BasePool):
 
         masked_x = None
         if x is not None:
-            masked_x = [x[:, -self._mask[idx]:] for idx in range(self.n_models)]
+            masked_x = [x[:, -self._mask[idx] :] for idx in range(self.n_models)]
 
         return masked_x
 
     def preprocessing_y(
         self,
-        y: Union[None, Union[Union[tf.Tensor,tf.data.Dataset], Tuple[tf.Tensor,...]]],
+        y: Union[None, Union[Union[tf.Tensor, tf.data.Dataset], Tuple[tf.Tensor, ...]]],
     ) -> Union[Tuple[None, None], Tuple[Callable, tuple]]:
         "Apply mask inside `train_step`, `test_step`"
 
         masked_y = None
         if y is not None:
-            masked_y = [(y[0][:, -self._mask[idx]:], y[1]) for idx in range(self.n_models)]
+            masked_y = [
+                (y[0][:, -self._mask[idx] :], y[1]) for idx in range(self.n_models)
+            ]
 
         return masked_y
 
@@ -902,7 +922,7 @@ class PoolNBEATS(BasePool):
         "Apply mask inside `predict_step`"
 
         inputs_reconstucted = [outputs[0] for outputs in y]
-        y =  [outputs[1] for outputs in y]
+        y = [outputs[1] for outputs in y]
 
         if any(outputs.quantiles for outputs in y):
             return inputs_reconstucted, y

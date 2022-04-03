@@ -114,8 +114,12 @@ class BaseBlock(UnivariateLayer):
 
         self.dropout = Dropout(self.drop_rate)
 
-        self.fc_forecast, self.forecast_coef = self._build_branch(self.label_width, branch_name="forecast")
-        self.fc_backcast, self.backcast_coef = self._build_branch(self.input_width, branch_name="backcast")
+        self.fc_forecast, self.forecast_coef = self._build_branch(
+            self.label_width, branch_name="forecast"
+        )
+        self.fc_backcast, self.backcast_coef = self._build_branch(
+            self.input_width, branch_name="backcast"
+        )
 
         super().build(inputs_shape)
 
@@ -132,9 +136,9 @@ class BaseBlock(UnivariateLayer):
 
         if branch_name == "forecast":
             # We place quantiles after multivariates
-            shape_fc =  self.get_additional_shapes(0) + shape_fc
+            shape_fc = self.get_additional_shapes(0) + shape_fc
         elif branch_name == "backcast":
-            shape_fc =  self.n_variates + shape_fc
+            shape_fc = self.n_variates + shape_fc
 
         # If multivariate inputs then we modify the shape of fc layers
         fc = self.add_weight(shape=shape_fc, name=f"fc_{branch_name}_{self.name}")
@@ -224,11 +228,13 @@ class BaseBlock(UnivariateLayer):
                 % (inputs_shape,)
             )
 
-        output_shape_forecast = [inputs_shape[0]] + self.get_additional_shapes(0) + [self.label_width]
+        output_shape_forecast = (
+            [inputs_shape[0]] + self.get_additional_shapes(0) + [self.label_width]
+        )
 
         return [
             inputs_shape,
-            tf.TensorShape(output_shape_forecast),   
+            tf.TensorShape(output_shape_forecast),
         ]
 
     @property
@@ -391,7 +397,9 @@ class TrendBlock(BaseBlock):
             Coefficients of the g layer.
         """
 
-        return tf.math.pow((tf.range(output_last_dim, dtype=floatx()) / output_last_dim), p_degrees)
+        return tf.math.pow(
+            (tf.range(output_last_dim, dtype=floatx()) / output_last_dim), p_degrees
+        )
 
     def get_coefficients(self, output_last_dim: int, branch_name: str) -> tf.Tensor:
         """
@@ -581,9 +589,7 @@ class SeasonalityBlock(BaseBlock):
         """Build method from tensorflow."""
 
         # if None then set an default value based on the *input shape*
-        self._backcast_periods = (
-            self._backcast_periods or int(inputs_shape[-1] / 2)
-        )
+        self._backcast_periods = self._backcast_periods or int(inputs_shape[-1] / 2)
         self._backcast_fourier_order = (
             self._backcast_fourier_order or self._backcast_periods
         )
@@ -591,7 +597,10 @@ class SeasonalityBlock(BaseBlock):
         super().build(inputs_shape)
 
     def coefficient_factory(
-        self, output_last_dim: int, periods: Union[int, float, List[Union[int, float]]], fourier_orders: Union[int, float, List[Union[int, float]]],
+        self,
+        output_last_dim: int,
+        periods: Union[int, float, List[Union[int, float]]],
+        fourier_orders: Union[int, float, List[Union[int, float]]],
     ) -> tf.Tensor:
         """
         Compute the coefficients used in the last layer a.k.a g constrained layer.
@@ -615,7 +624,8 @@ class SeasonalityBlock(BaseBlock):
 
         seasonality = 2.0 * np.pi * time_forecast / periods
         seasonality = (
-            tf.expand_dims(tf.ragged.range(fourier_orders, dtype=floatx()), axis=-1) * seasonality
+            tf.expand_dims(tf.ragged.range(fourier_orders, dtype=floatx()), axis=-1)
+            * seasonality
         )
         seasonality = tf.concat((tf.sin(seasonality), tf.cos(seasonality)), axis=0)
         return seasonality.flat_values

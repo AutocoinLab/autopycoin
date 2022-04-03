@@ -23,5 +23,5 @@ __ALL__ = [
     "UnivariateModel",
     "BaseModel",
     "QuantileModel",
-    "BasePool"
+    "BasePool",
 ]

@@ -52,7 +52,9 @@ def range_dims(tensor: tf.Tensor, shape: Tuple, dtype: str = floatx()) -> tf.Ten
 
 
 # corriger
-def quantiles_handler(quantiles: Union[None, int, float, List[Union[int, float, List[Union[int, float]]]]]) -> List[Union[int, float]]:
+def quantiles_handler(
+    quantiles: Union[None, int, float, List[Union[int, float, List[Union[int, float]]]]]
+) -> List[Union[int, float]]:
     """
     Convenient function which ensures that quantiles are sorted and unique.
     Negative quantiles are not allowed.
@@ -71,23 +73,25 @@ def quantiles_handler(quantiles: Union[None, int, float, List[Union[int, float, 
     ValueError
         If a quantile is negative or quantiles is None then ValueError is raised.
     """
-    
+
     def process_quantiles(quantile):
         quantile = np.array(quantile)
         for q in quantile:
             if not q:
-                raise ValueError(f'None value or empty list are not supported, got {quantiles}')
+                raise ValueError(
+                    f"None value or empty list are not supported, got {quantiles}"
+                )
             if q < 0:
-                raise ValueError(f'Negative values are not supported, got {quantiles}')
-        
+                raise ValueError(f"Negative values are not supported, got {quantiles}")
+
         quantile = np.where(quantile < 1, quantile * 100, quantile)
         quantile = np.sort(quantile)
-        quantile = np.unique(quantile)        
+        quantile = np.unique(quantile)
         return (quantile / 100).tolist()
 
     quantiles = convert_to_list(quantiles)
     if all(isinstance(q, (tuple, list)) for q in quantiles):
-        return [process_quantiles(quantile) for quantile in quantiles] 
+        return [process_quantiles(quantile) for quantile in quantiles]
 
     return [process_quantiles(quantiles)]
 

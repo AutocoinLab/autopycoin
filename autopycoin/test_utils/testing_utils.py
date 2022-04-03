@@ -49,16 +49,11 @@ def numeric_test(actual, expected):
 
 
 def model_test(
-    cls,
-    expected_output_shape_model,
-    loss,
-    input_dataset,
-    valid_dataset,
-    **kwargs
+    cls, expected_output_shape_model, loss, input_dataset, valid_dataset, **kwargs
 ):
 
     # subclassing
-    model = cls(**kwargs.get('kwargs', {}))
+    model = cls(**kwargs.get("kwargs", {}))
 
     model.compile(
         tf.keras.optimizers.Adam(
@@ -81,16 +76,14 @@ def model_test(
     if isinstance(expected_output_shape_model, (list, tuple)):
         output = (output,) if not isinstance(output, (list, tuple)) else output
         for o, eo in zip(output, expected_output_shape_model):
-            assert o.shape == eo, f'shapes not equals, got {o.shape} and {eo}'
+            assert o.shape == eo, f"shapes not equals, got {o.shape} and {eo}"
     else:
-        assert output.shape == expected_output_shape_model, f'shapes not equals, got {output.shape} and {expected_output_shape_model}'
+        assert (
+            output.shape == expected_output_shape_model
+        ), f"shapes not equals, got {output.shape} and {expected_output_shape_model}"
 
     # functional test
-    layer_test(
-        cls,
-        input_shape=input_dataset.element_spec[0].shape,
-        **kwargs
-    )
+    layer_test(cls, input_shape=input_dataset.element_spec[0].shape, **kwargs)
 
 
 def layer_test(
@@ -298,18 +291,27 @@ def layer_test(
                     )
 
         if expected_output_shape is not None:
-            if hasattr(layer, '_mask'):
-                expected_output_shape = tf.TensorShape((expected_output_shape.as_list()[0], layer._mask[int(idx/2)].numpy()))
+            if hasattr(layer, "_mask"):
+                expected_output_shape = tf.TensorShape(
+                    (
+                        expected_output_shape.as_list()[0],
+                        layer._mask[int(idx / 2)].numpy(),
+                    )
+                )
             assert_shapes_equal(expected_output_shape, y.shape)
-        
+
         actual_output_shape = actual_output.shape
 
-        if hasattr(layer, '_mask'):
-            expected_output_shape = tf.TensorShape((actual_output_shape.as_list()[0], layer._mask[int(idx/2)].numpy()))
+        if hasattr(layer, "_mask"):
+            expected_output_shape = tf.TensorShape(
+                (actual_output_shape.as_list()[0], layer._mask[int(idx / 2)].numpy())
+            )
         assert_shapes_equal(computed_output_shape, actual_output.shape)
         assert_shapes_equal(computed_output_signature.shape, actual_output.shape)
 
-        if [sig.dtype for sig in tf.nest.flatten(computed_output_signature)] != [sig.dtype for sig in tf.nest.flatten(actual_output[idx])]:
+        if [sig.dtype for sig in tf.nest.flatten(computed_output_signature)] != [
+            sig.dtype for sig in tf.nest.flatten(actual_output[idx])
+        ]:
             raise AssertionError(
                 "When testing layer %s, for input %s, found output_dtype="
                 "%s but expected to find %s.\nFull kwargs: %s"
@@ -333,7 +335,9 @@ def layer_test(
             recovered_model.set_weights(weights)
             actual_output_model = model.predict(input_data)
             output = recovered_model.predict(input_data)
-            tf.nest.map_structure(lambda x,y: assert_equal(x,y), output, actual_output_model)
+            tf.nest.map_structure(
+                lambda x, y: assert_equal(x, y), output, actual_output_model
+            )
 
     # test training mode (e.g. useful for dropout tests)
     # Rebuild the model to avoid the graph being reused between predict() and

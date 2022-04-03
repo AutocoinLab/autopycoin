@@ -54,8 +54,8 @@ class BasePool(tf.keras.Model):
         n_models: Union[None, int],
         models: List[Union[tf.keras.Model, Callable[..., tf.keras.Model]]],
         fn_agg: Callable[..., tf.Tensor],
-        model_distribution: List[int]=None,
-        seed: Optional[int]=None,
+        model_distribution: List[int] = None,
+        seed: Optional[int] = None,
         **kwargs: dict,
     ):
 
@@ -78,8 +78,8 @@ class BasePool(tf.keras.Model):
         self,
         models: List[Union[tf.keras.Model, Callable]],
         model_distribution: List[int],
-        **kwargs: dict
-        ) -> None:
+        **kwargs: dict,
+    ) -> None:
         """Initialize models by picking randomly models or by using instances."""
 
         models = convert_to_list(models)
@@ -89,27 +89,36 @@ class BasePool(tf.keras.Model):
             self._n_models = len(models)
 
             # Check only if instances are provided
-            self.checks((model for model in models if isinstance(model, tf.keras.Model)))
-            self._models = self._init_callable_models(models, distribution=list(range(self.n_models)), **kwargs)
-
-        else:
-            distribution = model_distribution or tf.random.uniform(
-                                                    (self.n_models,),
-                                                    0,
-                                                    len(models),
-                                                    dtype=tf.int32,
-                                                    seed=self.seed
-                                                    ).numpy().tolist()
-
-            assert self.label_width and self.n_models, (
-                f'When `models` are callable, `label_width` and `n_models` have to be integers. '
-                f'Got label_width: {self.label_width} and n_models: {self.n_models} '
-                f'and models: {models}.'
+            self.checks(
+                (model for model in models if isinstance(model, tf.keras.Model))
+            )
+            self._models = self._init_callable_models(
+                models, distribution=list(range(self.n_models)), **kwargs
             )
 
-            self._models = self._init_callable_models(models, distribution=distribution, **kwargs)
+        else:
+            distribution = (
+                model_distribution
+                or tf.random.uniform(
+                    (self.n_models,), 0, len(models), dtype=tf.int32, seed=self.seed
+                )
+                .numpy()
+                .tolist()
+            )
 
-    def _init_callable_models(self, models: List[Callable], distribution: List[int], **kwargs) -> List[tf.keras.Model]:
+            assert self.label_width and self.n_models, (
+                f"When `models` are callable, `label_width` and `n_models` have to be integers. "
+                f"Got label_width: {self.label_width} and n_models: {self.n_models} "
+                f"and models: {models}."
+            )
+
+            self._models = self._init_callable_models(
+                models, distribution=distribution, **kwargs
+            )
+
+    def _init_callable_models(
+        self, models: List[Callable], distribution: List[int], **kwargs
+    ) -> List[tf.keras.Model]:
         """Initialize models from callable."""
 
         def init(idx):
@@ -118,9 +127,13 @@ class BasePool(tf.keras.Model):
             elif callable(models[idx]):
                 model = models[idx](label_width=self.label_width, **kwargs)
                 if not isinstance(model, tf.keras.Model):
-                    raise ValueError(f'The callables has to return a tensorflow Model, got type {type(model)}.')
+                    raise ValueError(
+                        f"The callables has to return a tensorflow Model, got type {type(model)}."
+                    )
                 return model
-            raise ValueError(f'`model` parameter has to be a list of callable or tf.keras.Model or both. Got {models}.')
+            raise ValueError(
+                f"`model` parameter has to be a list of callable or tf.keras.Model or both. Got {models}."
+            )
 
         return tf.nest.map_structure(init, distribution)
 
@@ -128,15 +141,17 @@ class BasePool(tf.keras.Model):
         """
         
         """
-        raise NotImplementedError('You need to override this function.')
+        raise NotImplementedError("You need to override this function.")
 
-    def compile(self,
-              optimizer='rmsprop',
-              loss=None,
-              metrics=None,
-              loss_weights=None,
-              weighted_metrics=None,
-              **kwargs):
+    def compile(
+        self,
+        optimizer="rmsprop",
+        loss=None,
+        metrics=None,
+        loss_weights=None,
+        weighted_metrics=None,
+        **kwargs,
+    ):
 
         """Compiles models one by one for training.
 
@@ -164,25 +179,22 @@ class BasePool(tf.keras.Model):
                 metrics=metrics,
                 loss_weights=loss_weights[idx],
                 weighted_metrics=weighted_metrics,
-                **kwargs
+                **kwargs,
             )
 
         pool_loss = tf.nest.flatten(loss)
         pool_loss_weights = tf.nest.flatten(loss_weights)
 
         super().compile(
-              optimizer=optimizer,
-              loss=pool_loss,
-              metrics=metrics,
-              loss_weights=pool_loss_weights,
-              weighted_metrics=weighted_metrics,
-              **kwargs
-              )
+            optimizer=optimizer,
+            loss=pool_loss,
+            metrics=metrics,
+            loss_weights=pool_loss_weights,
+            weighted_metrics=weighted_metrics,
+            **kwargs,
+        )
 
-    def _shuffle(
-        self,
-        structure,
-        ) -> None:
+    def _shuffle(self, structure,) -> None:
         """Shuffle losses and pick them randomly.
         """
 
@@ -191,12 +203,8 @@ class BasePool(tf.keras.Model):
         n_elements = len(structure)
 
         element_idx = tf.random.uniform(
-                        (self.n_models,),
-                        0,
-                        n_elements,
-                        dtype=tf.int32,
-                        seed=self.seed
-                        )
+            (self.n_models,), 0, n_elements, dtype=tf.int32, seed=self.seed
+        )
 
         # Ensure that all losses are represented
         return structure + [structure[idx] for idx in element_idx[n_elements:]]
@@ -252,27 +260,27 @@ class BasePool(tf.keras.Model):
 
     def preprocessing_x(
         self,
-        x: Union[None, Union[Union[tf.Tensor,tf.data.Dataset], Tuple[tf.Tensor,...]]],
+        x: Union[None, Union[Union[tf.Tensor, tf.data.Dataset], Tuple[tf.Tensor, ...]]],
     ) -> Union[Tuple[None, None], Tuple[Callable, tuple]]:
         "Apply mask inside `train_step` and `predict_step`"
 
-        raise NotImplementedError('You need to implement this function.')
+        raise NotImplementedError("You need to implement this function.")
 
     def preprocessing_y(
         self,
-        y: Union[None, Union[Union[tf.Tensor,tf.data.Dataset], Tuple[tf.Tensor,...]]],
+        y: Union[None, Union[Union[tf.Tensor, tf.data.Dataset], Tuple[tf.Tensor, ...]]],
     ) -> Union[Tuple[None, None], Tuple[Callable, tuple]]:
         "Apply mask inside `train_step` and `test_step`"
 
-        raise NotImplementedError('You need to implement this function.')
+        raise NotImplementedError("You need to implement this function.")
 
     def postprocessing_y(
         self,
-        y: Union[None, Union[Union[tf.Tensor,tf.data.Dataset], Tuple[tf.Tensor,...]]],
+        y: Union[None, Union[Union[tf.Tensor, tf.data.Dataset], Tuple[tf.Tensor, ...]]],
     ) -> Union[Tuple[None, None], Tuple[Callable, tuple]]:
         "Apply mask inside `predict_step`"
 
-        raise NotImplementedError('You need to implement this function.')
+        raise NotImplementedError("You need to implement this function.")
 
     @property
     def fn_agg(self) -> Callable:

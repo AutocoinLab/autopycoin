@@ -576,7 +576,9 @@ class WindowGenerator(AutopycoinBaseClass):
         Set the new data.
         """
 
-        raise AttributeError("You cannot modify :literal:`data`, use :literal:`from_array` instead.")
+        raise AttributeError(
+            "You cannot modify :literal:`data`, use :literal:`from_array` instead."
+        )
 
     @property
     def input_width(self) -> int:

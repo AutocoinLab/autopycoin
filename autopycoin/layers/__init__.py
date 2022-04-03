@@ -10,7 +10,7 @@ __ALL__ = [
     "SeasonalityBlock",
     "GenericBlock",
     "BaseBlock",
-    "BaseLayer", 
-    "QuantileLayer", 
-    "UnivariateLayer"
+    "BaseLayer",
+    "QuantileLayer",
+    "UnivariateLayer",
 ]

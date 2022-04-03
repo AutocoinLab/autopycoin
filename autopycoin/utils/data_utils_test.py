@@ -18,7 +18,7 @@ from ..dataset import WindowGenerator
 
 class CheckQuantileTest(test.TestCase):
     def test_nested_quantiles(self):
-        quantiles = [[0.1, 0.1], [3., 0.7]]
+        quantiles = [[0.1, 0.1], [3.0, 0.7]]
         self.assertEqual([[0.1], [0.03, 0.7]], quantiles_handler(quantiles))
 
         quantiles = [0.1, 0.1]
@@ -34,7 +34,9 @@ class CheckQuantileTest(test.TestCase):
 
     def test_none_quantile(self):
         quantiles = [1, None]
-        with self.assertRaisesRegexp(ValueError, 'None value or empty list are not supported'):
+        with self.assertRaisesRegexp(
+            ValueError, "None value or empty list are not supported"
+        ):
             self.assertEqual([[0.1]], quantiles_handler(quantiles))
 
 

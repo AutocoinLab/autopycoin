@@ -125,6 +125,7 @@ def _wrap_build(fn):
     def build_wrapper(self, inputs_shape):
         self.init_params(inputs_shape)
         return fn(self, inputs_shape)
+
     return build_wrapper
 
 
@@ -136,13 +137,14 @@ def _wrap_call(fn):
         outputs = fn(self, inputs, *args, **kwargs)
         outputs = self._post_processing_wrapper(outputs)
         return outputs
+
     return call_wrapper
 
 
 # ==============================================================================
 # Base class for autopycoin objects
 # ==============================================================================
-class AutopycoinBase():
+class AutopycoinBase:
     """
     A new autopycoin class has to inherit from this base class.
     It checks type and lenght of arguments for each methods inside a class.

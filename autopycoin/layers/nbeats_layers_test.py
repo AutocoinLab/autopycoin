@@ -246,7 +246,10 @@ class BlocksLayersTest(tf.test.TestCase, parameterized.TestCase):
                 },
                 input_dtype=floatx(),
                 input_shape=(2, 2),
-                expected_output_shape=(tf.TensorShape((None, 2)), tf.TensorShape((None, 1))),
+                expected_output_shape=(
+                    tf.TensorShape((None, 2)),
+                    tf.TensorShape((None, 1)),
+                ),
                 expected_output_dtype=[floatx(), floatx()],
                 expected_output=[
                     tf.constant([3.0, 4.5, 3.0, 4.5], shape=(2, 2)),
@@ -359,7 +362,10 @@ class BlocksLayersTest(tf.test.TestCase, parameterized.TestCase):
             },
             input_dtype=floatx(),
             input_shape=(2, 3),
-            expected_output_shape=(tf.TensorShape((None, 3)), tf.TensorShape((None, 2))),
+            expected_output_shape=(
+                tf.TensorShape((None, 3)),
+                tf.TensorShape((None, 2)),
+            ),
             expected_output_dtype=[floatx(), floatx()],
             expected_output=[
                 tf.constant([9.0, y1, y2, 9.0, y1, y2], shape=(2, 3)),
@@ -463,7 +469,10 @@ class BlocksLayersTest(tf.test.TestCase, parameterized.TestCase):
             },
             input_dtype=floatx(),
             input_shape=(2, 3),
-            expected_output_shape=(tf.TensorShape((None, 3)), tf.TensorShape((None, 2))),
+            expected_output_shape=(
+                tf.TensorShape((None, 3)),
+                tf.TensorShape((None, 2)),
+            ),
             expected_output_dtype=[floatx(), floatx()],
             expected_output=[
                 tf.constant([15.0, y1, y2, 15.0, y1, y2], shape=(2, 3)),
@@ -488,7 +497,10 @@ class BlocksLayersTest(tf.test.TestCase, parameterized.TestCase):
             },
             input_dtype=floatx(),
             input_shape=(2, 2),
-            expected_output_shape=(tf.TensorShape((None, 2)), tf.TensorShape((None, 1))),
+            expected_output_shape=(
+                tf.TensorShape((None, 2)),
+                tf.TensorShape((None, 1)),
+            ),
             expected_output_dtype=[floatx(), floatx()],
             expected_output=None,
             custom_objects={"GenericBlock": GenericBlock},

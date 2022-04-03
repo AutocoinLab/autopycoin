@@ -94,9 +94,10 @@ def quantile_loss(
     quantiles = tf.convert_to_tensor(quantiles)
 
     diff = tf.math.subtract(y_pred, y_true)
-    q_loss = tf.math.add(quantiles * tf.clip_by_value(diff, 0.0, np.inf), (
-        1 - quantiles
-    ) * tf.clip_by_value(tf.math.negative(diff), 0.0, np.inf))
+    q_loss = tf.math.add(
+        quantiles * tf.clip_by_value(diff, 0.0, np.inf),
+        (1 - quantiles) * tf.clip_by_value(tf.math.negative(diff), 0.0, np.inf),
+    )
 
     error = tf.reduce_mean(q_loss, axis=-2)
     return tf.reduce_sum(error, axis=-1)
@@ -223,7 +224,9 @@ class QuantileLossError(LossFunctionWrapper, AutopycoinBaseClass):
 
     def __init__(
         self,
-        quantiles: Union[int, float, List[Union[int, float, List[Union[int, float]]]]] = 0.5,
+        quantiles: Union[
+            int, float, List[Union[int, float, List[Union[int, float]]]]
+        ] = 0.5,
         reduction: Optional[str] = losses_utils.ReductionV2.SUM,
         name: Optional[str] = "q_loss",
         **kwargs: dict
@@ -232,7 +235,11 @@ class QuantileLossError(LossFunctionWrapper, AutopycoinBaseClass):
         self.quantiles = quantiles_handler(quantiles)
 
         super().__init__(
-            quantile_loss, quantiles=self.quantiles, name=name, reduction=reduction, **kwargs
+            quantile_loss,
+            quantiles=self.quantiles,
+            name=name,
+            reduction=reduction,
+            **kwargs
         )
 
 

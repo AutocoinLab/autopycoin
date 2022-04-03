@@ -6,7 +6,12 @@ from typing import List, Union
 import tensorflow as tf
 
 from ..extension_type import QuantileTensor, UnivariateTensor
-from ..utils.data_utils import convert_to_list, transpose_first_to_last, transpose_first_to_second_last, transpose_last_to_first
+from ..utils.data_utils import (
+    convert_to_list,
+    transpose_first_to_last,
+    transpose_first_to_second_last,
+    transpose_last_to_first,
+)
 from .. import AutopycoinBaseLayer
 from ..constant import TENSOR_TYPE
 
@@ -23,7 +28,7 @@ class BaseLayer(tf.keras.layers.Layer, AutopycoinBaseLayer):
     - Typing check.
     """
 
-    NOT_INSPECT = ['build', 'call']
+    NOT_INSPECT = ["build", "call"]
 
     def __init__(self, *args: list, **kwargs: dict) -> None:
         super().__init__(*args, **kwargs)
@@ -34,26 +39,30 @@ class BaseLayer(tf.keras.layers.Layer, AutopycoinBaseLayer):
     def preprocessing(self, inputs: TENSOR_TYPE) -> None:
         """Public API to apply preprocessing logics to your inputs data."""
 
-        raise NotImplementedError('`preprocessing` has to be overriden.')
+        raise NotImplementedError("`preprocessing` has to be overriden.")
 
     def _post_processing_wrapper(self, outputs: TENSOR_TYPE) -> TENSOR_TYPE:
         """Post-processing wrapper."""
 
         outputs_is_nested = tf.nest.is_nested(outputs)
         outputs = tuple(outputs) if outputs_is_nested else (outputs,)
-        outputs = tf.nest.map_structure(lambda output: self.post_processing(output), outputs)
-    
+        outputs = tf.nest.map_structure(
+            lambda output: self.post_processing(output), outputs
+        )
+
         return outputs[0] if len(outputs) == 1 else outputs
 
     def post_processing(self, output: TENSOR_TYPE) -> None:
         """Public API to apply post-processing logics to your outputs data."""
 
-        raise NotImplementedError('`post_processing` has to be overriden.')
+        raise NotImplementedError("`post_processing` has to be overriden.")
 
-    def init_params(self, inputs_shape: Union[tf.TensorShape, List[tf.TensorShape]], **kwargs: dict) -> None:
+    def init_params(
+        self, inputs_shape: Union[tf.TensorShape, List[tf.TensorShape]], **kwargs: dict
+    ) -> None:
         """Public API to initialize parameters before `build` method."""
 
-        raise NotImplementedError('`init_params` has to be overriden.')
+        raise NotImplementedError("`init_params` has to be overriden.")
 
 
 class QuantileLayer(BaseLayer):
@@ -95,7 +104,9 @@ class QuantileLayer(BaseLayer):
 
     """
 
-    def __init__(self, apply_quantiles_transpose: bool=False, *args: list, **kwargs: dict) -> None:
+    def __init__(
+        self, apply_quantiles_transpose: bool = False, *args: list, **kwargs: dict
+    ) -> None:
 
         super().__init__(*args, **kwargs)
 
@@ -105,13 +116,20 @@ class QuantileLayer(BaseLayer):
         self._n_quantiles = 0
         self._additional_shapes = [[]]
 
-    def _set_quantiles(self, value: List[List[float]], additional_shapes: Union[None, List[List[int]]]=None, n_quantiles: Union[None, List[List[int]]]=None) -> None:
+    def _set_quantiles(
+        self,
+        value: List[List[float]],
+        additional_shapes: Union[None, List[List[int]]] = None,
+        n_quantiles: Union[None, List[List[int]]] = None,
+    ) -> None:
         """Reset the `built` attribute to False and change the value of `quantiles`"""
 
         self._built = False
         self._has_quantiles = True
         self._quantiles = value
-        self._additional_shapes = additional_shapes or [[len(q)] for q in self.quantiles]
+        self._additional_shapes = additional_shapes or [
+            [len(q)] for q in self.quantiles
+        ]
         self._n_quantiles = n_quantiles or self._additional_shapes.copy()
 
     def preprocessing(self, inputs: TENSOR_TYPE) -> TENSOR_TYPE:
@@ -138,7 +156,9 @@ class QuantileLayer(BaseLayer):
             return QuantileTensor(outputs, quantiles=False)
         return outputs
 
-    def _check_quantiles_requirements(self, outputs: TENSOR_TYPE, **kwargs: dict) -> bool:
+    def _check_quantiles_requirements(
+        self, outputs: TENSOR_TYPE, **kwargs: dict
+    ) -> bool:
         """Check if the requirements are valids.
         """
 
@@ -153,9 +173,13 @@ class QuantileLayer(BaseLayer):
 
         # TODO: find an other way to find if an outputs contains quantiles dimension
 
-        return any(s == outputs.shape[:len(s)] for s in self._additional_shapes) # or self._additional_shapes
+        return any(
+            s == outputs.shape[: len(s)] for s in self._additional_shapes
+        )  # or self._additional_shapes
 
-    def init_params(self, inputs_shape: Union[tf.TensorShape, List[tf.TensorShape]], **kwargs: dict) -> None:
+    def init_params(
+        self, inputs_shape: Union[tf.TensorShape, List[tf.TensorShape]], **kwargs: dict
+    ) -> None:
         pass
 
     def get_additional_shapes(self, index: int) -> Union[List[int], List[None]]:
@@ -174,7 +198,9 @@ class QuantileLayer(BaseLayer):
         except IndexError:
             return []
 
-    def init_params(self, inputs_shape: Union[tf.TensorShape, List[tf.TensorShape]], **kwargs: dict) -> None:
+    def init_params(
+        self, inputs_shape: Union[tf.TensorShape, List[tf.TensorShape]], **kwargs: dict
+    ) -> None:
         pass
 
     @property
@@ -184,7 +210,7 @@ class QuantileLayer(BaseLayer):
         return self._quantiles
 
     @property
-    def n_quantiles(self) ->  List[List[int]]:
+    def n_quantiles(self) -> List[List[int]]:
         """Return the number of quantiles."""
 
         return self._n_quantiles
@@ -228,7 +254,9 @@ class UnivariateLayer(QuantileLayer):
 
     """
 
-    def __init__(self, apply_multivariate_transpose: bool=False, *args: list, **kwargs: dict) -> None:
+    def __init__(
+        self, apply_multivariate_transpose: bool = False, *args: list, **kwargs: dict
+    ) -> None:
         super().__init__(*args, **kwargs)
 
         self.apply_multivariate_transpose = apply_multivariate_transpose
@@ -237,7 +265,9 @@ class UnivariateLayer(QuantileLayer):
         self._n_variates = []
         self._is_multivariate = False
 
-    def preprocessing(self, inputs: TENSOR_TYPE) -> Union[tf.Tensor, tf.Variable, UnivariateTensor]:
+    def preprocessing(
+        self, inputs: TENSOR_TYPE
+    ) -> Union[tf.Tensor, tf.Variable, UnivariateTensor]:
         """Init the multivariates attributes and transpose the `nvariates` dimension in first position."""
 
         if self.apply_multivariate_transpose and self.is_multivariate:
@@ -248,12 +278,27 @@ class UnivariateLayer(QuantileLayer):
         outputs = super().post_processing(outputs, **kwargs)
         if self.apply_multivariate_transpose:
             if self.is_multivariate:
-                outputs = tf.nest.map_structure(lambda outputs: transpose_first_to_second_last(outputs) if outputs.quantiles else transpose_first_to_last(outputs), outputs)
-                return tf.nest.map_structure(convert_to_univariate_tensor(multivariates=True), outputs)
-            return tf.nest.map_structure(convert_to_univariate_tensor(multivariates=False), outputs)
+                outputs = tf.nest.map_structure(
+                    lambda outputs: transpose_first_to_second_last(outputs)
+                    if outputs.quantiles
+                    else transpose_first_to_last(outputs),
+                    outputs,
+                )
+                return tf.nest.map_structure(
+                    convert_to_univariate_tensor(multivariates=True), outputs
+                )
+            return tf.nest.map_structure(
+                convert_to_univariate_tensor(multivariates=False), outputs
+            )
         return outputs
 
-    def init_params(self, inputs_shape: Union[tf.TensorShape, List[tf.TensorShape]], n_variates: Union[None, List[Union[None, int]]] =None, is_multivariate: Union[None, bool]=None, additional_shapes: Union[None, List[List[int]]]=None) -> None:
+    def init_params(
+        self,
+        inputs_shape: Union[tf.TensorShape, List[tf.TensorShape]],
+        n_variates: Union[None, List[Union[None, int]]] = None,
+        is_multivariate: Union[None, bool] = None,
+        additional_shapes: Union[None, List[List[int]]] = None,
+    ) -> None:
         """Initialize attributes related to univariate model.
         
         It is called before `build`.
@@ -272,19 +317,29 @@ class UnivariateLayer(QuantileLayer):
             self._set_n_variates(inputs_shape, n_variates)
             self._extend_additional_shape(additional_shapes)
 
-    def _set_is_multivariate(self, inputs_shape: tf.TensorShape, is_multivariate: Union[None, bool]=None) -> None:
+    def _set_is_multivariate(
+        self, inputs_shape: tf.TensorShape, is_multivariate: Union[None, bool] = None
+    ) -> None:
         """Initiate `is_multivariate` attribute"""
 
         self._is_multivariate = is_multivariate or bool(inputs_shape.rank > 2)
 
-    def _set_n_variates(self, inputs_shape: tf.TensorShape, n_variates: Union[None, List[Union[None, int]]]=None) -> None:
+    def _set_n_variates(
+        self,
+        inputs_shape: tf.TensorShape,
+        n_variates: Union[None, List[Union[None, int]]] = None,
+    ) -> None:
         """Initiate `n_variates` attribute"""
 
         if self.is_multivariate:
             self._n_variates = convert_to_list(n_variates or inputs_shape[-1])
 
-    def _extend_additional_shape(self, additional_shapes: Union[None, List[List[int]]]=None) -> None:
-        self._additional_shapes = additional_shapes or [s + self.n_variates for s in self._additional_shapes]
+    def _extend_additional_shape(
+        self, additional_shapes: Union[None, List[List[int]]] = None
+    ) -> None:
+        self._additional_shapes = additional_shapes or [
+            s + self.n_variates for s in self._additional_shapes
+        ]
 
     @property
     def is_multivariate(self) -> bool:
@@ -298,4 +353,5 @@ class UnivariateLayer(QuantileLayer):
 def convert_to_univariate_tensor(multivariates):
     def fn(tensor):
         return UnivariateTensor(values=tensor, multivariates=multivariates)
+
     return fn

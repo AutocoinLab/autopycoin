@@ -26,9 +26,7 @@ class QuantileLossTest(test.TestCase):
     def test_all_correct_unweighted(self):
         ql_obj = losses.QuantileLossError(quantiles=[0.1, 0.5, 0.9])
         y_true = tf.constant(
-            [[[4, 4, 4], [8, 8, 8], [12, 12, 12]]],
-            shape=(3, 3, 1),
-            dtype=tf.float32,
+            [[[4, 4, 4], [8, 8, 8], [12, 12, 12]]], shape=(3, 3, 1), dtype=tf.float32,
         )
         y_pred = y_true
         loss = ql_obj(y_true, y_pred)

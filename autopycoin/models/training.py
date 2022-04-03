@@ -28,6 +28,7 @@ class BaseModel(keras.Model, BaseLayer):
     This three wrappers have to be overriden
     - Typing check.
     """
+
     def __init__(self, *args: list, **kwargs: dict) -> None:
         super().__init__(*args, **kwargs)
 
@@ -37,20 +38,26 @@ class BaseModel(keras.Model, BaseLayer):
         if self.compiled_loss:
             if not self.compiled_loss.built:
                 self.compiled_loss.build(outputs)
-            self.compiled_loss._losses = tf.nest.map_structure(self.losses_wrapper, self.compiled_loss._losses)
+            self.compiled_loss._losses = tf.nest.map_structure(
+                self.losses_wrapper, self.compiled_loss._losses
+            )
 
         if self.compiled_metrics:
             if not self.compiled_metrics.built:
                 self.compiled_metrics.build(outputs, outputs)
-            self.compiled_metrics._metrics = tf.nest.map_structure(self.metrics_wrapper, self.compiled_metrics._metrics)
+            self.compiled_metrics._metrics = tf.nest.map_structure(
+                self.metrics_wrapper, self.compiled_metrics._metrics
+            )
 
-    def losses_wrapper(self, loss: LossFunctionWrapper) -> Union[Callable, LossFunctionWrapper]:
+    def losses_wrapper(
+        self, loss: LossFunctionWrapper
+    ) -> Union[Callable, LossFunctionWrapper]:
         """Wrap the `fn` function.
 
         See `tf.keras.losses.LossFunctionWrapper` docstring for more informations about `fn`.
         """
 
-        raise NotImplementedError('`losses_wrapper` has to be overriden')
+        raise NotImplementedError("`losses_wrapper` has to be overriden")
 
     def metrics_wrapper(self, metrics: Any) -> Union[Callable, LossFunctionWrapper]:
         """Wrap the update_state function.
@@ -58,7 +65,7 @@ class BaseModel(keras.Model, BaseLayer):
         See s`tf.keras.metrics.Metric` docstring for more informations about `update_state`.
         """
 
-        raise NotImplementedError('`losses_wrapper` has to be overriden')
+        raise NotImplementedError("`losses_wrapper` has to be overriden")
 
     def _post_processing_wrapper(self, outputs: TENSOR_TYPE) -> TENSOR_TYPE:
         """Post-processing wrapper.
@@ -70,7 +77,7 @@ class BaseModel(keras.Model, BaseLayer):
 
         self._handle_dim_in_losses_and_metrics(outputs)
 
-        losses = getattr(self.compiled_loss, '_losses', None)
+        losses = getattr(self.compiled_loss, "_losses", None)
         losses_is_nested = tf.nest.is_nested(losses)
         outputs_is_nested = tf.nest.is_nested(outputs)
 
@@ -78,16 +85,22 @@ class BaseModel(keras.Model, BaseLayer):
 
         # Case 1: multi outputs != multi losses or no losses
         if losses_is_nested and len(outputs) == len(losses):
-            outputs = tf.nest.map_structure(lambda output, loss: self.post_processing(output, losses=loss), outputs, tuple(losses))
+            outputs = tf.nest.map_structure(
+                lambda output, loss: self.post_processing(output, losses=loss),
+                outputs,
+                tuple(losses),
+            )
             return outputs[0] if len(outputs) == 1 else outputs
 
         # Case 2: multi outputs = multi losses
         else:
-            outputs = tf.nest.map_structure(lambda output: self.post_processing(output, losses=losses), outputs)
+            outputs = tf.nest.map_structure(
+                lambda output: self.post_processing(output, losses=losses), outputs
+            )
             return outputs[0] if len(outputs) == 1 else outputs
 
 
-class QuantileModel(BaseModel, QuantileLayer): # pylint: disable=abstract-method
+class QuantileModel(BaseModel, QuantileLayer):  # pylint: disable=abstract-method
     """Overloads tensorflow Model class to integrate a `quantiles` attribute.
 
     During the compiling phase, the model checks the existence of the attribute `quantiles` in each loss function.
@@ -119,9 +132,11 @@ class QuantileModel(BaseModel, QuantileLayer): # pylint: disable=abstract-method
         Default to 0.
     """
 
-    NOT_INSPECT = ['compile', 'build', 'call']
+    NOT_INSPECT = ["compile", "build", "call"]
 
-    def __init__(self, apply_quantiles_transpose: bool=True, *args: list, **kwargs: dict) -> None:
+    def __init__(
+        self, apply_quantiles_transpose: bool = True, *args: list, **kwargs: dict
+    ) -> None:
 
         super().__init__(*args, **kwargs)
 
@@ -134,7 +149,7 @@ class QuantileModel(BaseModel, QuantileLayer): # pylint: disable=abstract-method
     def compile(
         self,
         optimizer="rmsprop",
-        loss=None, # TODO: multiple loss one output (qloss, mse) -> leads to mse loss over estimated due to the quantiles -> raise an error? use a wrapper to select only the 0.5 quantile?
+        loss=None,  # TODO: multiple loss one output (qloss, mse) -> leads to mse loss over estimated due to the quantiles -> raise an error? use a wrapper to select only the 0.5 quantile?
         metrics=None,
         loss_weights=None,
         weighted_metrics=None,
@@ -166,7 +181,15 @@ class QuantileModel(BaseModel, QuantileLayer): # pylint: disable=abstract-method
             **kwargs,
         )
 
-    def _check_quantiles_in_loss(self, loss: Union[str, tf.keras.losses.Loss, LossFunctionWrapper, List[Union[str, tf.keras.losses.Loss, LossFunctionWrapper]]]) -> Union[List[Union[List[int], int]], None]:
+    def _check_quantiles_in_loss(
+        self,
+        loss: Union[
+            str,
+            tf.keras.losses.Loss,
+            LossFunctionWrapper,
+            List[Union[str, tf.keras.losses.Loss, LossFunctionWrapper]],
+        ],
+    ) -> Union[List[Union[List[int], int]], None]:
         """Check if the loss functions define a `quantiles` attribute.
 
         If True then it returns the quantiles found.
@@ -174,7 +197,9 @@ class QuantileModel(BaseModel, QuantileLayer): # pylint: disable=abstract-method
 
         # Case of multiple losses
         if isinstance(loss, (tuple, list)):
-            quantiles = [q for loss_fn in loss if (q := self._check_quantiles_in_loss(loss_fn))]
+            quantiles = [
+                q for loss_fn in loss if (q := self._check_quantiles_in_loss(loss_fn))
+            ]
             return list(itertools.chain.from_iterable(quantiles))
 
         # One loss
@@ -182,35 +207,53 @@ class QuantileModel(BaseModel, QuantileLayer): # pylint: disable=abstract-method
             return quantiles_handler(loss.quantiles)
 
     # TODO: Avoid to rebuild weights when quantiles of model is not None
-    def _set_quantiles(self, value: List[List[float]], additional_shapes: Union[None, List[List[int]]]=None, n_quantiles: Union[None, List[List[int]]]=None) -> None:
+    def _set_quantiles(
+        self,
+        value: List[List[float]],
+        additional_shapes: Union[None, List[List[int]]] = None,
+        n_quantiles: Union[None, List[List[int]]] = None,
+    ) -> None:
         """Set attributes linked to the quantiles found in the losses functions."""
 
         super()._set_quantiles(value, additional_shapes, n_quantiles)
 
         # Propagates to sublayers
         for idx, _ in enumerate(self.layers):
-            if hasattr(self.layers[idx], '_set_quantiles'):
-                self.layers[idx]._set_quantiles(value, self._additional_shapes, self.n_quantiles)  # pylint: disable=protected-access
+            if hasattr(self.layers[idx], "_set_quantiles"):
+                self.layers[idx]._set_quantiles(
+                    value, self._additional_shapes, self.n_quantiles
+                )  # pylint: disable=protected-access
 
-    def losses_wrapper(self, loss: LossFunctionWrapper) -> Union[Callable, LossFunctionWrapper]:
+    def losses_wrapper(
+        self, loss: LossFunctionWrapper
+    ) -> Union[Callable, LossFunctionWrapper]:
         """Add or remove the quantile dimension to y_pred and y_true respectively."""
 
         # TODO: We override the fn function which can be a Loss instance and turn it into function.
         # As below we have to recreate an instance of the loss otherwise we lose informations as the attributes etc...
-        if not hasattr(loss, 'quantiles') and not isinstance(loss, type(None)) and not hasattr(loss, '_done'):
+        if (
+            not hasattr(loss, "quantiles")
+            and not isinstance(loss, type(None))
+            and not hasattr(loss, "_done")
+        ):
             loss.fn = _remove_dimension_to_ypred(loss.fn)
             return loss
-        elif not isinstance(loss, type(None)) and not hasattr(loss, '_done'):
+        elif not isinstance(loss, type(None)) and not hasattr(loss, "_done"):
             loss = LossFunctionWrapper(loss)
             loss = _add_dimension_to_ytrue(loss, type(loss))
         return loss
 
-    def metrics_wrapper(self, metric: Union[None, str, keras.metrics.Metric, List[Union[str, keras.metrics.Metric]]]) -> Union[Callable, LossFunctionWrapper]:
+    def metrics_wrapper(
+        self,
+        metric: Union[
+            None, str, keras.metrics.Metric, List[Union[str, keras.metrics.Metric]]
+        ],
+    ) -> Union[Callable, LossFunctionWrapper]:
         """Add or remove the quantile dimension to y_pred and y_true respectively."""
 
         # TODO: We override the update_state function which can be a Loss instance and turn it into function.
         # As below we have to recreate an instance of the loss otherwise we lose informations as the attributes etc...
-        if not hasattr(metric, 'quantiles') and not isinstance(metric, type(None)):
+        if not hasattr(metric, "quantiles") and not isinstance(metric, type(None)):
             metric.update_state = _remove_dimension_to_ypred(metric.update_state)
             return metric
 
@@ -219,7 +262,11 @@ class QuantileModel(BaseModel, QuantileLayer): # pylint: disable=abstract-method
 
         return metric
 
-    def _check_quantiles_requirements(self, outputs: TENSOR_TYPE, losses: Union[None, tf.keras.losses.Loss, List[tf.keras.losses.Loss]]=None) -> bool:
+    def _check_quantiles_requirements(
+        self,
+        outputs: TENSOR_TYPE,
+        losses: Union[None, tf.keras.losses.Loss, List[tf.keras.losses.Loss]] = None,
+    ) -> bool:
         """Check if the requirements are valids else raise a ValueError.
 
         Raises
@@ -235,43 +282,64 @@ class QuantileModel(BaseModel, QuantileLayer): # pylint: disable=abstract-method
             losses = [loss.fn for loss in convert_to_list(losses)]
 
             # TODO: optimization, this calculation is made twice (One in _handle_quantiles_dim_in_losses_and_metrics)
-            quantiles_in_losses = [loss.quantiles[0] for loss in losses if hasattr(loss, 'quantiles')]
+            quantiles_in_losses = [
+                loss.quantiles[0] for loss in losses if hasattr(loss, "quantiles")
+            ]
 
-            check_uniform_quantiles = self._check_uniform_quantiles_through_losses(quantiles_in_losses)
+            check_uniform_quantiles = self._check_uniform_quantiles_through_losses(
+                quantiles_in_losses
+            )
             check_quantiles_in_outputs = self._check_quantiles_in_outputs(outputs)
 
             if not check_uniform_quantiles:
-                raise ValueError(f"`quantiles` has to be identical through losses. Got losses {quantiles_in_losses}.")
+                raise ValueError(
+                    f"`quantiles` has to be identical through losses. Got losses {quantiles_in_losses}."
+                )
 
             elif not any(quantiles_in_losses) and check_quantiles_in_outputs:
-                raise ValueError(f"It is not allowed to train a quantile model without a quantile loss. Got a loss {losses} and an output shape {outputs.shape}.")
+                raise ValueError(
+                    f"It is not allowed to train a quantile model without a quantile loss. Got a loss {losses} and an output shape {outputs.shape}."
+                )
 
             elif any(quantiles_in_losses):
-                if self._compare_quantiles_in_outputs_and_losses(outputs, quantiles_in_losses):
+                if self._compare_quantiles_in_outputs_and_losses(
+                    outputs, quantiles_in_losses
+                ):
                     return True
-                
+
                 elif self._is_single_quantile(quantiles_in_losses):
                     return False
 
-                raise ValueError(f"Quantiles in losses and outputs are not the same. Maybe you are trying to train a no quantile model "
-                        f"with a quantile loss. It is possible only if there is one quantile defined as [[0.5]]. "
-                        f"got outputs shape: {outputs.shape} and quantiles in losses: {quantiles_in_losses}")
+                raise ValueError(
+                    f"Quantiles in losses and outputs are not the same. Maybe you are trying to train a no quantile model "
+                    f"with a quantile loss. It is possible only if there is one quantile defined as [[0.5]]. "
+                    f"got outputs shape: {outputs.shape} and quantiles in losses: {quantiles_in_losses}"
+                )
 
         return False
 
-    def _check_uniform_quantiles_through_losses(self, quantiles_in_losses: List[List[Union[int, float]]]) -> bool:
+    def _check_uniform_quantiles_through_losses(
+        self, quantiles_in_losses: List[List[Union[int, float]]]
+    ) -> bool:
         """Return True if all losses define an identical `quantiles` attribute"""
 
-        if len(quantiles_in_losses) == 0: # Case of no quantiles in losses
+        if len(quantiles_in_losses) == 0:  # Case of no quantiles in losses
             return True
-        return all(q == quantiles_in_losses[idx - 1] for idx, q in enumerate(quantiles_in_losses))
+        return all(
+            q == quantiles_in_losses[idx - 1]
+            for idx, q in enumerate(quantiles_in_losses)
+        )
 
-    def _compare_quantiles_in_outputs_and_losses(self, outputs: TENSOR_TYPE, quantiles_in_losses: List[List[Union[int, float]]]) -> bool:
+    def _compare_quantiles_in_outputs_and_losses(
+        self, outputs: TENSOR_TYPE, quantiles_in_losses: List[List[Union[int, float]]]
+    ) -> bool:
         """Return True if the outputs and the quantile loss have the same `quantiles` attribute"""
 
-        return (len(quantiles_in_losses[0]) == outputs.shape[0])
+        return len(quantiles_in_losses[0]) == outputs.shape[0]
 
-    def _is_single_quantile(self, quantiles_in_losses: List[List[Union[int, float]]]) -> bool:
+    def _is_single_quantile(
+        self, quantiles_in_losses: List[List[Union[int, float]]]
+    ) -> bool:
         return len(quantiles_in_losses[0]) == 1
 
 
@@ -329,12 +397,20 @@ class UnivariateModel(QuantileModel, UnivariateLayer):
         the number of variates in the inputs. Default to [].
     """
 
-    def __init__(self, apply_multivariate_transpose: bool=True, *args: list, **kwargs: dict) -> None:
+    def __init__(
+        self, apply_multivariate_transpose: bool = True, *args: list, **kwargs: dict
+    ) -> None:
         super().__init__(*args, **kwargs)
 
         self.apply_multivariate_transpose = apply_multivariate_transpose
 
-    def init_params(self, inputs_shape: Union[tf.TensorShape, List[tf.TensorShape]], n_variates: Union[None, List[Union[None, int]]]=None, is_multivariate: Union[None, bool]=None, additional_shapes: Union[None, List[List[int]]]=None) -> None:
+    def init_params(
+        self,
+        inputs_shape: Union[tf.TensorShape, List[tf.TensorShape]],
+        n_variates: Union[None, List[Union[None, int]]] = None,
+        is_multivariate: Union[None, bool] = None,
+        additional_shapes: Union[None, List[List[int]]] = None,
+    ) -> None:
         """Initialize attributes related to univariate model.
         
         It is called before `build`.
@@ -345,9 +421,19 @@ class UnivariateModel(QuantileModel, UnivariateLayer):
         to the internal layers.
         """
 
-        super().init_params(inputs_shape, n_variates=n_variates, is_multivariate=is_multivariate, additional_shapes=additional_shapes)
+        super().init_params(
+            inputs_shape,
+            n_variates=n_variates,
+            is_multivariate=is_multivariate,
+            additional_shapes=additional_shapes,
+        )
 
         # Propagates to sublayers
         for idx, _ in enumerate(self.layers):
-            if hasattr(self.layers[idx], 'init_params'):
-                self.layers[idx].init_params(inputs_shape, self.n_variates, self.is_multivariate, self._additional_shapes)  # pylint: disable=protected-access
+            if hasattr(self.layers[idx], "init_params"):
+                self.layers[idx].init_params(
+                    inputs_shape,
+                    self.n_variates,
+                    self.is_multivariate,
+                    self._additional_shapes,
+                )  # pylint: disable=protected-access
