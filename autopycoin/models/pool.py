@@ -7,13 +7,17 @@ from keras.engine import data_adapter
 
 from ..utils.data_utils import convert_to_list
 
+# TODO: AutopycoinBaseClass
 
 # TODO: finish doc and unit testing.
 class BasePool(tf.keras.Model):
-    """
-    Tensorflow model defining a pool of `model` models.
+    """Tensorflow model defining a pool of models.
 
-    For now, it implements a bagging method.
+    For now, it implements the bagging method.
+    This model needs to be overriden.
+
+    `preprocessing_x`, `preprocessing_y` and `postprocessing_y` are 
+    applied to adapt the model.
 
     Parameters
     ----------
@@ -32,18 +36,16 @@ class BasePool(tf.keras.Model):
         It aggregates the model's outputs tensor. The outputs are aggregated only if
         all the shapes are similar else return the structure.
         Default to mean.
-    seed: int
+    seed : int
         Used in combination with tf.random.set_seed to create a
         reproducible sequence of tensors across multiple calls.
 
     Attributes
     ----------
-
-    Examples
-    --------
-
-    Notes
-    -----
+    fn_agg : Callable
+    n_models : int
+    models : List[NBEATS]
+    label_width : int
     """
 
     def __init__(
@@ -78,7 +80,7 @@ class BasePool(tf.keras.Model):
         model_distribution: List[int],
         **kwargs: dict
         ) -> None:
-        """Initialize the models."""
+        """Initialize models by picking randomly models or by using instances."""
 
         models = convert_to_list(models)
 
@@ -123,6 +125,9 @@ class BasePool(tf.keras.Model):
         return tf.nest.map_structure(init, distribution)
 
     def checks(self, models):
+        """
+        
+        """
         raise NotImplementedError('You need to override this function.')
 
     def compile(self,
@@ -136,9 +141,6 @@ class BasePool(tf.keras.Model):
         """Compiles models one by one for training.
 
         See tensorflow documentation for more informations.
-
-        Parameters
-        ----------
         """
 
         # Case 1: nmodels > or < losses -> losses for each models
@@ -181,6 +183,8 @@ class BasePool(tf.keras.Model):
         self,
         structure,
         ) -> None:
+        """Shuffle losses and pick them randomly.
+        """
 
         structure = convert_to_list(structure)
 
@@ -199,23 +203,10 @@ class BasePool(tf.keras.Model):
 
     def train_step(self, data: tuple) -> dict:
         """The logic for one training step.
-        This method can be overridden to support custom training logic.
-        For concrete examples of how to override this method see
-        [Customizing what happends in fit](https://www.tensorflow.org/guide/keras/customizing_what_happens_in_fit).
-        This method is called by `Model.make_train_function`.
-        This method should contain the mathematical logic for one step of training.
-        This typically includes the forward pass, loss calculation, backpropagation,
-        and metric updates.
-        Configuration details for *how* this logic is run (e.g. `tf.function` and
-        `tf.distribute.Strategy` settings), should be left to
-        `Model.make_train_function`, which can also be overridden.
-        Args:
-        data: A nested structure of `Tensor`s.
-        Returns:
-        A `dict` containing values that will be passed to
-        `tf.keras.callbacks.CallbackList.on_train_batch_end`. Typically, the
-        values of the `Model`'s metrics are returned. Example:
-        `{'loss': 0.2, 'accuracy': 0.7}`.
+
+        Apply processing function to x and y and train each model separately.
+        The results showed during training are calculated from the pool model.
+        See tensorflow documentation for more information.
         """
         x, y, sample_weight = data_adapter.unpack_x_y_sample_weight(data)
 
@@ -233,6 +224,11 @@ class BasePool(tf.keras.Model):
         return self.test_step((x, y, sample_weight))
 
     def test_step(self, data):
+        """The logic for one test step.
+
+        Apply processing function to y and test models together.
+        See tensorflow documentation for more information.
+        """
 
         x, y, sample_weight = data_adapter.unpack_x_y_sample_weight(data)
 
@@ -241,6 +237,11 @@ class BasePool(tf.keras.Model):
         return super().test_step((x, y, sample_weight))
 
     def predict_step(self, data):
+        """The logic for one predict step.
+
+        Apply post-processing function to y.
+        See tensorflow documentation for more information.
+        """
 
         x, y, sample_weight = data_adapter.unpack_x_y_sample_weight(data)
 
@@ -253,7 +254,7 @@ class BasePool(tf.keras.Model):
         self,
         x: Union[None, Union[Union[tf.Tensor,tf.data.Dataset], Tuple[tf.Tensor,...]]],
     ) -> Union[Tuple[None, None], Tuple[Callable, tuple]]:
-        "Apply mask inside `train_step`, `test_step` and `predict_step`"
+        "Apply mask inside `train_step` and `predict_step`"
 
         raise NotImplementedError('You need to implement this function.')
 
@@ -261,7 +262,7 @@ class BasePool(tf.keras.Model):
         self,
         y: Union[None, Union[Union[tf.Tensor,tf.data.Dataset], Tuple[tf.Tensor,...]]],
     ) -> Union[Tuple[None, None], Tuple[Callable, tuple]]:
-        "Apply mask inside `train_step`, `test_step` and `predict_step`"
+        "Apply mask inside `train_step` and `test_step`"
 
         raise NotImplementedError('You need to implement this function.')
 
@@ -269,12 +270,12 @@ class BasePool(tf.keras.Model):
         self,
         y: Union[None, Union[Union[tf.Tensor,tf.data.Dataset], Tuple[tf.Tensor,...]]],
     ) -> Union[Tuple[None, None], Tuple[Callable, tuple]]:
-        "Apply mask inside `train_step`, `test_step` and `predict_step`"
+        "Apply mask inside `predict_step`"
 
         raise NotImplementedError('You need to implement this function.')
 
     @property
-    def fn_agg(self):
+    def fn_agg(self) -> Callable:
         """Return the aggregation function."""
         return self._fn_agg
 

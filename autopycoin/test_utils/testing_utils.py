@@ -228,9 +228,17 @@ def layer_test(
     )
     computed_output_signatures = create_list(computed_output_signatures)
 
+    # check shape inference
+    model = models.Model(inputs=x, outputs=y)
+    if isinstance(layer, tf.keras.Model):
+        actual_outputs = layer.predict(input_data)
+    else:
+        actual_outputs = model.predict(input_data)
+
     for (
         idx,
         (
+            actual_output,
             y,
             expected_output,
             expected_output_dtype,
@@ -240,12 +248,13 @@ def layer_test(
         ),
     ) in enumerate(
         zip(
-            ys,
-            expected_outputs,
-            expected_output_dtypes,
-            expected_output_shapes,
-            computed_output_shapes,
-            computed_output_signatures,
+            tf.nest.flatten(actual_outputs),
+            tf.nest.flatten(ys),
+            tf.nest.flatten(expected_outputs),
+            tf.nest.flatten(expected_output_dtypes),
+            tf.nest.flatten(expected_output_shapes),
+            tf.nest.flatten(computed_output_shapes),
+            tf.nest.flatten(computed_output_signatures),
         )
     ):
 
@@ -289,48 +298,18 @@ def layer_test(
                     )
 
         if expected_output_shape is not None:
-            if issubclass(layer_cls, BasePool):
-                for idx, (e, i) in enumerate(zip(expected_output_shape, y)):
-                    if hasattr(layer, '_mask') and idx == 0:
-                        e = (e[0], layer._mask[idx].numpy())
-                    assert_shapes_equal(tf.TensorShape(e), i.shape)
-            else:
-                assert_shapes_equal(tf.TensorShape(expected_output_shape), y.shape)
+            if hasattr(layer, '_mask'):
+                expected_output_shape = tf.TensorShape((expected_output_shape.as_list()[0], layer._mask[int(idx/2)].numpy()))
+            assert_shapes_equal(expected_output_shape, y.shape)
+        
+        actual_output_shape = actual_output.shape
 
-        # check shape inference
-        model = models.Model(inputs=x, outputs=y)
-        if isinstance(layer, tf.keras.Model):
-            actual_output = layer.predict(input_data)
-        else:
-            actual_output = model.predict(input_data)
+        if hasattr(layer, '_mask'):
+            expected_output_shape = tf.TensorShape((actual_output_shape.as_list()[0], layer._mask[int(idx/2)].numpy()))
+        assert_shapes_equal(computed_output_shape, actual_output.shape)
+        assert_shapes_equal(computed_output_signature.shape, actual_output.shape)
 
-        actual_output_shape = [output.shape for output in tf.nest.flatten(actual_output)]
-
-        if issubclass(layer_cls, BasePool):
-            for idx, (e, i) in enumerate(zip(expected_output_shape, actual_output_shape)):
-                e = (i[0], layer._mask[idx].numpy())
-                assert_shapes_equal(e, i)
-        else:
-            actual_output_shape = [output.shape for output in tf.nest.flatten(actual_output)][idx]
-            assert_shapes_equal(computed_output_shape, actual_output_shape)
-            assert_shapes_equal(computed_output_signature.shape, actual_output_shape)
-
-        if issubclass(layer_cls, BasePool):
-            if (any(sig.dtype!=computed_output_signature[0].dtype for sig in actual_output[0]) or
-               any(sig.dtype!=computed_output_signature[1].dtype for sig in actual_output[1])):
-                raise AssertionError(
-                "When testing layer %s, for input %s, found output_dtype="
-                "%s but expected to find %s.\nFull kwargs: %s"
-                % (
-                    layer_cls.__name__,
-                    x,
-                    [sig.dtype for sig in tf.nest.flatten(actual_output)],
-                    [sig.dtype for sig in tf.nest.flatten(computed_output_signature)],
-                    kwargs,
-                )
-            )
-            
-        elif [sig.dtype for sig in tf.nest.flatten(computed_output_signature)] != [sig.dtype for sig in tf.nest.flatten(actual_output[idx])]:
+        if [sig.dtype for sig in tf.nest.flatten(computed_output_signature)] != [sig.dtype for sig in tf.nest.flatten(actual_output[idx])]:
             raise AssertionError(
                 "When testing layer %s, for input %s, found output_dtype="
                 "%s but expected to find %s.\nFull kwargs: %s"
@@ -343,7 +322,7 @@ def layer_test(
                 )
             )
         if expected_output is not None:
-            assert_equal(actual_output[idx], expected_output)
+            assert_equal(expected_output, actual_output)
 
     # test serialization, weight setting at model level
     if not isinstance(layer, tf.keras.Model):
@@ -352,8 +331,9 @@ def layer_test(
         if model.weights:
             weights = model.get_weights()
             recovered_model.set_weights(weights)
+            actual_output_model = model.predict(input_data)
             output = recovered_model.predict(input_data)
-            assert_equal(output, actual_output)
+            tf.nest.map_structure(lambda x,y: assert_equal(x,y), output, actual_output_model)
 
     # test training mode (e.g. useful for dropout tests)
     # Rebuild the model to avoid the graph being reused between predict() and

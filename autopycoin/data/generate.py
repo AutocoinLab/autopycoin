@@ -6,7 +6,7 @@ import numpy as np
 from typing import Union, List, Optional
 
 import tensorflow as tf
-from tensorflow.keras.backend import floatx
+from keras.backend import floatx
 
 from ..utils import range_dims
 

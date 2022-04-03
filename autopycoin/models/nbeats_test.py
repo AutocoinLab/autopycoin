@@ -238,7 +238,7 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
             kwargs={"blocks": blocks},
             input_dtype=floatx(),
             input_shape=(2, 3),
-            expected_output_shape=((None, 3), (None, 2)),
+            expected_output_shape=(tf.TensorShape((None, 3)), tf.TensorShape((None, 2))),
             expected_output_dtype=[floatx(), floatx()],
             expected_output=[
                 -1
@@ -302,8 +302,8 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
             kwargs={"stacks": stacks},
             input_dtype=floatx(),
             input_shape=(2, 3),
-            expected_output_shape=((None, 3), (None, 2)),
-            expected_output_dtype=[floatx()],
+            expected_output_shape=(tf.TensorShape((None, 3)), tf.TensorShape((None, 2))),
+            expected_output_dtype=[floatx(), floatx()],
             expected_output=[tf.constant([24.0, 8.0, 10.0, 24.0, 8.0, 10.0], shape=(2, 3)), tf.constant([18.0, 9.0, 18.0, 9.0], shape=(2, 2))],
         )
 
@@ -751,9 +751,24 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
  
     def test_pool_nbeats_as_layer(self):
 
+        nbeats = [lambda label_width: create_generic_nbeats(
+                    label_width=label_width,
+                    g_forecast_neurons=1, 
+                    g_backcast_neurons=1, 
+                    n_neurons=1, 
+                    n_blocks=1, 
+                    n_stacks=1,
+                  ),
+                  lambda label_width: create_interpretable_nbeats(
+                    label_width=label_width,
+                    trend_n_neurons=1, 
+                    seasonality_n_neurons=1
+                  )]
+
         kwargs_2 = {
             'label_width': 3,
             "n_models": 3,
+            "nbeats_models": nbeats,
             "seed": 0
         }
 
@@ -762,8 +777,8 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
             kwargs=kwargs_2,
             input_dtype=floatx(),
             input_shape=(2, 10),
-            expected_output_shape=(((None, 10), (None, 3)), ((None, 10), (None, 3)), ((None, 10), (None, 3))),
-            expected_output_dtype=[floatx(), floatx(), floatx()],
+            expected_output_shape=((tf.TensorShape((None, 10)), tf.TensorShape((None, 3))), (tf.TensorShape((None, 10)), tf.TensorShape((None, 3))), (tf.TensorShape((None, 10)), tf.TensorShape((None, 3)))),
+            expected_output_dtype=[floatx(), floatx(), floatx(), floatx(), floatx(), floatx()],
         )
 
     def test_pool_nbeats_raises_error(self):

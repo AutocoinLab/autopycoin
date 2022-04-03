@@ -2,11 +2,9 @@
 
 from typing import Any, Union, Tuple, List
 import numpy as np
-from functools import reduce
-import operator
 
 import tensorflow as tf
-from tensorflow.keras.backend import floatx
+from keras.backend import floatx
 
 
 def avoid_infinity(tensor: tf.Tensor) -> tf.Tensor:
@@ -54,7 +52,7 @@ def range_dims(tensor: tf.Tensor, shape: Tuple, dtype: str = floatx()) -> tf.Ten
 
 
 # corriger
-def quantiles_handler(quantiles: Union[None, int, float, List[Union[int, float, List[Union[int, float]]]]]) -> List[float]:
+def quantiles_handler(quantiles: Union[None, int, float, List[Union[int, float, List[Union[int, float]]]]]) -> List[Union[int, float]]:
     """
     Convenient function which ensures that quantiles are sorted and unique.
     Negative quantiles are not allowed.

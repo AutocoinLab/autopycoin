@@ -7,9 +7,9 @@ from typing import Callable, Union, List, Optional
 import pandas as pd
 
 import tensorflow as tf
-from tensorflow.keras.backend import epsilon, maximum
-from tensorflow.python.keras.losses import LossFunctionWrapper
-from tensorflow.python.keras.utils import losses_utils
+from keras.backend import epsilon
+from keras.losses import LossFunctionWrapper
+from keras.utils import losses_utils
 from tensorflow.python.util import dispatch
 
 from ..utils import quantiles_handler
@@ -58,7 +58,7 @@ def smape(y_true: Yannotation, y_pred: Yannotation):
 
 
 def quantile_loss(
-    y_true: Yannotation, y_pred: Yannotation, quantiles: List[float] = [0.5]
+    y_true: Yannotation, y_pred: Yannotation, quantiles: List[List[float]] = [[0.5]]
 ) -> tf.Tensor:
     """
     Calculate the quantile loss function, summed across all quantile outputs.
@@ -168,7 +168,7 @@ class QuantileLossError(LossFunctionWrapper, AutopycoinBaseClass):
     ----------
     quantiles : array, `dataframe`, list or `tensor of shape (batch_size, d0, .. dN)`
         The set of quantiles on which is calculated the
-        quantile loss. The list needs to be in ascending order.
+        quantile loss.
     reduction : `tf.keras.losses.Reduction, Optional`
         Type of `tf.keras.losses.Reduction`to apply to
         loss. Default value is `AUTO`. `AUTO` indicates that the reduction
@@ -189,7 +189,7 @@ class QuantileLossError(LossFunctionWrapper, AutopycoinBaseClass):
 
     Attributes
     ----------
-    quantiles : list[int]
+    quantiles : list[float]
 
     Examples
     --------
@@ -223,7 +223,7 @@ class QuantileLossError(LossFunctionWrapper, AutopycoinBaseClass):
 
     def __init__(
         self,
-        quantiles: Union[float, int, List[Union[float, int]]] = 0.5,
+        quantiles: Union[int, float, List[Union[int, float, List[Union[int, float]]]]] = 0.5,
         reduction: Optional[str] = losses_utils.ReductionV2.SUM,
         name: Optional[str] = "q_loss",
         **kwargs: dict

@@ -20,6 +20,9 @@ from .training import UnivariateModel
 
 
 class DenseModel(UnivariateModel):
+    
+    def __init__(self, apply_multivariate_transpose: bool=True, *args: list, **kwargs: dict):
+        super().__init__(apply_multivariate_transpose, *args, **kwargs)
 
     def build(self, input_shape):
 
@@ -42,6 +45,9 @@ class DenseModel(UnivariateModel):
 
 class DoubleDenseModel(DenseModel):
 
+    def __init__(self, apply_multivariate_transpose: bool=True, *args: list, **kwargs: dict):
+        super().__init__(apply_multivariate_transpose, *args, **kwargs)
+
     def build(self, input_shape):
 
         shape = self.get_additional_shapes(1) + [20, 50]
@@ -61,6 +67,9 @@ class DoubleDenseModel(DenseModel):
 
 class DoubleDenseModel2(DoubleDenseModel):
 
+    def __init__(self, apply_multivariate_transpose: bool=True, *args: list, **kwargs: dict):
+        super().__init__(apply_multivariate_transpose, *args, **kwargs)
+
     def build(self, input_shape):
 
         self.dense2 = self.add_weight(
@@ -77,6 +86,9 @@ class DoubleDenseModel2(DoubleDenseModel):
 
 
 class DenseUnivariateModel(UnivariateModel):
+
+    def __init__(self, apply_multivariate_transpose: bool=True, *args: list, **kwargs: dict):
+        super().__init__(apply_multivariate_transpose, *args, **kwargs)
 
     def build(self, input_shape):
 

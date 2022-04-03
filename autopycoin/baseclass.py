@@ -7,7 +7,6 @@ import abc
 import typing
 from inspect import signature, _empty
 
-import tensorflow as tf
 from tensorflow.python.util import tf_decorator
 
 from .baseclass_field import AutopycoinField, _convert_value
@@ -21,6 +20,83 @@ def dummy_callable(*args, **kwargs):
     pass
 
 
+def _pop_field(type_hints):
+    """Field not currently supported."""
+    for hint in NOT_SUPPORTED_FIELDS:
+        type_hints.pop(hint, None)
+
+
+def _wrap_user_constructor(cls, attribute_name, attribute_value):
+    """Wraps a user-defined constructor for autopycoin subclass `cls`."""
+
+    def wrapped_attribute(self, *args, **kwargs):
+        list_fields = cls._type_fields(  # pylint: disable=protected-access
+            attribute_name, attribute_value
+        )
+        args, kwargs = convert_value(
+            list_fields[f"{cls}_{attribute_name}"], attribute_name, *args, **kwargs
+        )
+        output = attribute_value(self, *args, **kwargs)
+        self.__validate__(cls, output, attribute_name, *args, **kwargs)
+
+        return output
+
+    setattr(
+        cls,
+        attribute_name,
+        tf_decorator.make_decorator(attribute_value, wrapped_attribute),
+    )
+
+
+def convert_value(list_fields, attribute_name, *args, **kwargs):
+    """check type parameters to the expected types for no default parameters."""
+    args = list(args)
+    for idx, field in enumerate(list_fields):
+        if not field.name in kwargs and idx <= len(args) - 1:
+            args[idx] = _convert_value(
+                args[idx],
+                field.value_type,
+                (f"value for {field.name} in {attribute_name}",),
+            )
+        elif field.name in kwargs:
+            kwargs[field.name] = _convert_value(
+                kwargs[field.name],
+                field.value_type,
+                (f"value for {field.name} in {attribute_name}",),
+            )
+
+    return args, kwargs
+
+
+def _methods_to_inspect(cls):
+    """Filter each method to inspect of autopycoin subclass `cls`."""
+    for attribute_name in dir(cls):
+        attribute_value = getattr(cls, attribute_name)
+        # Check that it is callable
+        if (
+            callable(attribute_value)
+            and not attribute_name in cls.NOT_INSPECT
+            and not attribute_name.startswith("__")
+            and not attribute_name.endswith("__")
+            and not attribute_name.startswith("_abc_")
+            and not attribute_name.startswith("_val")
+            and attribute_name in cls.__dict__
+        ) or attribute_name == "__init__":
+            yield attribute_name, attribute_value
+
+
+def _check_field_annotations(attribute_name, attribute_value):
+    """Validates the field annotations for autopycoin subclass `cls`."""
+    actual = set(signature(attribute_value).parameters)
+    expected = set(getattr(attribute_value, "__annotations__", {}))
+    extra = actual - expected
+    if extra and extra != {"self"}:
+        raise ValueError(f"Got unexpected fields: {extra} in {attribute_name}")
+    missing = expected - actual
+    if missing and missing != {"return"}:
+        raise ValueError(f"Missing required fields: {missing} in {attribute_name}")
+
+
 class AutopycoinMetaClass(abc.ABCMeta):
     """Metaclass for autopycoin objects."""
 
@@ -32,10 +108,41 @@ class AutopycoinMetaClass(abc.ABCMeta):
         super().__init__(name, bases, namespace)
 
 
+class AutopycoinMetaLayer(AutopycoinMetaClass):
+    """Metaclass for autopycoin layers."""
+
+    def __init__(cls, name, bases, namespace):
+        if not namespace.get("_ap_do_not_transform_this_class", False):
+            cls.build = _wrap_build(cls.build)
+            cls.call = _wrap_call(cls.call)
+
+        super().__init__(name, bases, namespace)
+
+
+def _wrap_build(fn):
+    """Wrap the build method with a init_params function"""
+
+    def build_wrapper(self, inputs_shape):
+        self.init_params(inputs_shape)
+        return fn(self, inputs_shape)
+    return build_wrapper
+
+
+def _wrap_call(fn):
+    """Wrap the call method with a _preprocessing and post_processing methods"""
+
+    def call_wrapper(self, inputs, *args, **kwargs):
+        inputs = self._preprocessing_wrapper(inputs)
+        outputs = fn(self, inputs, *args, **kwargs)
+        outputs = self._post_processing_wrapper(outputs)
+        return outputs
+    return call_wrapper
+
+
 # ==============================================================================
 # Base class for autopycoin objects
 # ==============================================================================
-class AutopycoinBaseClass(metaclass=AutopycoinMetaClass):
+class AutopycoinBase():
     """
     A new autopycoin class has to inherit from this base class.
     It checks type and lenght of arguments for each methods inside a class.
@@ -115,78 +222,9 @@ class AutopycoinBaseClass(metaclass=AutopycoinMetaClass):
         return param
 
 
-def _pop_field(type_hints):
-    """Field not currently supported."""
-    for hint in NOT_SUPPORTED_FIELDS:
-        type_hints.pop(hint, None)
+class AutopycoinBaseClass(AutopycoinBase, metaclass=AutopycoinMetaClass):
+    _ap_do_not_transform_this_class = True
 
 
-def _wrap_user_constructor(cls, attribute_name, attribute_value):
-    """Wraps a user-defined constructor for autopycoin subclass `cls`."""
-
-    def wrapped_attribute(self, *args, **kwargs):
-        list_fields = cls._type_fields(  # pylint: disable=protected-access
-            attribute_name, attribute_value
-        )
-        args, kwargs = convert_value(
-            list_fields[f"{cls}_{attribute_name}"], attribute_name, *args, **kwargs
-        )
-        output = attribute_value(self, *args, **kwargs)
-        self.__validate__(cls, output, attribute_name, *args, **kwargs)
-
-        return output
-
-    setattr(
-        cls,
-        attribute_name,
-        tf_decorator.make_decorator(attribute_value, wrapped_attribute),
-    )
-
-
-def convert_value(list_fields, attribute_name, *args, **kwargs):
-    """check type parameters to the expected types for no default parameters."""
-    args = list(args)
-    for idx, field in enumerate(list_fields):
-        if not field.name in kwargs and idx <= len(args) - 1:
-            args[idx] = _convert_value(
-                args[idx],
-                field.value_type,
-                (f"value for {field.name} in {attribute_name}",),
-            )
-        elif field.name in kwargs:
-            kwargs[field.name] = _convert_value(
-                kwargs[field.name],
-                field.value_type,
-                (f"value for {field.name} in {attribute_name}",),
-            )
-
-    return args, kwargs
-
-
-def _methods_to_inspect(cls):
-    """Filter each method to inspect of autopycoin subclass `cls`."""
-    for attribute_name in dir(cls):
-        attribute_value = getattr(cls, attribute_name)
-        # Check that it is callable
-        if (
-            callable(attribute_value)
-            and not attribute_name in cls.NOT_INSPECT
-            and not attribute_name.startswith("__")
-            and not attribute_name.endswith("__")
-            and not attribute_name.startswith("_abc_")
-            and not attribute_name.startswith("_val")
-            and attribute_name in cls.__dict__
-        ) or attribute_name == "__init__":
-            yield attribute_name, attribute_value
-
-
-def _check_field_annotations(attribute_name, attribute_value):
-    """Validates the field annotations for autopycoin subclass `cls`."""
-    actual = set(signature(attribute_value).parameters)
-    expected = set(getattr(attribute_value, "__annotations__", {}))
-    extra = actual - expected
-    if extra and extra != {"self"}:
-        raise ValueError(f"Got unexpected fields: {extra} in {attribute_name}")
-    missing = expected - actual
-    if missing and missing != {"return"}:
-        raise ValueError(f"Missing required fields: {missing} in {attribute_name}")
+class AutopycoinBaseLayer(AutopycoinBase, metaclass=AutopycoinMetaLayer):
+    _ap_do_not_transform_this_class = True

@@ -3,15 +3,15 @@ import numpy as np
 import abc
 
 import tensorflow as tf
-from tensorflow.keras.layers import Dropout, InputSpec
+from keras.layers import Dropout, InputSpec
+from keras.backend import floatx
 
 from ..utils import range_dims, convert_to_list
 from .base_layer import UnivariateLayer
-from ..baseclass import AutopycoinBaseClass
 from ..asserts import greater_or_equal, equal_length, is_between
+from ..constant import TENSOR_TYPE
 
 
-# TODO: create a UnivariateModel and UnivariateUnivariateLayer which take care of strategy etc...
 class BaseBlock(UnivariateLayer):
     """
     Base class of a nbeats block.
@@ -50,7 +50,7 @@ class BaseBlock(UnivariateLayer):
 
     """
 
-    NOT_INSPECT = ["call", "_output"]
+    NOT_INSPECT = ["call", "_output", "build"]
 
     def __init__(
         self,
@@ -73,7 +73,7 @@ class BaseBlock(UnivariateLayer):
         self._block_type = block_type
 
     # TODO: put input_spec in UnivariateLayer
-    def build(self, input_shape: tf.TensorShape) -> None:
+    def build(self, inputs_shape: tf.TensorShape) -> None:
         """See tensorflow documentation."""
 
         dtype = tf.as_dtype(self.dtype or tf.float32())
@@ -83,8 +83,8 @@ class BaseBlock(UnivariateLayer):
                 "non-floating point dtype %s" % (dtype,)
             )
 
-        input_shape = tf.TensorShape(input_shape)
-        self._input_width = tf.compat.dimension_value(input_shape[-1])
+        inputs_shape = tf.TensorShape(inputs_shape)
+        self._input_width = tf.compat.dimension_value(inputs_shape[-1])
         if self.input_width is None:
             raise ValueError(
                 f"The last dimension of the inputs"
@@ -117,7 +117,7 @@ class BaseBlock(UnivariateLayer):
         self.fc_forecast, self.forecast_coef = self._build_branch(self.label_width, branch_name="forecast")
         self.fc_backcast, self.backcast_coef = self._build_branch(self.input_width, branch_name="backcast")
 
-        super().build(input_shape)
+        super().build(inputs_shape)
 
     def _build_branch(self, output_last_dim: int, branch_name: str) -> None:
         """
@@ -178,8 +178,8 @@ class BaseBlock(UnivariateLayer):
         )
 
     def call(
-        self, inputs: tf.Tensor, **kwargs: dict
-    ) -> Tuple[tf.Tensor]:  # pylint: disable=arguments-differ
+        self, inputs: TENSOR_TYPE, **kwargs: dict
+    ) -> TENSOR_TYPE:  # pylint: disable=arguments-differ
         """See tensorflow documentation."""
 
         for kernel, bias in self.fc_stack:
@@ -211,23 +211,23 @@ class BaseBlock(UnivariateLayer):
         return tf.matmul(theta, coef)
 
     def compute_output_shape(
-        self, input_shape: tf.TensorShape
+        self, inputs_shape: tf.TensorShape
     ) -> Tuple[tf.TensorShape]:
         """See tensorflow documentation."""
 
-        input_shape = tf.TensorShape(input_shape)
-        input_shape = input_shape.with_rank_at_least(2)
-        last_dim_input = tf.compat.dimension_value(input_shape[-1])
+        inputs_shape = tf.TensorShape(inputs_shape)
+        inputs_shape = inputs_shape.with_rank_at_least(2)
+        last_dim_input = tf.compat.dimension_value(inputs_shape[-1])
         if last_dim_input is None:
             raise ValueError(
-                "The innermost dimension of input_shape must be defined, but saw: %s"
-                % (input_shape,)
+                "The innermost dimension of inputs_shape must be defined, but saw: %s"
+                % (inputs_shape,)
             )
 
-        output_shape_forecast = self.get_additional_shapes(0) + [self.label_width]
+        output_shape_forecast = [inputs_shape[0]] + self.get_additional_shapes(0) + [self.label_width]
 
         return [
-            input_shape,
+            inputs_shape,
             tf.TensorShape(output_shape_forecast),   
         ]
 
@@ -375,7 +375,7 @@ class TrendBlock(BaseBlock):
         self._p_degree = p_degree
 
     def coefficient_factory(
-        self, output_last_dim: float, p_degrees: tf.Tensor
+        self, output_last_dim: int, p_degrees: tf.Tensor
     ) -> tf.Tensor:
         """
         Compute the coefficients used in the last layer a.k.a g layer.
@@ -390,11 +390,10 @@ class TrendBlock(BaseBlock):
         coefficients : `tensor with shape (p_degree, label_width)`
             Coefficients of the g layer.
         """
-        coefficients = (tf.range(output_last_dim) / output_last_dim) ** p_degrees
 
-        return coefficients
+        return tf.math.pow((tf.range(output_last_dim, dtype=floatx()) / output_last_dim), p_degrees)
 
-    def get_coefficients(self, output_last_dim: float, branch_name: str) -> tf.Tensor:
+    def get_coefficients(self, output_last_dim: int, branch_name: str) -> tf.Tensor:
         """
         Return the coefficients calculated by the  `_coefficients_factory` method.
 
@@ -567,7 +566,7 @@ class SeasonalityBlock(BaseBlock):
         )
 
         # forecast periods and fourier order can be calculated if not provided
-        # backcast has to wait unitl `build` is called
+        # backcast has to wait until `build` is called
         self._forecast_periods = (
             forecast_periods if forecast_periods else int(label_width / 2)
         )
@@ -578,30 +577,30 @@ class SeasonalityBlock(BaseBlock):
         self._backcast_periods = backcast_periods
         self._backcast_fourier_order = backcast_fourier_order
 
-    def build(self, input_shape: tf.TensorShape):
+    def build(self, inputs_shape: tf.TensorShape):
         """Build method from tensorflow."""
 
         # if None then set an default value based on the *input shape*
         self._backcast_periods = (
-            self._backcast_periods or int(input_shape[-1] / 2)
+            self._backcast_periods or int(inputs_shape[-1] / 2)
         )
         self._backcast_fourier_order = (
             self._backcast_fourier_order or self._backcast_periods
         )
 
-        super().build(input_shape)
+        super().build(inputs_shape)
 
     def coefficient_factory(
-        self, output_last_dim: float, periods: List[float], fourier_orders: List[float],
+        self, output_last_dim: int, periods: Union[int, float, List[Union[int, float]]], fourier_orders: Union[int, float, List[Union[int, float]]],
     ) -> tf.Tensor:
         """
         Compute the coefficients used in the last layer a.k.a g constrained layer.
 
         Parameters
         ----------
-        output_last_dim : float
-        periods : Tuple[float, ...]
-        fourier_orders : Tuple[float, ...]
+        output_last_dim : int
+        periods : int | float | Tuple[int | float]
+        fourier_orders : int | float | Tuple[int | float]
 
         Returns
         -------
@@ -611,16 +610,17 @@ class SeasonalityBlock(BaseBlock):
 
         # Shape (-1, 1) in order to broadcast periods to all time units
         periods = tf.reshape(periods, shape=(-1, 1, 1))
-        time_forecast = tf.range(output_last_dim)
+        periods = tf.cast(periods, dtype=floatx())
+        time_forecast = tf.range(output_last_dim, dtype=floatx())
 
         seasonality = 2.0 * np.pi * time_forecast / periods
         seasonality = (
-            tf.expand_dims(tf.ragged.range(fourier_orders), axis=-1) * seasonality
+            tf.expand_dims(tf.ragged.range(fourier_orders, dtype=floatx()), axis=-1) * seasonality
         )
         seasonality = tf.concat((tf.sin(seasonality), tf.cos(seasonality)), axis=0)
         return seasonality.flat_values
 
-    def get_coefficients(self, output_last_dim: float, branch_name: str) -> tf.Tensor:
+    def get_coefficients(self, output_last_dim: int, branch_name: str) -> tf.Tensor:
         """
         Return the coefficients calculated by the  `_coefficients_factory` method.
 

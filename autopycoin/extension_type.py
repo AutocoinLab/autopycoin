@@ -5,6 +5,7 @@ from typing import Union, List
 import tensorflow as tf
 from tensorflow.python.ops import array_ops
 import keras
+
 from . import losses
 
 class QuantileTensor(tf.experimental.ExtensionType):

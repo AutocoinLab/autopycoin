@@ -82,14 +82,12 @@ class Stack(UnivariateModel):
     If you add 2 variables, the output would have shape (variables, quantiles, batch_size, units).
     """
 
-    def __init__(self, blocks: Tuple[BaseBlock, ...], **kwargs: dict):
+    def __init__(self, blocks: Tuple[BaseBlock, ...], apply_quantiles_transpose: bool=False, apply_multivariate_transpose: bool=False, *args: list, **kwargs: dict):
 
-        super().__init__(**kwargs)
+        super().__init__(apply_quantiles_transpose=apply_quantiles_transpose, apply_multivariate_transpose=apply_multivariate_transpose, *args, **kwargs)
         self._blocks = blocks
         self._stack_type = self._set_type()
         self._is_interpretable = self._set_interpretability()
-        self._apply_quantiles_transpose = False
-        self._apply_multivariate_transpose = False
 
     def call(
         self, inputs: Union[tuple, dict, list, tf.Tensor], **kwargs: dict
@@ -169,8 +167,8 @@ class NBEATS(UnivariateModel):
     """
     Tensorflow model defining the N-BEATS architecture.
 
-    N-BEATS is a univariate model. Its strong advantage
-    resides in its structure which allows us to extract the trend and the seasonality of
+    N-BEATS is a univariate model, see :class:`autopycoin.models.UnivariateModel` for more information.
+    Its strong advantage resides in its structure which allows us to extract the trend and the seasonality of
     temporal series. They are available from the attributes `seasonality` and `trend`.
     This is an unofficial implementation of the paper https://arxiv.org/abs/1905.10437.
 
@@ -273,20 +271,19 @@ class NBEATS(UnivariateModel):
     The most common situation would be a 2D input with shape (batch_size, time step).
 
     *Output shape*
-    N-D tensor with shape: (batch_size, time step, variables, quantiles) or (batch_size, time step, quantiles)
+    Two N-D tensor with shape: (batch_size, time step, variables, quantiles) or (batch_size, time step, quantiles)
     or (batch_size, time step).
     For instance, for a 2D input with shape (batch_size, units),
     the output would have shape (batch_size, units).
     With a QuantileLossError with 2 quantiles or higher the output
-    would have shape (quantiles, batch_size, units).
+    would have shape (batch_size, units, quantiles).
+    With a multivariate inputs the output
+    would have shape (batch_size, units, variates, quantiles).
     """
 
-    def __init__(self, stacks: Tuple[Stack, ...], **kwargs: dict):
+    def __init__(self, stacks: Tuple[Stack, ...], *args: list, **kwargs: dict):
 
-        super().__init__(**kwargs)
-
-        self._apply_quantiles_transform = True
-        self._apply_multivariates_transpose = True
+        super().__init__(*args, **kwargs)
 
         # Stacks where blocks are defined
         self._stacks = stacks
@@ -694,71 +691,6 @@ def create_generic_nbeats(
     return model
 
 
-# TODO: unit test
-def interpretable_nbeats_builder(label_width: int, **kwargs: dict) -> Callable:
-    """
-    It defines model and hyperparameters to take into account during the optimization.
-    We set main parameters but you can overread this function to customize
-    your parameters selection.
-    """
-
-    def model_builder(hp) -> NBEATS:
-        hp_n_neurons_trend = hp.Int(
-            "neurons_trend", min_value=20, max_value=520, step=20
-        )
-        hp_n_neurons_seas = hp.Int("neurons_seas", min_value=20, max_value=520, step=20)
-        hp_periods = kwargs.get("periods", None)
-        hp_periods = hp.Choice("periods", hp_periods) if hp_periods else hp_periods
-        hp_backcast_periods = kwargs.get("backcast_periods", None)
-        hp_backcast_periods = (
-            hp.Choice("backcast_periods", hp_backcast_periods)
-            if hp_backcast_periods
-            else hp_backcast_periods
-        )
-        hp_forecast_fourier_order = kwargs.get("forecast_fourier_order", None)
-        hp_forecast_fourier_order = (
-            hp.Choice("forecast_fourier_order", hp_forecast_fourier_order)
-            if hp_forecast_fourier_order
-            else hp_forecast_fourier_order
-        )
-        hp_backcast_fourier_order = kwargs.get("backcast_fourier_order", None)
-        hp_backcast_fourier_order = (
-            hp.Choice("backcast_fourier_order", hp_backcast_fourier_order)
-            if hp_backcast_fourier_order
-            else hp_backcast_fourier_order
-        )
-        hp_share = hp.Boolean("share")
-        hp_p_degree = hp.Int("p_degree", min_value=0, max_value=3, step=1)
-        loss_list = kwargs.get("loss", ["mse"])
-        loss_idx = hp.Choice("loss", range(len(loss_list)))
-        optimizer_list = kwargs.get(
-            "optimizer", [tf.keras.optimizers.Adam(learning_rate=0.001)]
-        )
-        optimizer_idx = hp.Choice("optimizer", range(len(optimizer_list)))
-
-        model = create_interpretable_nbeats(
-            label_width=label_width,
-            p_degree=hp_p_degree,
-            forecast_periods=hp_periods,
-            backcast_periods=hp_backcast_periods,
-            forecast_fourier_order=hp_forecast_fourier_order,
-            backcast_fourier_order=hp_backcast_fourier_order,
-            trend_n_neurons=hp_n_neurons_trend,
-            seasonality_n_neurons=hp_n_neurons_seas,
-            share=hp_share,
-        )
-
-        model.compile(
-            loss=loss_list[loss_idx],
-            optimizer=optimizer_list[optimizer_idx],
-            metrics=[tf.keras.metrics.MeanAbsoluteError()],
-        )
-
-        return model
-
-    return model_builder
-
-
 # TODO: finish doc and unit testing.
 class PoolNBEATS(BasePool):
     """
@@ -766,6 +698,11 @@ class PoolNBEATS(BasePool):
 
     As described in the paper https://arxiv.org/abs/1905.10437, the state-of-the-art results
     are reached with a bagging method of N-BEATS models including interpretable and generic ones.
+
+    The aggregation function is used in predict `method` if it is possible, i.e when the outputs shape are not differents.
+    As the reconstructed inputs are masked randomly the aggregation is not perfomed on them.
+
+    Fore more information about poll model see :class:`autopycoin.models.Pool`.
 
     Parameters
     ----------
@@ -779,7 +716,7 @@ class PoolNBEATS(BasePool):
         If NBEATS instances are provided then n_models is not used.
         Default to 18.
     nbeats_models : list[callable] or list[NBEATS]
-        A list of callables which create a NBEATS model.
+        A list of callables which create a NBEATS model or a list of :class:`autopycoin.models.NBEATS` instances.
         If None then use a mix of generic and interpretable NBEATs model.
         Default to None.
     fn_agg : Callable
@@ -789,8 +726,16 @@ class PoolNBEATS(BasePool):
         Used in combination with tf.random.set_seed to create a
         reproducible sequence of tensors across multiple calls.
 
+    Returns
+    -------
+    outputs : Tuple[Tuple[`Tensor` | QuantileTensor | UnivariateTensor], Tuple[`Tensor` | QuantileTensor | UnivariateTensor]]
+        Return the reconstructed inputs and inferred outputs as tuple (reconstructed inputs, outputs).
+        Reconstructed inputs is a tuple of tensors as the mask is not the same through models.
+        Outputs can be a tuple of tensors or an aggregated tensor if the prediction is used through `predict` method.
+
     Attributes
     ----------
+    see :class:`autopycoin.models.Pool`
 
     Examples
     --------
@@ -831,7 +776,7 @@ class PoolNBEATS(BasePool):
     ...
     >>> model = PoolNBEATS(
     ...             label_width=10,
-    ...             n_models=10,
+    ...             n_models=2,
     ...             nbeats_models=create_interpretable_nbeats,
     ...             )
     >>> model.compile(tf.keras.optimizers.Adam(
@@ -843,6 +788,25 @@ class PoolNBEATS(BasePool):
 
     Notes
     -----
+    PoolNBEATS is just a wrapper around nbeats models hence you can use epistemic loss error
+    or multivariates inputs.
+    This class only applies mask to its inputs.
+
+    *Input shape*
+    N-D tensor with shape: (batch_size, time step, variables) or (batch_size, time step).
+    The most common situation would be a 2D input with shape (batch_size, time step).
+
+    *Output shape*
+    n N-D tensors with shape: (batch_size, time step, variables, quantiles) or (batch_size, time step, quantiles)
+    or (batch_size, time step) with n the number of models generated randomly or registered in the constructor.
+
+    For instance, for a 2D input with shape (batch_size, units) and three models,
+    the output would have shape 
+    (((batch_size, units), (batch_size, units), (batch_size, units)), ((batch_size, units), (batch_size, units), (batch_size, units)))
+    if call is used else
+    (((batch_size, units), (batch_size, units), (batch_size, units)), (batch_size, units)) if predict is used.
+
+    The outputs tensors can be aggregated during `predict` method only if all tensors are similar in shape.
     """
 
     def __init__(
@@ -858,7 +822,7 @@ class PoolNBEATS(BasePool):
         super().__init__(
             label_width=label_width,
             n_models=n_models,
-                models=nbeats_models,
+            models=nbeats_models,
             fn_agg=fn_agg,
             seed=seed,
             **kwargs
@@ -895,7 +859,10 @@ class PoolNBEATS(BasePool):
         super().build(input_shape)
 
     def call(self, inputs: Union[tuple, dict, list, tf.Tensor], **kwargs: dict) -> tf.Tensor:
-        """Call method from tensorflow Model."""
+        """Call method from tensorflow Model.
+        
+        Make prediction with every models generated during the constructor method.
+        """
 
         output_fn = lambda idx: self.models[idx](inputs[:, -self._mask[idx]:])
         outputs = tf.nest.map_structure(
