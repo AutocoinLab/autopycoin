@@ -9,7 +9,7 @@ import numpy as np
 from absl.testing import parameterized
 
 import tensorflow as tf
-from tensorflow.keras.backend import floatx
+from keras.backend import floatx
 
 from .generate import random_ts
 

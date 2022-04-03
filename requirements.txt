@@ -5,3 +5,6 @@ tensorflow >= 2.6.0
 tensorflow-probability
 pylint
 keras-tuner
+sphinx
+sphinx-gallery
+pydata-sphinx-theme

@@ -8,10 +8,11 @@ from .nbeats import (
     Stack,
     create_interpretable_nbeats,
     create_generic_nbeats,
-    interpretable_nbeats_builder,
 )
 
-from .training import Model
+from .training import BaseModel, QuantileModel, UnivariateModel
+
+from .pool import BasePool
 
 __ALL__ = [
     "NBEATS",
@@ -19,6 +20,8 @@ __ALL__ = [
     "Stack",
     "create_interpretable_nbeats",
     "create_generic_nbeats",
-    "Model",
-    "interpretable_nbeats_builder",
+    "UnivariateModel",
+    "BaseModel",
+    "QuantileModel",
+    "BasePool",
 ]

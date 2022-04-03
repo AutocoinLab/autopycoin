@@ -6,6 +6,28 @@ API of Autopycoin
 
 .. currentmodule:: autopycoin
 
+Base models
+===========
+
+.. autosummary::
+   :toctree: generated/
+   :template: class.rst
+
+   models.BaseModel
+
+.. autosummary::
+   :toctree: generated/
+   :template: class.rst
+
+   models.QuantileModel
+
+.. autosummary::
+   :toctree: generated/
+   :template: function.rst
+
+   models.UnivariateModel
+
+
 nbeats
 ======
 

@@ -11,6 +11,11 @@ This reference manual details functions, modules, and objects included in NumPy,
    losses
 
 .. toctree::
+   :maxdepth: 2
+
+   extension_type
+
+.. toctree::
    :maxdepth: 3
 
    models

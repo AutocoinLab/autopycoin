@@ -8,6 +8,7 @@ import tensorflow as tf
 from tensorflow import test
 from tensorflow.python.keras import combinations
 from tensorflow.python.keras.utils import losses_utils
+
 from . import losses
 
 
@@ -20,22 +21,20 @@ class QuantileLossTest(test.TestCase):
 
         self.assertEqual(ql_obj.name, "ql_1")
         self.assertEqual(ql_obj.reduction, losses_utils.ReductionV2.SUM)
-        self.assertEqual(ql_obj.quantiles, [0.1, 0.5, 0.9])
+        self.assertEqual(ql_obj.quantiles, [[0.9]])
 
     def test_all_correct_unweighted(self):
         ql_obj = losses.QuantileLossError(quantiles=[0.1, 0.5, 0.9])
-        y_true = tf.constant([[4, 8, 12, 8, 1, 3]], shape=(2, 3), dtype=tf.float32,)
-        y_pred = tf.constant(
-            [[[4, 4, 4], [8, 8, 8], [12, 12, 12]], [[8, 8, 8], [1, 1, 1], [3, 3, 3]]],
-            shape=(2, 3, 3),
-            dtype=tf.float32,
+        y_true = tf.constant(
+            [[[4, 4, 4], [8, 8, 8], [12, 12, 12]]], shape=(3, 3, 1), dtype=tf.float32,
         )
+        y_pred = y_true
         loss = ql_obj(y_true, y_pred)
         self.assertAlmostEqual(self.evaluate(loss), 0.0, 3)
 
     def test_unweighted(self):
         ql_obj = losses.QuantileLossError(quantiles=[0.1, 0.5, 0.9])
-        y_true = tf.constant([[1, 9, 2, -5, -2, 6]], shape=(2, 3),)
+        y_true = tf.constant([[[1, 9, 2], [-5, -2, 6]]], shape=(2, 3, 1),)
         y_pred = tf.constant(
             [[[4, 4, 4], [8, 8, 8], [12, 12, 12]], [[8, 8, 8], [1, 1, 1], [3, 3, 3]]],
             shape=(2, 3, 3),
@@ -46,7 +45,7 @@ class QuantileLossTest(test.TestCase):
 
     def test_scalar_weighted(self):
         ql_obj = losses.QuantileLossError(quantiles=[0.1, 0.5, 0.9])
-        y_true = tf.constant([[1, 9, 2, -5, -2, 6]], shape=(2, 3),)
+        y_true = tf.constant([[[1, 9, 2], [-5, -2, 6]]], shape=(2, 3, 1),)
         y_pred = tf.constant(
             [[[4, 4, 4], [8, 8, 8], [12, 12, 12]], [[8, 8, 8], [1, 1, 1], [3, 3, 3]]],
             shape=(2, 3, 3),
@@ -57,7 +56,7 @@ class QuantileLossTest(test.TestCase):
 
     def test_sample_weighted(self):
         ql_obj = losses.QuantileLossError(quantiles=[0.1, 0.5, 0.9])
-        y_true = tf.constant([[1, 9, 2, -5, -2, 6]], shape=(2, 3),)
+        y_true = tf.constant([[[1, 9, 2], [-5, -2, 6]]], shape=(2, 3, 1),)
         y_pred = tf.constant(
             [[[4, 4, 4], [8, 8, 8], [12, 12, 12]], [[8, 8, 8], [1, 1, 1], [3, 3, 3]]],
             shape=(2, 3, 3),
@@ -69,7 +68,7 @@ class QuantileLossTest(test.TestCase):
 
     def test_timestep_weighted(self):
         ql_obj = losses.QuantileLossError(quantiles=[0.1, 0.5, 0.9])
-        y_true = tf.constant([[1, 9, 2, -5, -2, 6]], shape=(2, 3, 1),)
+        y_true = tf.constant([[[1, 9, 2], [-5, -2, 6]]], shape=(2, 3, 1, 1),)
         y_pred = tf.constant(
             [[[4, 4, 4], [8, 8, 8], [12, 12, 12]], [[8, 8, 8], [1, 1, 1], [3, 3, 3]]],
             shape=(2, 3, 1, 3),
@@ -82,7 +81,7 @@ class QuantileLossTest(test.TestCase):
 
     def test_zero_weighted(self):
         ql_obj = losses.QuantileLossError(quantiles=[0.1, 0.5, 0.9])
-        y_true = tf.constant([[1, 9, 2, -5, -2, 6]], shape=(2, 3),)
+        y_true = tf.constant([[[1, 9, 2], [-5, -2, 6]]], shape=(2, 3, 1),)
         y_pred = tf.constant(
             [[[4, 4, 4], [8, 8, 8], [12, 12, 12]], [[8, 8, 8], [1, 1, 1], [3, 3, 3]]],
             shape=(2, 3, 3),
@@ -95,7 +94,7 @@ class QuantileLossTest(test.TestCase):
         ql_obj = losses.QuantileLossError(
             quantiles=[0.1, 0.5, 0.9], reduction=losses_utils.ReductionV2.NONE
         )
-        y_true = tf.constant([[1, 9, 2, -5, -2, 6]], shape=(2, 3),)
+        y_true = tf.constant([[[1, 9, 2], [-5, -2, 6]]], shape=(2, 3, 1),)
         y_pred = tf.constant(
             [[[4, 4, 4], [8, 8, 8], [12, 12, 12]], [[8, 8, 8], [1, 1, 1], [3, 3, 3]]],
             shape=(2, 3, 3),
@@ -109,7 +108,7 @@ class QuantileLossTest(test.TestCase):
         ql_obj = losses.QuantileLossError(
             quantiles=[0.1, 0.5, 0.9], reduction=losses_utils.ReductionV2.AUTO
         )
-        y_true = tf.constant([[1, 9, 2, -5, -2, 6]], shape=(2, 3),)
+        y_true = tf.constant([[[1, 9, 2], [-5, -2, 6]]], shape=(2, 3, 1),)
         y_pred = tf.constant(
             [[[4, 4, 4], [8, 8, 8], [12, 12, 12]], [[8, 8, 8], [1, 1, 1], [3, 3, 3]]],
             shape=(2, 3, 3),
@@ -119,7 +118,7 @@ class QuantileLossTest(test.TestCase):
         self.assertAlmostEqual(self.evaluate(loss), 18.975, 2)
 
     def test_raise_negative_quantiles(self):
-        with self.assertRaises(AssertionError):
+        with self.assertRaises(ValueError):
             losses.QuantileLossError(
                 quantiles=[-0.1, 0.5], reduction=losses_utils.ReductionV2.AUTO
             )

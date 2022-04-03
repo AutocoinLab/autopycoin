@@ -1,6 +1,6 @@
-﻿autopycoin.layers.BaseBlock
+﻿autopycoin.layers.BaseLayer
 ===========================
 
 .. currentmodule:: autopycoin.layers
 
-.. autoclass:: BaseBlock
+.. autoclass:: BaseLayer

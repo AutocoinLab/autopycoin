@@ -25,7 +25,7 @@ INSTALL_REQUIRES = [
     "numpy",
     "matplotlib",
     "pandas",
-    "tensorflow >= 2.6.0",
+    "tensorflow >= 2.8.0",
     "tensorflow-probability",
     "plotly",
     "keras-tuner",
