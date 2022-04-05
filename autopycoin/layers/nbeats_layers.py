@@ -3,15 +3,16 @@ import numpy as np
 import abc
 
 import tensorflow as tf
-from tensorflow.keras.layers import Dropout, InputSpec
+from keras.layers import Dropout, InputSpec
+from keras.backend import floatx
 
 from ..utils import range_dims, convert_to_list
-from .base_layer import Layer
-from ..baseclass import AutopycoinBaseClass
+from .base_layer import UnivariateLayer
 from ..asserts import greater_or_equal, equal_length, is_between
+from ..constant import TENSOR_TYPE
 
 
-class BaseBlock(Layer, AutopycoinBaseClass):
+class BaseBlock(UnivariateLayer):
     """
     Base class of a nbeats block.
 
@@ -49,7 +50,7 @@ class BaseBlock(Layer, AutopycoinBaseClass):
 
     """
 
-    NOT_INSPECT = ["call", "_output"]
+    NOT_INSPECT = ["call", "_output", "build"]
 
     def __init__(
         self,
@@ -71,8 +72,10 @@ class BaseBlock(Layer, AutopycoinBaseClass):
         self._is_interpretable = interpretable
         self._block_type = block_type
 
-    def build(self, input_shape: tf.TensorShape) -> None:
+    # TODO: put input_spec in UnivariateLayer
+    def build(self, inputs_shape: tf.TensorShape) -> None:
         """See tensorflow documentation."""
+
         dtype = tf.as_dtype(self.dtype or tf.float32())
         if not (dtype.is_floating or dtype.is_complex):
             raise TypeError(
@@ -80,8 +83,8 @@ class BaseBlock(Layer, AutopycoinBaseClass):
                 "non-floating point dtype %s" % (dtype,)
             )
 
-        input_shape = tf.TensorShape(input_shape)
-        self._input_width = tf.compat.dimension_value(input_shape[-1])
+        inputs_shape = tf.TensorShape(inputs_shape)
+        self._input_width = tf.compat.dimension_value(inputs_shape[-1])
         if self.input_width is None:
             raise ValueError(
                 f"The last dimension of the inputs"
@@ -90,11 +93,6 @@ class BaseBlock(Layer, AutopycoinBaseClass):
 
         self.input_spec = InputSpec(min_ndim=2, axes={-1: self.input_width})
 
-        # multi univariate inputs
-        self._multivariate = input_shape.as_list()[:1] if input_shape.rank > 2 else []
-        if self.n_quantiles > 1 and self._multivariate:
-            self._multivariate = self._multivariate + [1]
-
         # Computing fc layers
         dim = self.input_width
         self.fc_stack = []
@@ -102,11 +100,11 @@ class BaseBlock(Layer, AutopycoinBaseClass):
             self.fc_stack.append(
                 (
                     self.add_weight(
-                        shape=self._multivariate + [dim, self._n_neurons],
+                        shape=self.n_variates + [dim, self._n_neurons],
                         name=f"fc_kernel_{self.name}_{count}",
                     ),
                     self.add_weight(
-                        shape=self._multivariate + [1, self._n_neurons],
+                        shape=self.n_variates + [1, self._n_neurons],
                         initializer="zeros",
                         name=f"fc_bias_{self.name}_{count}",
                     ),
@@ -116,9 +114,14 @@ class BaseBlock(Layer, AutopycoinBaseClass):
 
         self.dropout = Dropout(self.drop_rate)
 
-        self._build_branch(self.label_width, branch_name="forecast")
-        self._build_branch(self.input_width, branch_name="backcast")
-        super().build(input_shape)
+        self.fc_forecast, self.forecast_coef = self._build_branch(
+            self.label_width, branch_name="forecast"
+        )
+        self.fc_backcast, self.backcast_coef = self._build_branch(
+            self.input_width, branch_name="backcast"
+        )
+
+        super().build(inputs_shape)
 
     def _build_branch(self, output_last_dim: int, branch_name: str) -> None:
         """
@@ -129,20 +132,18 @@ class BaseBlock(Layer, AutopycoinBaseClass):
 
         # If the model is compiling with a loss error defining uncertainty then
         # broadcast the output to take into account this uncertainty.
-        shape_fc = self._multivariate + [self._n_neurons, coef.shape[-2]]
+        shape_fc = [self._n_neurons, coef.shape[-2]]
 
-        if self.n_quantiles > 1 and branch_name == "forecast":
+        if branch_name == "forecast":
             # We place quantiles after multivariates
-            if self._multivariate:
-                shape_fc[1] = self.n_quantiles
-            else:
-                shape_fc.insert(0, self.n_quantiles)
+            shape_fc = self.get_additional_shapes(0) + shape_fc
+        elif branch_name == "backcast":
+            shape_fc = self.n_variates + shape_fc
+
         # If multivariate inputs then we modify the shape of fc layers
         fc = self.add_weight(shape=shape_fc, name=f"fc_{branch_name}_{self.name}")
 
-        # Set attributes dynamically
-        setattr(self, f"fc_{branch_name}", fc)
-        setattr(self, f"{branch_name}_coef", coef)
+        return fc, coef
 
     @abc.abstractmethod
     def get_coefficients(self, output_last_dim: int, branch_name: str) -> tf.Tensor:
@@ -181,14 +182,15 @@ class BaseBlock(Layer, AutopycoinBaseClass):
         )
 
     def call(
-        self, inputs: tf.Tensor
-    ) -> Tuple[tf.Tensor]:  # pylint: disable=arguments-differ
+        self, inputs: TENSOR_TYPE, **kwargs: dict
+    ) -> TENSOR_TYPE:  # pylint: disable=arguments-differ
         """See tensorflow documentation."""
 
         for kernel, bias in self.fc_stack:
             # shape: (Batch_size, n_neurons)
             inputs = tf.add(tf.matmul(inputs, kernel), bias)
-            inputs = tf.nn.relu(inputs)
+            inputs = tf.keras.activations.relu(inputs)
+            # TODO: change dropout to let the user choose
             inputs = self.dropout(inputs, training=True)
 
         # shape: (Batch_size, backcast)
@@ -200,7 +202,8 @@ class BaseBlock(Layer, AutopycoinBaseClass):
         outputs = self._output(
             inputs, self.fc_forecast, self.forecast_coef
         )  # layers fc and coef created in _build_branch
-        return outputs, reconstructed_inputs
+
+        return reconstructed_inputs, outputs
 
     def _output(
         self, inputs: tf.Tensor, fc: tf.Tensor, coef: tf.Tensor
@@ -212,32 +215,26 @@ class BaseBlock(Layer, AutopycoinBaseClass):
         return tf.matmul(theta, coef)
 
     def compute_output_shape(
-        self, input_shape: tf.TensorShape
+        self, inputs_shape: tf.TensorShape
     ) -> Tuple[tf.TensorShape]:
         """See tensorflow documentation."""
 
-        input_shape = tf.TensorShape(input_shape)
-        input_shape = input_shape.with_rank_at_least(2)
-        last_dim_input = tf.compat.dimension_value(input_shape[-1])
+        inputs_shape = tf.TensorShape(inputs_shape)
+        inputs_shape = inputs_shape.with_rank_at_least(2)
+        last_dim_input = tf.compat.dimension_value(inputs_shape[-1])
         if last_dim_input is None:
             raise ValueError(
-                "The innermost dimension of input_shape must be defined, but saw: %s"
-                % (input_shape,)
+                "The innermost dimension of inputs_shape must be defined, but saw: %s"
+                % (inputs_shape,)
             )
 
-        # multi univariate inputs
-        multivariate = input_shape.as_list()[:1] if input_shape.rank > 2 else []
-
-        # If the model is compiled with a loss error defining uncertainty then
-        # reshape the output to take into account this uncertainty.
-        output_shape_forecast = input_shape[:-1] + [self.label_width]
-        if self.n_quantiles > 1:
-            # We place quantiles after multivariates dim
-            output_shape_forecast.insert(len(multivariate), self.n_quantiles)
+        output_shape_forecast = (
+            [inputs_shape[0]] + self.get_additional_shapes(0) + [self.label_width]
+        )
 
         return [
+            inputs_shape,
             tf.TensorShape(output_shape_forecast),
-            input_shape,
         ]
 
     @property
@@ -286,7 +283,7 @@ class BaseBlock(Layer, AutopycoinBaseClass):
             raise ValueError(f"`name` has to contain `Block`. Got {self.name}")
 
 
-class TrendBlock(BaseBlock, AutopycoinBaseClass):
+class TrendBlock(BaseBlock):
     """
     Trend block definition.
 
@@ -384,7 +381,7 @@ class TrendBlock(BaseBlock, AutopycoinBaseClass):
         self._p_degree = p_degree
 
     def coefficient_factory(
-        self, output_last_dim: float, p_degrees: tf.Tensor
+        self, output_last_dim: int, p_degrees: tf.Tensor
     ) -> tf.Tensor:
         """
         Compute the coefficients used in the last layer a.k.a g layer.
@@ -399,11 +396,12 @@ class TrendBlock(BaseBlock, AutopycoinBaseClass):
         coefficients : `tensor with shape (p_degree, label_width)`
             Coefficients of the g layer.
         """
-        coefficients = (tf.range(output_last_dim) / output_last_dim) ** p_degrees
 
-        return coefficients
+        return tf.math.pow(
+            (tf.range(output_last_dim, dtype=floatx()) / output_last_dim), p_degrees
+        )
 
-    def get_coefficients(self, output_last_dim: float, branch_name: str) -> tf.Tensor:
+    def get_coefficients(self, output_last_dim: int, branch_name: str) -> tf.Tensor:
         """
         Return the coefficients calculated by the  `_coefficients_factory` method.
 
@@ -457,7 +455,7 @@ class TrendBlock(BaseBlock, AutopycoinBaseClass):
 SEASONALITY_TYPE = Union[Union[int, float], List[Union[int, float]]]
 
 
-class SeasonalityBlock(BaseBlock, AutopycoinBaseClass):
+class SeasonalityBlock(BaseBlock):
     """
     Seasonality block definition.
 
@@ -576,7 +574,7 @@ class SeasonalityBlock(BaseBlock, AutopycoinBaseClass):
         )
 
         # forecast periods and fourier order can be calculated if not provided
-        # backcast has to wait unitl `build` is called
+        # backcast has to wait until `build` is called
         self._forecast_periods = (
             forecast_periods if forecast_periods else int(label_width / 2)
         )
@@ -587,34 +585,31 @@ class SeasonalityBlock(BaseBlock, AutopycoinBaseClass):
         self._backcast_periods = backcast_periods
         self._backcast_fourier_order = backcast_fourier_order
 
-    def build(self, input_shape: tf.TensorShape):
+    def build(self, inputs_shape: tf.TensorShape):
         """Build method from tensorflow."""
 
         # if None then set an default value based on the *input shape*
-        self._backcast_periods = (
-            self._backcast_periods
-            if self._backcast_periods
-            else int(input_shape[-1] / 2)
-        )
+        self._backcast_periods = self._backcast_periods or int(inputs_shape[-1] / 2)
         self._backcast_fourier_order = (
-            self._backcast_fourier_order
-            if self._backcast_fourier_order
-            else self._backcast_periods
+            self._backcast_fourier_order or self._backcast_periods
         )
 
-        super().build(input_shape)
+        super().build(inputs_shape)
 
     def coefficient_factory(
-        self, output_last_dim: float, periods: List[float], fourier_orders: List[float],
+        self,
+        output_last_dim: int,
+        periods: Union[int, float, List[Union[int, float]]],
+        fourier_orders: Union[int, float, List[Union[int, float]]],
     ) -> tf.Tensor:
         """
         Compute the coefficients used in the last layer a.k.a g constrained layer.
 
         Parameters
         ----------
-        output_last_dim : float
-        periods : Tuple[float, ...]
-        fourier_orders : Tuple[float, ...]
+        output_last_dim : int
+        periods : int | float | Tuple[int | float]
+        fourier_orders : int | float | Tuple[int | float]
 
         Returns
         -------
@@ -624,16 +619,18 @@ class SeasonalityBlock(BaseBlock, AutopycoinBaseClass):
 
         # Shape (-1, 1) in order to broadcast periods to all time units
         periods = tf.reshape(periods, shape=(-1, 1, 1))
-        time_forecast = tf.range(output_last_dim)
+        periods = tf.cast(periods, dtype=floatx())
+        time_forecast = tf.range(output_last_dim, dtype=floatx())
 
         seasonality = 2.0 * np.pi * time_forecast / periods
         seasonality = (
-            tf.expand_dims(tf.ragged.range(fourier_orders), axis=-1) * seasonality
+            tf.expand_dims(tf.ragged.range(fourier_orders, dtype=floatx()), axis=-1)
+            * seasonality
         )
         seasonality = tf.concat((tf.sin(seasonality), tf.cos(seasonality)), axis=0)
         return seasonality.flat_values
 
-    def get_coefficients(self, output_last_dim: float, branch_name: str) -> tf.Tensor:
+    def get_coefficients(self, output_last_dim: int, branch_name: str) -> tf.Tensor:
         """
         Return the coefficients calculated by the  `_coefficients_factory` method.
 
@@ -716,7 +713,7 @@ class SeasonalityBlock(BaseBlock, AutopycoinBaseClass):
             )
 
 
-class GenericBlock(BaseBlock, AutopycoinBaseClass):
+class GenericBlock(BaseBlock):
     """
     Generic block definition as described in the paper.
 
@@ -815,7 +812,7 @@ class GenericBlock(BaseBlock, AutopycoinBaseClass):
         """
 
         coefficients = tf.keras.initializers.GlorotUniform(seed=42)(
-            shape=self._multivariate + [neurons, output_last_dim]
+            shape=self.n_variates + [neurons, output_last_dim]
         )
 
         return coefficients

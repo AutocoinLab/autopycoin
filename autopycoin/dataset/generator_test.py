@@ -1130,7 +1130,7 @@ class TestGenerator(tf.test.TestCase, parameterized.TestCase):
             p_degree=1,
             trend_n_neurons=16,
             seasonality_n_neurons=16,
-            drop_rate=0,
+            drop_rate=0.0,
             share=True,
         )
 

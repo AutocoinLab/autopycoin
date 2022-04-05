@@ -162,11 +162,6 @@ def _convert_value(
         return _check_list(value, expected_type, path, context)
     elif isinstance(value, expected_type):
         return value
-    try:
-        if convert and (expected_type != int or not isinstance(value, float)):
-            return expected_type(value)
-    except (ValueError, TypeError):
-        pass
 
     raise TypeError(
         f'{"".join(path)}: expected {expected_type.__name__}, got {value!r}'

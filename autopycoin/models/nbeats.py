@@ -2,23 +2,18 @@
 N-BEATS implementation
 """
 
-from typing import Callable, Union, Tuple, List
-from numpy.random import randint
-import keras_tuner as kt
+from typing import Callable, Union, Tuple, List, Optional
+from typing import List, Optional
 
 import tensorflow as tf
-from tensorflow.python.keras.losses import LossFunctionWrapper
 
-from autopycoin.losses.losses import QuantileLossError
-
-from ..utils.data_utils import convert_to_list
-from .training import Model
-from ..baseclass import AutopycoinBaseClass
-from ..layers import TrendBlock, SeasonalityBlock, GenericBlock, UniVariate, BaseBlock
+from .training import UnivariateModel
+from ..layers import TrendBlock, SeasonalityBlock, GenericBlock, BaseBlock
 from ..layers.nbeats_layers import SEASONALITY_TYPE
+from .pool import BasePool
 
 
-class Stack(Model):
+class Stack(UnivariateModel):
     """
     A stack is a series of blocks where each block produces two outputs,
     the forecast and the backcast.
@@ -68,7 +63,7 @@ class Stack(Model):
     ... # Stacks creation
     >>> trend_stacks = Stack(trend_blocks, name="trend_stack")
     >>> seasonality_stacks = Stack(seasonality_blocks, name="seasonality_stack")
-    ... 
+    ...
     ... # model definition and compiling
     >>> model = NBEATS([trend_stacks, seasonality_stacks], name="interpretable_NBEATS")
     >>> model.compile(loss=QuantileLossError(quantiles=[0.5]))
@@ -87,15 +82,27 @@ class Stack(Model):
     If you add 2 variables, the output would have shape (variables, quantiles, batch_size, units).
     """
 
-    def __init__(self, blocks: Tuple[BaseBlock, ...], **kwargs: dict):
+    def __init__(
+        self,
+        blocks: Tuple[BaseBlock, ...],
+        apply_quantiles_transpose: bool = False,
+        apply_multivariate_transpose: bool = False,
+        *args: list,
+        **kwargs: dict,
+    ):
 
-        super().__init__(**kwargs)
+        super().__init__(
+            apply_quantiles_transpose=apply_quantiles_transpose,
+            apply_multivariate_transpose=apply_multivariate_transpose,
+            *args,
+            **kwargs,
+        )
         self._blocks = blocks
         self._stack_type = self._set_type()
         self._is_interpretable = self._set_interpretability()
 
     def call(
-        self, inputs: Union[tuple, dict, list, tf.Tensor]
+        self, inputs: Union[tuple, dict, list, tf.Tensor], **kwargs: dict
     ) -> Tuple[tf.Tensor, ...]:
         """Call method from tensorflow."""
 
@@ -103,14 +110,15 @@ class Stack(Model):
         for block in self.blocks:
             # outputs is (quantiles, Batch_size, forecast)
             # reconstructed_inputs is (Batch_size, backcast)
-            residual_outputs, reconstructed_inputs = block(inputs)
+            reconstructed_inputs, residual_outputs = block(inputs)
             inputs = tf.subtract(inputs, reconstructed_inputs)
             # outputs is (quantiles, Batch_size, forecast)
             outputs = tf.add(outputs, residual_outputs)
-        return outputs, inputs
+        return inputs, outputs
 
     def get_config(self) -> dict:
         """See tensorflow documentation."""
+
         config = super().get_config()
         config.update({"blocks": self.blocks})
         return config
@@ -167,12 +175,12 @@ class Stack(Model):
         return self.stack_type
 
 
-class NBEATS(Model, AutopycoinBaseClass):
+class NBEATS(UnivariateModel):
     """
     Tensorflow model defining the N-BEATS architecture.
 
-    N-BEATS is a univariate model. Its strong advantage
-    resides in its structure which allows us to extract the trend and the seasonality of
+    N-BEATS is a univariate model, see :class:`autopycoin.models.UnivariateModel` for more information.
+    Its strong advantage resides in its structure which allows us to extract the trend and the seasonality of
     temporal series. They are available from the attributes `seasonality` and `trend`.
     This is an unofficial implementation of the paper https://arxiv.org/abs/1905.10437.
 
@@ -201,13 +209,47 @@ class NBEATS(Model, AutopycoinBaseClass):
     >>> from autopycoin.layers import TrendBlock, SeasonalityBlock
     >>> from autopycoin.models import Stack, NBEATS
     >>> from autopycoin.losses import QuantileLossError
-    >>> trend_block = TrendBlock(label_width=20,
+    >>> from autopycoin.data import random_ts
+    >>> from autopycoin.dataset import WindowGenerator
+    >>> import tensorflow as tf
+    >>> import pandas as pd
+    ...
+    >>> data = random_ts(n_steps=1000,
+    ...                  trend_degree=2,
+    ...                  periods=[10],
+    ...                  fourier_orders=[10],
+    ...                  trend_mean=0,
+    ...                  trend_std=1,
+    ...                  seasonality_mean=0,
+    ...                  seasonality_std=1,
+    ...                  batch_size=1,
+    ...                  n_variables=1,
+    ...                  noise=True,
+    ...                  seed=42)
+    >>> data = pd.DataFrame(data[0].numpy(), columns=['test'])
+    ...
+    >>> w = WindowGenerator(
+    ...        input_width=20,
+    ...        label_width=10,
+    ...        shift=10,
+    ...        test_size=50,
+    ...        valid_size=10,
+    ...        flat=True,
+    ...        batch_size=32,
+    ...        preprocessing=lambda x,y: (x, (x, y))
+    ...     )
+    ...
+    >>> w = w.from_array(data=data,
+    ...        input_columns=['test'],
+    ...        label_columns=['test'])
+    >>>
+    >>> trend_block = TrendBlock(label_width=w.label_width,
     ...                          p_degree=2,
     ...                          n_neurons=16,
     ...                          drop_rate=0.1,
     ...                          name="trend_block")
     >>>
-    >>> seasonality_block = SeasonalityBlock(label_width=20,
+    >>> seasonality_block = SeasonalityBlock(label_width=w.label_width,
     ...                                      forecast_periods=[10],
     ...                                      backcast_periods=[20],
     ...                                      forecast_fourier_order=[10],
@@ -223,6 +265,7 @@ class NBEATS(Model, AutopycoinBaseClass):
     >>>
     >>> model = NBEATS([trend_stacks, seasonality_stacks], name="interpretable_NBEATS")
     >>> model.compile(loss=QuantileLossError(quantiles=[0.5]))
+    >>> history = model.fit(w.train, verbose=0)
 
     Notes
     -----
@@ -240,24 +283,22 @@ class NBEATS(Model, AutopycoinBaseClass):
     The most common situation would be a 2D input with shape (batch_size, time step).
 
     *Output shape*
-    N-D tensor with shape: (batch_size, time step, variables, quantiles) or (batch_size, time step, quantiles)
+    Two N-D tensor with shape: (batch_size, time step, variables, quantiles) or (batch_size, time step, quantiles)
     or (batch_size, time step).
     For instance, for a 2D input with shape (batch_size, units),
     the output would have shape (batch_size, units).
     With a QuantileLossError with 2 quantiles or higher the output
-    would have shape (quantiles, batch_size, units).
+    would have shape (batch_size, units, quantiles).
+    With a multivariate inputs the output
+    would have shape (batch_size, units, variates, quantiles).
     """
 
-    def __init__(self, stacks: Tuple[Stack, ...], **kwargs: dict):
+    def __init__(self, stacks: Tuple[Stack, ...], *args: list, **kwargs: dict):
 
-        super().__init__(**kwargs)
+        super().__init__(*args, **kwargs)
 
         # Stacks where blocks are defined
         self._stacks = stacks
-
-        # multi univariate inputs
-        self.strategy_input = UniVariate(last_to_first=True)
-        self.strategy_output = UniVariate(last_to_first=False)
 
         self._is_interpretable = self._set_interpretability()
         self._nbeats_type = self._set_type()
@@ -270,26 +311,51 @@ class NBEATS(Model, AutopycoinBaseClass):
         if isinstance(input_shape, tuple):
             input_shape = input_shape[0]
 
-        input_shape = tf.TensorShape(input_shape)
-
-        if bool(input_shape.rank > 2):
-            self.strategy_input.is_multivariate = True
-            self.strategy_output.is_multivariate = True
-
         super().build(input_shape)
 
-    def call(self, inputs: Union[tuple, dict, list, tf.Tensor]) -> tf.Tensor:
+    def compile(
+        self,
+        optimizer="rmsprop",
+        loss=None,
+        metrics=None,
+        loss_weights=[0.0, 1.0],
+        weighted_metrics=None,
+        run_eagerly=None,
+        steps_per_execution=None,
+        **kwargs,
+    ) -> None:
+
+        super().compile(
+            optimizer=optimizer,
+            loss=loss,
+            metrics=metrics,
+            loss_weights=loss_weights,
+            weighted_metrics=weighted_metrics,
+            run_eagerly=run_eagerly,
+            steps_per_execution=steps_per_execution,
+            **kwargs,
+        )
+
+    def call(
+        self, inputs: Union[tuple, dict, list, tf.Tensor], **kwargs: dict
+    ) -> tf.Tensor:
         """Call method from tensorflow."""
 
-        inputs = self.strategy_input(inputs)
+        if isinstance(inputs, (tuple, list)):
+            inputs = inputs[0]
+
+        residual_inputs = tf.identity(inputs)
         outputs = tf.constant(0.0)
         for stack in self.stacks:
             # outputs_residual is (quantiles, Batch_size, forecast)
             # inputs is (Batch_size, backcast)
-            residual_outputs, inputs = stack(inputs)
+            residual_inputs, residual_outputs = stack(residual_inputs)
             # outputs is (quantiles, Batch_size, forecast)
             outputs = tf.math.add(outputs, residual_outputs)
-        return self.strategy_output(outputs)  # , inputs - reconstructed_inputs
+
+        reconstructed_inputs = inputs - residual_inputs
+
+        return reconstructed_inputs, outputs
 
     def seasonality(self, data: tf.Tensor) -> tf.Tensor:
         """
@@ -332,9 +398,9 @@ class NBEATS(Model, AutopycoinBaseClass):
             raise AttributeError(f"No `SeasonalityStack` defined. Got {self.stacks}")
 
         for stack in self.stacks[:start]:
-            _, data = stack(data)
+            data, _ = stack(data)
         for stack in self.stacks[start : idx + 1]:
-            residual_seas, data = stack(data)
+            data, residual_seas = stack(data)
             if "seasonality" not in locals():
                 seasonality = residual_seas
             else:
@@ -365,7 +431,7 @@ class NBEATS(Model, AutopycoinBaseClass):
             raise AttributeError(msg)
 
         for stack in self.stacks[: idx + 1]:
-            residual_trend, data = stack(data)
+            data, residual_trend = stack(data)
             if "trend" not in locals():
                 trend = residual_trend
             else:
@@ -423,255 +489,9 @@ class NBEATS(Model, AutopycoinBaseClass):
         return self._nbeats_type
 
 
-# TODO: finish doc and unit testing.
-class PoolNBEATS(Model, AutopycoinBaseClass):
-    """
-    Tensorflow model defining a pool of N-BEATS models.
-
-    As described in the paper https://arxiv.org/abs/1905.10437, the state-of-the-art results
-    are reached with a bagging method of N-BEATS models including interpretable and generic ones.
-
-    Parameters
-    ----------
-    n_models : int
-        Number of models inside the pool.
-    nbeats_models : list[callable]
-        A list of callables which create a NBEATS model.
-    losses : list[str or `tf.keras.losses.Loss`]
-        List of losses used to train the models.
-    fn_agg : Callable
-        Function of aggregation which takes an parameter axis.
-        It aggregates the models outputs. Default to mean.
-    seed: int
-        Used in combination with tf.random.set_seed to create a
-        reproducible sequence of tensors across multiple calls.
-
-    Attributes
-    ----------
-
-    Examples
-    --------
-    >>> from autopycoin.data import random_ts
-    >>> from autopycoin.models import PoolNBEATS, create_interpretable_nbeats
-    >>> from autopycoin.dataset import WindowGenerator
-    >>> import tensorflow as tf
-    >>> import pandas as pd
-    ...
-    >>> data = random_ts(n_steps=1000,
-    ...                  trend_degree=2,
-    ...                  periods=[10],
-    ...                  fourier_orders=[10],
-    ...                  trend_mean=0,
-    ...                  trend_std=1,
-    ...                  seasonality_mean=0,
-    ...                  seasonality_std=1,
-    ...                  batch_size=1,
-    ...                  n_variables=1,
-    ...                  noise=True,
-    ...                  seed=42)
-    >>> data = pd.DataFrame(data[0].numpy(), columns=['test'])
-    ...
-    >>> w = WindowGenerator(
-    ...        input_width=70,
-    ...        label_width=10,
-    ...        shift=10,
-    ...        test_size=50,
-    ...        valid_size=10,
-    ...        flat=True,
-    ...        batch_size=32,
-    ...     )
-    ...
-    >>> w = w.from_array(data=data,
-    ...        input_columns=['test'],
-    ...        label_columns=['test'])
-    ...
-    >>> nbeats = lambda : create_interpretable_nbeats(
-    ...                 label_width=10,
-    ...                 forecast_periods=[10],
-    ...                 backcast_periods=[20],
-    ...                 forecast_fourier_order=[10],
-    ...                 backcast_fourier_order=[20],
-    ...                 p_degree=2,
-    ...                 trend_n_neurons=32,
-    ...                 seasonality_n_neurons=32,
-    ...                 drop_rate=0.1,
-    ...                 share=True
-    ...          )
-    ...
-    >>> model = PoolNBEATS(
-    ...             n_models=10,
-    ...             nbeats_models=nbeats,
-    ...             losses=['mse', 'mae', 'mape'])
-    >>> model.compile(tf.keras.optimizers.Adam(
-    ...    learning_rate=0.015, beta_1=0.9, beta_2=0.999, epsilon=1e-07, amsgrad=True,
-    ...    name='Adam'), loss=model.get_pool_losses(), metrics=['mae'])
-    >>> history = model.fit(w.train, validation_data=w.valid, epochs=1, verbose=0)
-    >>> model.predict(w.test.take(1)).shape
-    TensorShape([32, 10])
-
-    Notes
-    -----
-    """
-
-    def __init__(
-        self,
-        n_models: int,
-        nbeats_models: Union[
-            Union[List[NBEATS], NBEATS], Union[Callable, List[Callable]],
-        ],
-        losses: List[Union[str, Union[tf.keras.losses.Loss, LossFunctionWrapper]]],
-        fn_agg: Callable = tf.reduce_mean,
-        seed: Union[None, int] = None,
-        **kwargs: dict,
-    ):
-
-        super().__init__(**kwargs)
-
-        # Reproducible instance
-        if seed is not None:
-            tf.random.set_seed(seed)
-
-        self._n_models = n_models
-
-        # nbeats init
-        self._init_nbeats(convert_to_list(nbeats_models), losses)
-
-        # Layer definition and function to aggregate the multiple outputs
-        if self.n_quantiles > 1:
-            self._fn_agg = lambda x, axis: x
-        else:
-            self._fn_agg = fn_agg
-
-    def _init_nbeats(
-        self,
-        nbeats_models: Union[List[Callable], List[NBEATS]],
-        losses: List[Union[str, Union[tf.keras.losses.Loss, LossFunctionWrapper]]],
-    ) -> None:
-        """Initialize nbeats models."""
-
-        self._nbeats = nbeats_models
-        if not isinstance(nbeats_models[0], NBEATS) and callable(nbeats_models[0]):
-            self._nbeats = self._init_nbeats_from_callable(nbeats_models)
-        else:
-            self._n_models = len(nbeats_models)
-
-        self._init_pool_losses(losses)
-        self._check_label_width(self._nbeats)
-        self._set_quantiles()
-
-    def _init_pool_losses(
-        self, losses: List[Union[str, Union[tf.keras.losses.Loss, LossFunctionWrapper]]]
-    ):
-        # Init pool of losses by picking randomly loss in losses list.
-        if self.n_models - len(losses) < 0:
-            raise ValueError(
-                "The number of models has to be equal or larger than the number of losses."
-                f" Got n_models={self.n_models} and losses={len(losses)}"
-            )
-
-        losses_idx = randint(0, len(losses), size=self.n_models - len(losses))
-        self._pool_losses = losses + [losses[idx] for idx in losses_idx]
-
-    def _init_nbeats_from_callable(self, nbeats_models: List[Callable]) -> None:
-        """Initialize nbeats models from callable."""
-
-        nbeats = []
-        # Init pool of models by picking randomly model in nbeats_models list.
-        for nbeats_idx in randint(0, len(nbeats_models), size=self.n_models):
-            model = nbeats_models[nbeats_idx]()
-            nbeats.append(model)
-        return nbeats
-
-    def _check_label_width(
-        self, nbeats_models: Union[List[Callable], List[NBEATS]]
-    ) -> None:
-        """Check if `label_width` are equals through models."""
-
-        labels_width = [model.label_width for model in nbeats_models]
-        theoric_sum = len(labels_width) * labels_width[0]
-        assert sum(labels_width) - theoric_sum == 0, (
-            f"`label_width` parameter has to be identical through models."
-            f"Got {labels_width}"
-        )
-        self._label_width = labels_width[0]
-
-    def _set_quantiles(self) -> None:
-        """Set quantiles if a quantile loss is compiled."""
-
-        for idx, loss in enumerate(self._pool_losses):
-            if hasattr(loss, "quantiles"):
-                self.nbeats[idx]._set_quantiles(loss.quantiles)
-                self._n_quantiles = len(loss.quantiles)
-                self._quantiles = loss.quantiles
-
-    def build(
-        self, input_shape: Union[tf.TensorShape, Tuple[tf.TensorShape, ...]]
-    ) -> None:
-        """See tensorflow documentation."""
-
-        if isinstance(input_shape, tuple):
-            input_shape = input_shape[0]
-
-        # Defines masks
-        mask = tf.random.uniform(
-            (self.n_models,),
-            minval=0,
-            maxval=int(input_shape[1] / self.label_width) or 1,
-            dtype=tf.int32,
-        )
-        self._mask = input_shape[1] - (mask * self.label_width)
-
-        super().build(input_shape)
-
-    def call(self, inputs: Union[tuple, dict, list, tf.Tensor]) -> tf.Tensor:
-        """Call method from tensorflow Model."""
-
-        outputs = []
-        for idx, model in enumerate(self.nbeats):
-            inputs_masked = inputs[:, -self._mask[idx] :]
-            outputs.append(model(inputs_masked))
-        return outputs
-
-    def predict(self, *args: list, **kwargs: dict) -> tf.Tensor:
-        """Reduce the n outputs to a single output tensor by mean operation."""
-
-        outputs = super().predict(*args, **kwargs)
-        return self._fn_agg(outputs, axis=0)
-
-    def get_pool_losses(self) -> list:
-        """Return the pool losses."""
-
-        return self._pool_losses
-
-    def reset_pool_losses(
-        self,
-        losses: List[Union[str, tf.keras.losses.Loss]],
-        seed: Union[int, None] = None,
-    ) -> None:
-        """Reset the pool losses based on the given losses."""
-
-        if seed is not None:
-            tf.random.set_seed(seed)
-        self._init_pool_losses(losses)
-        self._set_quantiles()
-
-    @property
-    def label_width(self) -> int:
-        """Return the `label_width` parameter."""
-
-        return self._label_width
-
-    @property
-    def n_models(self) -> int:
-        """Return the `n_models` parameter."""
-
-        return self._n_models
-
-    @property
-    def nbeats(self) -> list:
-        """Return the nbeats pool."""
-
-        return self._nbeats
+NbeatsModelsOptions = Union[
+    Union[List[NBEATS], NBEATS], Union[List[Callable], Callable],
+]
 
 
 def create_interpretable_nbeats(
@@ -681,10 +501,11 @@ def create_interpretable_nbeats(
     forecast_fourier_order: SEASONALITY_TYPE = None,
     backcast_fourier_order: SEASONALITY_TYPE = None,
     p_degree: int = 1,
-    trend_n_neurons: int = 16,
-    seasonality_n_neurons: int = 16,
+    trend_n_neurons: int = 252,
+    seasonality_n_neurons: int = 2048,
     drop_rate: float = 0.0,
     share: bool = True,
+    name: str = "interpretable_NBEATS",
     **kwargs: dict,
 ):
     """
@@ -792,22 +613,21 @@ def create_interpretable_nbeats(
 
     trend_stacks = Stack(trend_blocks, name="trend_stack")
     seasonality_stacks = Stack(seasonality_blocks, name="seasonality_stack")
-    model = NBEATS(
-        [trend_stacks, seasonality_stacks], name="interpretable_NBEATS", **kwargs
-    )
+    model = NBEATS([trend_stacks, seasonality_stacks], name=name, **kwargs)
 
     return model
 
 
 def create_generic_nbeats(
     label_width: int,
-    g_forecast_neurons: int,
-    g_backcast_neurons: int,
-    n_neurons: int,
-    n_blocks: int,
-    n_stacks: int,
+    g_forecast_neurons: int = 524,
+    g_backcast_neurons: int = 524,
+    n_neurons: int = 524,
+    n_blocks: int = 1,
+    n_stacks: int = 30,
     drop_rate: float = 0.0,
-    share: bool = True,
+    share: bool = False,
+    name: str = "generic_NBEATS",
     **kwargs: dict,
 ):
     """
@@ -883,70 +703,228 @@ def create_generic_nbeats(
 
             generic_stacks.append(Stack(generic_blocks, name="generic_stack"))
 
-    model = NBEATS(generic_stacks, name="generic_NBEATS", **kwargs)
+    model = NBEATS(generic_stacks, name=name, **kwargs)
     return model
 
 
-# TODO: unit test
-def interpretable_nbeats_builder(label_width: int, **kwargs: dict) -> Callable:
+# TODO: finish doc and unit testing.
+class PoolNBEATS(BasePool):
     """
-    It defines model and hyperparameters to take into account during the optimization.
-    We set main parameters but you can overread this function to customize
-    your parameters selection.
+    Tensorflow model defining a pool of N-BEATS models.
+
+    As described in the paper https://arxiv.org/abs/1905.10437, the state-of-the-art results
+    are reached with a bagging method of N-BEATS models including interpretable and generic ones.
+
+    The aggregation function is used in predict `method` if it is possible, i.e when the outputs shape are not differents.
+    As the reconstructed inputs are masked randomly the aggregation is not perfomed on them.
+
+    Fore more information about poll model see :class:`autopycoin.models.Pool`.
+
+    Parameters
+    ----------
+    label_width : int
+        Width of the targets.
+        It can be not defined if `nbeats_model` is a list of NBEATS instances.
+        Default to None.
+    n_models : int
+        Number of models inside the pool.
+        The minimum value according to the paper to get SOTA results is 18.
+        If NBEATS instances are provided then n_models is not used.
+        Default to 18.
+    nbeats_models : list[callable] or list[NBEATS]
+        A list of callables which create a NBEATS model or a list of :class:`autopycoin.models.NBEATS` instances.
+        If None then use a mix of generic and interpretable NBEATs model.
+        Default to None.
+    fn_agg : Callable
+        Function of aggregation which takes an parameter axis.
+        It aggregates the models outputs. Default to mean.
+    seed: int
+        Used in combination with tf.random.set_seed to create a
+        reproducible sequence of tensors across multiple calls.
+
+    Returns
+    -------
+    outputs : Tuple[Tuple[`Tensor` | QuantileTensor | UnivariateTensor], Tuple[`Tensor` | QuantileTensor | UnivariateTensor]]
+        Return the reconstructed inputs and inferred outputs as tuple (reconstructed inputs, outputs).
+        Reconstructed inputs is a tuple of tensors as the mask is not the same through models.
+        Outputs can be a tuple of tensors or an aggregated tensor if the prediction is used through `predict` method.
+
+    Attributes
+    ----------
+    see :class:`autopycoin.models.Pool`
+
+    Examples
+    --------
+    >>> from autopycoin.data import random_ts
+    >>> from autopycoin.models import PoolNBEATS, create_interpretable_nbeats
+    >>> from autopycoin.dataset import WindowGenerator
+    >>> import tensorflow as tf
+    >>> import pandas as pd
+    ...
+    >>> data = random_ts(n_steps=1000,
+    ...                  trend_degree=2,
+    ...                  periods=[10],
+    ...                  fourier_orders=[10],
+    ...                  trend_mean=0,
+    ...                  trend_std=1,
+    ...                  seasonality_mean=0,
+    ...                  seasonality_std=1,
+    ...                  batch_size=1,
+    ...                  n_variables=1,
+    ...                  noise=True,
+    ...                  seed=42)
+    >>> data = pd.DataFrame(data[0].numpy(), columns=['test'])
+    ...
+    >>> w = WindowGenerator(
+    ...        input_width=70,
+    ...        label_width=10,
+    ...        shift=10,
+    ...        test_size=50,
+    ...        valid_size=10,
+    ...        flat=True,
+    ...        batch_size=32,
+    ...        preprocessing=lambda x,y: (x, (x, y))
+    ...     )
+    ...
+    >>> w = w.from_array(data=data,
+    ...        input_columns=['test'],
+    ...        label_columns=['test'])
+    ...
+    >>> model = PoolNBEATS(
+    ...             label_width=10,
+    ...             n_models=2,
+    ...             nbeats_models=create_interpretable_nbeats,
+    ...             )
+    >>> model.compile(tf.keras.optimizers.Adam(
+    ...    learning_rate=0.015, beta_1=0.9, beta_2=0.999, epsilon=1e-07, amsgrad=True,
+    ...    name='Adam'), loss=['mse', 'mae', 'mape'], metrics=['mae'])
+    >>> history = model.fit(w.train, validation_data=w.valid, epochs=1, verbose=0)
+    >>> model.predict(w.test.take(1))[1].shape
+    (32, 10)
+
+    Notes
+    -----
+    PoolNBEATS is just a wrapper around nbeats models hence you can use epistemic loss error
+    or multivariates inputs.
+    This class only applies mask to its inputs.
+
+    *Input shape*
+    N-D tensor with shape: (batch_size, time step, variables) or (batch_size, time step).
+    The most common situation would be a 2D input with shape (batch_size, time step).
+
+    *Output shape*
+    n N-D tensors with shape: (batch_size, time step, variables, quantiles) or (batch_size, time step, quantiles)
+    or (batch_size, time step) with n the number of models generated randomly or registered in the constructor.
+
+    For instance, for a 2D input with shape (batch_size, units) and three models,
+    the output would have shape 
+    (((batch_size, units), (batch_size, units), (batch_size, units)), ((batch_size, units), (batch_size, units), (batch_size, units)))
+    if call is used else
+    (((batch_size, units), (batch_size, units), (batch_size, units)), (batch_size, units)) if predict is used.
+
+    The outputs tensors can be aggregated during `predict` method only if all tensors are similar in shape.
     """
 
-    def model_builder(hp) -> NBEATS:
-        hp_n_neurons_trend = hp.Int(
-            "neurons_trend", min_value=20, max_value=520, step=20
-        )
-        hp_n_neurons_seas = hp.Int("neurons_seas", min_value=20, max_value=520, step=20)
-        hp_periods = kwargs.get("periods", None)
-        hp_periods = hp.Choice("periods", hp_periods) if hp_periods else hp_periods
-        hp_backcast_periods = kwargs.get("backcast_periods", None)
-        hp_backcast_periods = (
-            hp.Choice("backcast_periods", hp_backcast_periods)
-            if hp_backcast_periods
-            else hp_backcast_periods
-        )
-        hp_forecast_fourier_order = kwargs.get("forecast_fourier_order", None)
-        hp_forecast_fourier_order = (
-            hp.Choice("forecast_fourier_order", hp_forecast_fourier_order)
-            if hp_forecast_fourier_order
-            else hp_forecast_fourier_order
-        )
-        hp_backcast_fourier_order = kwargs.get("backcast_fourier_order", None)
-        hp_backcast_fourier_order = (
-            hp.Choice("backcast_fourier_order", hp_backcast_fourier_order)
-            if hp_backcast_fourier_order
-            else hp_backcast_fourier_order
-        )
-        hp_share = hp.Boolean("share")
-        hp_p_degree = hp.Int("p_degree", min_value=0, max_value=3, step=1)
-        loss_list = kwargs.get("loss", ["mse"])
-        loss_idx = hp.Choice("loss", range(len(loss_list)))
-        optimizer_list = kwargs.get(
-            "optimizer", [tf.keras.optimizers.Adam(learning_rate=0.001)]
-        )
-        optimizer_idx = hp.Choice("optimizer", range(len(optimizer_list)))
+    def __init__(
+        self,
+        label_width: int = None,
+        n_models: int = 18,
+        nbeats_models: Union[None, NbeatsModelsOptions] = [
+            create_interpretable_nbeats,
+            create_generic_nbeats,
+        ],
+        fn_agg: Callable = tf.reduce_mean,
+        seed: Optional[int] = None,
+        **kwargs: dict,
+    ):
 
-        model = create_interpretable_nbeats(
+        super().__init__(
             label_width=label_width,
-            p_degree=hp_p_degree,
-            forecast_periods=hp_periods,
-            backcast_periods=hp_backcast_periods,
-            forecast_fourier_order=hp_forecast_fourier_order,
-            backcast_fourier_order=hp_backcast_fourier_order,
-            trend_n_neurons=hp_n_neurons_trend,
-            seasonality_n_neurons=hp_n_neurons_seas,
-            share=hp_share,
+            n_models=n_models,
+            models=nbeats_models,
+            fn_agg=fn_agg,
+            seed=seed,
+            **kwargs,
         )
 
-        model.compile(
-            loss=loss_list[loss_idx],
-            optimizer=optimizer_list[optimizer_idx],
-            metrics=[tf.keras.metrics.MeanAbsoluteError()],
+    def checks(self, nbeats_models: List[NBEATS]) -> None:
+        """Check if `label_width` are equals through models instances."""
+
+        labels_width = [model.label_width for model in nbeats_models]
+        # If `label_width` is defined in the init then use it to check models else use the first model value.
+        self._label_width = self.label_width or labels_width[0]
+        assert all([label_width == self.label_width for label_width in labels_width]), (
+            f"`label_width` parameter has to be identical through models and against the value given in the init method. "
+            f"Got {labels_width} for models and `label_width` = {self.label_width}"
         )
 
-        return model
+    def build(
+        self, input_shape: Union[tf.TensorShape, Tuple[tf.TensorShape, ...]]
+    ) -> None:
+        """See tensorflow documentation."""
 
-    return model_builder
+        # Defines masks
+        mask = tf.random.uniform(
+            (self.n_models,),
+            minval=0,
+            maxval=int(input_shape[1] / self.label_width) or 1,
+            dtype=tf.int32,
+            seed=self.seed,
+        )
+        self._mask = input_shape[1] - (mask * self.label_width)
+
+        super().build(input_shape)
+
+    def call(
+        self, inputs: Union[tuple, dict, list, tf.Tensor], **kwargs: dict
+    ) -> tf.Tensor:
+        """Call method from tensorflow Model.
+        
+        Make prediction with every models generated during the constructor method.
+        """
+
+        output_fn = lambda idx: self.models[idx](inputs[:, -self._mask[idx] :])
+        outputs = tf.nest.map_structure(
+            output_fn, [idx for idx in range(self.n_models)]
+        )
+        return outputs
+
+    def preprocessing_x(
+        self,
+        x: Union[None, Union[Union[tf.Tensor, tf.data.Dataset], Tuple[tf.Tensor, ...]]],
+    ) -> Union[Tuple[None, None], Tuple[Callable, tuple]]:
+        "Apply mask inside `train_step`"
+
+        # Build masks from PoolNBEATS `build` method
+        self._maybe_build(x)
+
+        masked_x = None
+        if x is not None:
+            masked_x = [x[:, -self._mask[idx] :] for idx in range(self.n_models)]
+
+        return masked_x
+
+    def preprocessing_y(
+        self,
+        y: Union[None, Union[Union[tf.Tensor, tf.data.Dataset], Tuple[tf.Tensor, ...]]],
+    ) -> Union[Tuple[None, None], Tuple[Callable, tuple]]:
+        "Apply mask inside `train_step`, `test_step`"
+
+        masked_y = None
+        if y is not None:
+            masked_y = [
+                (y[0][:, -self._mask[idx] :], y[1]) for idx in range(self.n_models)
+            ]
+
+        return masked_y
+
+    def postprocessing_y(self, y):
+        "Apply mask inside `predict_step`"
+
+        inputs_reconstucted = [outputs[0] for outputs in y]
+        y = [outputs[1] for outputs in y]
+
+        if any(outputs.quantiles for outputs in y):
+            return inputs_reconstucted, y
+
+        return inputs_reconstucted, self.fn_agg(y, axis=0)

@@ -7,7 +7,7 @@ from tensorflow.python.keras import keras_parameterized
 from tensorflow.keras.backend import floatx
 import tensorflow as tf
 
-from ..utils import layer_test, check_attributes
+from ..test_utils import layer_test, check_attributes
 from . import GenericBlock, TrendBlock, SeasonalityBlock, BaseBlock
 
 
@@ -246,11 +246,14 @@ class BlocksLayersTest(tf.test.TestCase, parameterized.TestCase):
                 },
                 input_dtype=floatx(),
                 input_shape=(2, 2),
-                expected_output_shape=((None, 1), (None, 2)),
+                expected_output_shape=(
+                    tf.TensorShape((None, 2)),
+                    tf.TensorShape((None, 1)),
+                ),
                 expected_output_dtype=[floatx(), floatx()],
                 expected_output=[
-                    tf.constant(3.0, shape=(2, 1)),
                     tf.constant([3.0, 4.5, 3.0, 4.5], shape=(2, 2)),
+                    tf.constant(3.0, shape=(2, 1)),
                 ],
                 custom_objects={"TrendBlock": TrendBlock},
             )
@@ -359,11 +362,14 @@ class BlocksLayersTest(tf.test.TestCase, parameterized.TestCase):
             },
             input_dtype=floatx(),
             input_shape=(2, 3),
-            expected_output_shape=((None, 2), (None, 3)),
+            expected_output_shape=(
+                tf.TensorShape((None, 3)),
+                tf.TensorShape((None, 2)),
+            ),
             expected_output_dtype=[floatx(), floatx()],
             expected_output=[
-                tf.constant([6.0, 0.0, 6.0, 0.0], shape=(2, 2)),
                 tf.constant([9.0, y1, y2, 9.0, y1, y2], shape=(2, 3)),
+                tf.constant([6.0, 0.0, 6.0, 0.0], shape=(2, 2)),
             ],
             custom_objects={"SeasonalityBlock": SeasonalityBlock},
         )
@@ -463,11 +469,14 @@ class BlocksLayersTest(tf.test.TestCase, parameterized.TestCase):
             },
             input_dtype=floatx(),
             input_shape=(2, 3),
-            expected_output_shape=((None, 2), (None, 3)),
+            expected_output_shape=(
+                tf.TensorShape((None, 3)),
+                tf.TensorShape((None, 2)),
+            ),
             expected_output_dtype=[floatx(), floatx()],
             expected_output=[
-                tf.constant([9.0, 3.0, 9.0, 3.0], shape=(2, 2)),
                 tf.constant([15.0, y1, y2, 15.0, y1, y2], shape=(2, 3)),
+                tf.constant([9.0, 3.0, 9.0, 3.0], shape=(2, 2)),
             ],
             custom_objects={"SeasonalityBlock": SeasonalityBlock},
         )
@@ -488,7 +497,10 @@ class BlocksLayersTest(tf.test.TestCase, parameterized.TestCase):
             },
             input_dtype=floatx(),
             input_shape=(2, 2),
-            expected_output_shape=((None, 1), (None, 2)),
+            expected_output_shape=(
+                tf.TensorShape((None, 2)),
+                tf.TensorShape((None, 1)),
+            ),
             expected_output_dtype=[floatx(), floatx()],
             expected_output=None,
             custom_objects={"GenericBlock": GenericBlock},

@@ -7,9 +7,10 @@ from typing import Callable, Union, List, Optional
 import pandas as pd
 
 import tensorflow as tf
-from tensorflow.keras.backend import epsilon, maximum
-from tensorflow.python.keras.losses import LossFunctionWrapper
-from tensorflow.python.keras.utils import losses_utils
+from keras.backend import epsilon
+from keras.losses import LossFunctionWrapper
+from keras.utils import losses_utils
+from tensorflow.python.util import dispatch
 
 from ..utils import quantiles_handler
 from .. import AutopycoinBaseClass
@@ -18,24 +19,22 @@ from .. import AutopycoinBaseClass
 Yannotation = Union[tf.Tensor, pd.DataFrame, np.array, list]
 
 
+@dispatch.add_dispatch_support
 def smape(y_true: Yannotation, y_pred: Yannotation):
     """
     Calculate the symmetric mean absolute percentage error between `y_true`and `y_pred`.
 
     Parameters
     ----------
-    y_true : array, `dataframe`, list or `tensor of shape (batch_size, d0, .. dN)`
-        Ground truth values.
-    y_pred : array, `dataframe`, list or `tensor of shape (batch_size, d0, .. dN)`
-        The predicted values.
-    mask : bool, `Optional`
-        set a mask to not take into account infinite values.
-        Defaults to False.
+    y_true : array, `dataframe`, list or `tensor`
+        Ground truth values. shape = `[batch_size, d0, .. dN]`.
+    y_pred : array, `dataframe`, list or `tensor`
+        The predicted values. shape = `[batch_size, d0, .. dN]`.
 
     Returns
     -------
     error : `tensor`
-        The error in %.
+        Symetric mean absolute percentage error values. shape = `[batch_size, d0, .. dN-1]`.
 
     Examples
     --------
@@ -52,14 +51,14 @@ def smape(y_true: Yannotation, y_pred: Yannotation):
 
     y_true = tf.cast(y_true, dtype=y_pred.dtype)
     error = tf.abs(y_true - y_pred) / (
-        maximum(tf.abs(y_true), epsilon()) + tf.abs(y_pred)
+        tf.maximum(tf.abs(y_true), epsilon()) + tf.abs(y_pred)
     )
-    error = 200.0 * tf.reduce_mean(error, axis=-1)
-    return error
+
+    return 200.0 * tf.reduce_mean(error, axis=-1)
 
 
 def quantile_loss(
-    y_true: Yannotation, y_pred: Yannotation, quantiles: List[float]
+    y_true: Yannotation, y_pred: Yannotation, quantiles: List[List[float]] = [[0.5]]
 ) -> tf.Tensor:
     """
     Calculate the quantile loss function, summed across all quantile outputs.
@@ -82,7 +81,7 @@ def quantile_loss(
     --------
     >>> from autopycoin.losses import quantile_loss
     >>> import tensorflow as tf
-    >>> y_true = [[0., 1.], [0., 0.]]
+    >>> y_true = [[[0.], [1.]], [[0.], [0.]]]
     >>> y_pred = [[[1.], [1.]], [[1.], [0.]]]
     >>> quantile_loss(y_true, y_pred, quantiles=[0.5]).numpy()
     array([0.25, 0.25], dtype=float32)
@@ -94,16 +93,14 @@ def quantile_loss(
     y_true = tf.cast(y_true, dtype=y_pred.dtype)
     quantiles = tf.convert_to_tensor(quantiles)
 
-    if tf.rank(y_pred) > tf.rank(y_true):
-        y_true = tf.expand_dims(y_true, -1)
-
-    diff = y_pred - y_true
-    q_loss = quantiles * tf.clip_by_value(diff, 0.0, np.inf) + (
-        1 - quantiles
-    ) * tf.clip_by_value(-diff, 0.0, np.inf)
+    diff = tf.math.subtract(y_pred, y_true)
+    q_loss = tf.math.add(
+        quantiles * tf.clip_by_value(diff, 0.0, np.inf),
+        (1 - quantiles) * tf.clip_by_value(tf.math.negative(diff), 0.0, np.inf),
+    )
 
     error = tf.reduce_mean(q_loss, axis=-2)
-    return tf.reduce_sum(error, axis=[-1])
+    return tf.reduce_sum(error, axis=-1)
 
 
 class SymetricMeanAbsolutePercentageError(LossFunctionWrapper, AutopycoinBaseClass):
@@ -172,7 +169,7 @@ class QuantileLossError(LossFunctionWrapper, AutopycoinBaseClass):
     ----------
     quantiles : array, `dataframe`, list or `tensor of shape (batch_size, d0, .. dN)`
         The set of quantiles on which is calculated the
-        quantile loss. The list needs to be in ascending order.
+        quantile loss.
     reduction : `tf.keras.losses.Reduction, Optional`
         Type of `tf.keras.losses.Reduction`to apply to
         loss. Default value is `AUTO`. `AUTO` indicates that the reduction
@@ -193,13 +190,13 @@ class QuantileLossError(LossFunctionWrapper, AutopycoinBaseClass):
 
     Attributes
     ----------
-    quantiles : list[int]
+    quantiles : list[float]
 
     Examples
     --------
     >>> import tensorflow as tf
     >>> from autopycoin.losses import QuantileLossError
-    >>> y_true = [[0., 1.], [0., 0.]]
+    >>> y_true = [[[0.], [1.]], [[0.], [0.]]]
     >>> y_pred = [[[1.], [1.]], [[1.], [0.]]]
     >>> # Using 'auto'/'sum_over_batch_size' reduction type.
     >>> ql = QuantileLossError(quantiles=[0.5])
@@ -227,23 +224,23 @@ class QuantileLossError(LossFunctionWrapper, AutopycoinBaseClass):
 
     def __init__(
         self,
-        quantiles: List[Union[float, int]],
+        quantiles: Union[
+            int, float, List[Union[int, float, List[Union[int, float]]]]
+        ] = 0.5,
         reduction: Optional[str] = losses_utils.ReductionV2.SUM,
         name: Optional[str] = "q_loss",
+        **kwargs: dict
     ):
 
         self.quantiles = quantiles_handler(quantiles)
 
         super().__init__(
-            quantile_loss, quantiles=self.quantiles, name=name, reduction=reduction
+            quantile_loss,
+            quantiles=self.quantiles,
+            name=name,
+            reduction=reduction,
+            **kwargs
         )
-
-    def _val___init__(self, output, *args, **kwargs):
-        """Validates attributes and args for the init method."""
-        quantiles = self._get_parameter(args, kwargs, name="quantiles", position=0)
-        assert quantiles == [
-            abs(quantile) for quantile in quantiles
-        ], f"Negative quantiles are not allowed. got {quantiles}"
 
 
 # TODO: write doc, test and use LossFunctionWrapper, autpycoinBaseClass.
