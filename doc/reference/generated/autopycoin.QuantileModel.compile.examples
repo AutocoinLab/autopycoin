@@ -1,0 +1,23 @@
+
+
+Examples using ``autopycoin.QuantileModel.compile``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="Plotting NBEATS output">
+
+.. only:: html
+
+ .. figure:: /auto_examples/images/thumb/sphx_glr_plot_nbeats_thumb.png
+     :alt: Plotting NBEATS output
+
+     :ref:`sphx_glr_auto_examples_plot_nbeats.py`
+
+.. raw:: html
+
+    </div>
+
+.. only:: not html
+
+ * :ref:`sphx_glr_auto_examples_plot_nbeats.py`

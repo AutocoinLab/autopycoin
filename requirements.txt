@@ -8,3 +8,4 @@ keras-tuner
 sphinx
 sphinx-gallery
 pydata-sphinx-theme
+pypandoc

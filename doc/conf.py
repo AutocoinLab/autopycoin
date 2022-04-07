@@ -273,4 +273,5 @@ sphinx_gallery_conf = {
     "doc_module": "autopycoin",
     "backreferences_dir": os.path.join("reference/generated"),
     "reference_url": {"autopycoin": None},
+    "pypandoc": True
 }
