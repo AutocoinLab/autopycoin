@@ -23,12 +23,9 @@ DOWNLOAD_URL = "https://github.com/GaetanDu/autopycoin"
 VERSION = __version__
 INSTALL_REQUIRES = [
     "numpy",
-    "matplotlib",
     "pandas",
-    "tensorflow >= 2.8.0",
+    "tensorflow >= 2.7.0",
     "tensorflow-probability",
-    "plotly",
-    "keras-tuner",
 ]
 CLASSIFIERS = [
     "Intended Audience :: Science/Research",

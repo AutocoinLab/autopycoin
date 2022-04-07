@@ -1,11 +1,4 @@
 numpy
-matplotlib
 pandas
-tensorflow >= 2.8.0
+tensorflow >= 2.7.0
 tensorflow-probability
-pylint
-keras-tuner
-sphinx
-sphinx-gallery
-pydata-sphinx-theme
-pypandoc
