@@ -16,7 +16,7 @@ class BasePool(tf.keras.Model):
     For now, it implements the bagging method.
     This model needs to be overriden.
 
-    `preprocessing_x`, `preprocessing_y` and `postprocessing_y` are 
+    `preprocessing_x`, `preprocessing_y` and `postprocessing_y` are
     applied to adapt the model.
 
     Parameters
@@ -137,10 +137,11 @@ class BasePool(tf.keras.Model):
 
         return tf.nest.map_structure(init, distribution)
 
-    def checks(self, models):
+    def checks(self, models: List[Callable]):
         """
-        
+        Checksperformed during init if callabels are provided.
         """
+
         raise NotImplementedError("You need to override this function.")
 
     def compile(

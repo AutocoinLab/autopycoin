@@ -106,13 +106,13 @@ class Stack(UnivariateModel):
     ) -> Tuple[tf.Tensor, ...]:
         """Call method from tensorflow."""
 
+        if isinstance(inputs, (tuple, list)):
+            inputs = inputs[0]
+
         outputs = tf.constant(0.0)  # init output
         for block in self.blocks:
-            # outputs is (quantiles, Batch_size, forecast)
-            # reconstructed_inputs is (Batch_size, backcast)
             reconstructed_inputs, residual_outputs = block(inputs)
             inputs = tf.subtract(inputs, reconstructed_inputs)
-            # outputs is (quantiles, Batch_size, forecast)
             outputs = tf.add(outputs, residual_outputs)
         return inputs, outputs
 
@@ -347,10 +347,7 @@ class NBEATS(UnivariateModel):
         residual_inputs = tf.identity(inputs)
         outputs = tf.constant(0.0)
         for stack in self.stacks:
-            # outputs_residual is (quantiles, Batch_size, forecast)
-            # inputs is (Batch_size, backcast)
             residual_inputs, residual_outputs = stack(residual_inputs)
-            # outputs is (quantiles, Batch_size, forecast)
             outputs = tf.math.add(outputs, residual_outputs)
 
         reconstructed_inputs = inputs - residual_inputs
@@ -817,7 +814,7 @@ class PoolNBEATS(BasePool):
     or (batch_size, time step) with n the number of models generated randomly or registered in the constructor.
 
     For instance, for a 2D input with shape (batch_size, units) and three models,
-    the output would have shape 
+    the output would have shape
     (((batch_size, units), (batch_size, units), (batch_size, units)), ((batch_size, units), (batch_size, units), (batch_size, units)))
     if call is used else
     (((batch_size, units), (batch_size, units), (batch_size, units)), (batch_size, units)) if predict is used.
