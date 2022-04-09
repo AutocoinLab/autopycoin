@@ -8,6 +8,7 @@ import typing
 from inspect import signature, _empty
 
 from tensorflow.python.util import tf_decorator
+import tensorflow as tf
 
 from .baseclass_field import AutopycoinField, _convert_value
 
@@ -133,9 +134,9 @@ def _wrap_call(fn):
     """Wrap the call method with a _preprocessing and post_processing methods"""
 
     def call_wrapper(self, inputs, *args, **kwargs):
-        inputs = self._preprocessing_wrapper(inputs)
+        inputs = tf.function(self._preprocessing_wrapper)(inputs)
         outputs = fn(self, inputs, *args, **kwargs)
-        outputs = self._post_processing_wrapper(outputs)
+        outputs = tf.function(self._post_processing_wrapper)(outputs)
         return outputs
 
     return call_wrapper

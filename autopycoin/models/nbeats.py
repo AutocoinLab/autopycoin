@@ -886,6 +886,7 @@ class PoolNBEATS(BasePool):
         )
         return outputs
 
+    @tf.function
     def preprocessing_x(
         self,
         x: Union[None, Union[Union[tf.Tensor, tf.data.Dataset], Tuple[tf.Tensor, ...]]],
@@ -901,6 +902,7 @@ class PoolNBEATS(BasePool):
 
         return masked_x
 
+    @tf.function
     def preprocessing_y(
         self,
         y: Union[None, Union[Union[tf.Tensor, tf.data.Dataset], Tuple[tf.Tensor, ...]]],
@@ -915,6 +917,7 @@ class PoolNBEATS(BasePool):
 
         return masked_y
 
+    @tf.function
     def postprocessing_y(self, y):
         "Apply mask inside `predict_step`"
 

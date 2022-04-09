@@ -665,7 +665,7 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
         # Check quantiles model
         qloss = QuantileLossError([0.2, 0.5])
 
-        model = PoolNBEATS(n_models=10, nbeats_models=model, fn_agg=fn_agg, seed=5)
+        model = PoolNBEATS(n_models=5, nbeats_models=model, fn_agg=fn_agg, seed=5)
 
         model.compile(
             tf.keras.optimizers.Adam(

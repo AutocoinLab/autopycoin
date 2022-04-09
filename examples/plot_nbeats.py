@@ -63,8 +63,8 @@ model1 = nbeats.create_interpretable_nbeats(
 
 model1.compile(tf.keras.optimizers.Adam(
     learning_rate=0.0015, beta_1=0.9, beta_2=0.999, epsilon=1e-07, amsgrad=True,
-    name='Adam'), 
-    loss='mse', 
+    name='Adam'),
+    loss='mse',
     loss_weights=[1, 1], # In the paper = [0, 1]
     metrics=["mae"])
 

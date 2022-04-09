@@ -69,8 +69,8 @@ class QuantileLayer(BaseLayer):
     """Integrates a `quantiles` attribute to the layer.
 
     This layer aims to be inherited.
-    During compilation if the model is a :class:`autopycoin.models.QuantileModel` it can propagate 
-    to this layer a `quantiles` attribute which can be added 
+    During compilation if the model is a :class:`autopycoin.models.QuantileModel` it can propagate
+    to this layer a `quantiles` attribute which can be added
     to its internal weights shape during building phase with the `get_additional_shapes` method.
 
     Usually, you will use this layer inside a :class:`autopycoin.models.QuantileModel` hence the transpose operation
@@ -100,7 +100,7 @@ class QuantileLayer(BaseLayer):
     .. code-block:: python
 
         def build(self, inputs_shape):
-            self.get_additional_shapes(0) + output_shape # get the quantile shape and add it where you need it  
+            self.get_additional_shapes(0) + output_shape # get the quantile shape and add it where you need it
 
     """
 
@@ -157,15 +157,13 @@ class QuantileLayer(BaseLayer):
         return outputs
 
     def _check_quantiles_requirements(
-        self, outputs: TENSOR_TYPE, **kwargs: dict
+        self, outputs: TENSOR_TYPE
     ) -> bool:
         """Check if the requirements are valids.
         """
 
         if self.has_quantiles:
-            check_quantiles_in_outputs = self._check_quantiles_in_outputs(outputs)
-            if check_quantiles_in_outputs:
-                return True
+            return self._check_quantiles_in_outputs(outputs)
         return False
 
     def _check_quantiles_in_outputs(self, outputs: TENSOR_TYPE) -> bool:
@@ -184,11 +182,11 @@ class QuantileLayer(BaseLayer):
 
     def get_additional_shapes(self, index: int) -> Union[List[int], List[None]]:
         """Return the shape to add to your layers.
-        
-        How works this method: 
+
+        How works this method:
         If you defined two :class:`autopycoin.losses.QuantileLossError`
         in your model with two differents `quantiles` attribute
-        for your two outputs tensors then index=0 will access the shape associated 
+        for your two outputs tensors then index=0 will access the shape associated
         to the first `quantiles` attribute.
         Else it gives an empty list.
         """
@@ -197,11 +195,6 @@ class QuantileLayer(BaseLayer):
             return self._additional_shapes[index]
         except IndexError:
             return []
-
-    def init_params(
-        self, inputs_shape: Union[tf.TensorShape, List[tf.TensorShape]], **kwargs: dict
-    ) -> None:
-        pass
 
     @property
     def quantiles(self) -> List[List[float]]:
@@ -226,10 +219,10 @@ class UnivariateLayer(QuantileLayer):
     """Integrate a `n_variates` attribute to the layer.
 
     This layer aims to be inherited.
-    During compilation if the model is a :class:`autopycoin.models.UnivariateModel` it can propagate 
-    to this layer a `n_variates` attribute which can be added 
+    During compilation if the model is a :class:`autopycoin.models.UnivariateModel` it can propagate
+    to this layer a `n_variates` attribute which can be added
     to its internal weights shape during building phase with the `get_additional_shapes` method.
-    This layer inherit from :class:`autopycoin.layers.QuantileLayer` then `get_additional_shapes` has also the `quantiles` dimension. 
+    This layer inherit from :class:`autopycoin.layers.QuantileLayer` then `get_additional_shapes` has also the `quantiles` dimension.
 
     Usually, you will use this layer inside a :class:`autopycoin.models.UnivariateModel` hence the transpose operation
     needed to fit the keras norm (see `post_processing` method) is not usefull here.
@@ -250,7 +243,7 @@ class UnivariateLayer(QuantileLayer):
     .. code-block:: python
 
         def build(self, inputs_shape):
-            self.get_additional_shapes(0) + output_shape # get the quantile shape and add it where you need it  
+            self.get_additional_shapes(0) + output_shape # get the quantile shape and add it where you need it
 
     """
 
@@ -300,7 +293,7 @@ class UnivariateLayer(QuantileLayer):
         additional_shapes: Union[None, List[List[int]]] = None,
     ) -> None:
         """Initialize attributes related to univariate model.
-        
+
         It is called before `build`.
         Three steps are done:
         - Filter the first shape in case of multiple inputs tensors.
