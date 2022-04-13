@@ -124,7 +124,8 @@ def _wrap_build(fn):
     """Wrap the build method with a init_params function"""
 
     def build_wrapper(self, inputs_shape):
-        self.init_params(inputs_shape)
+        if self.checks():
+            self.init_params(inputs_shape)
         return fn(self, inputs_shape)
 
     return build_wrapper
@@ -134,10 +135,12 @@ def _wrap_call(fn):
     """Wrap the call method with a _preprocessing and post_processing methods"""
 
     def call_wrapper(self, inputs, *args, **kwargs):
-        inputs = tf.function(self._preprocessing_wrapper)(inputs)
-        outputs = fn(self, inputs, *args, **kwargs)
-        outputs = tf.function(self._post_processing_wrapper)(outputs)
-        return outputs
+        if self.checks():
+            inputs = tf.function(self._preprocessing_wrapper)(inputs)
+            outputs = fn(self, inputs, *args, **kwargs)
+            return tf.function(self._post_processing_wrapper)(outputs)
+        else:
+            return fn(self, inputs, *args, **kwargs)
 
     return call_wrapper
 

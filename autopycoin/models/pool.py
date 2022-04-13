@@ -163,8 +163,8 @@ class BasePool(tf.keras.Model):
         # Case 2: nmodels == losses -> one loss for one model
         # case 3: nmodels whit n outputs -> list of list -> case 1 ? case 2 ? -> needs to flatten for the overall model
 
-        loss = convert_to_list(loss)
-        loss_weights = convert_to_list(loss_weights)
+        loss = [loss] if all(not isinstance(l, (list, tuple)) for l in loss) else loss
+        loss_weights = [loss_weights] if all(not isinstance(l, (list, tuple)) for l in loss_weights) else loss_weights
 
         if len(loss) != self.n_models:
 
@@ -195,7 +195,7 @@ class BasePool(tf.keras.Model):
             **kwargs,
         )
 
-    def _shuffle(self, structure,) -> None:
+    def _shuffle(self, structure) -> None:
         """Shuffle losses and pick them randomly.
         """
 
@@ -252,9 +252,7 @@ class BasePool(tf.keras.Model):
         See tensorflow documentation for more information.
         """
 
-        x, y, sample_weight = data_adapter.unpack_x_y_sample_weight(data)
-
-        y = super().predict_step((x, y, sample_weight))
+        y = super().predict_step(data)
         y = self.postprocessing_y(y)
 
         return y
@@ -286,6 +284,7 @@ class BasePool(tf.keras.Model):
     @property
     def fn_agg(self) -> Callable:
         """Return the aggregation function."""
+
         return self._fn_agg
 
     @property

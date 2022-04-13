@@ -6,6 +6,7 @@ from typing import Callable, Union, Tuple, List, Optional
 from typing import List, Optional
 
 import tensorflow as tf
+from keras.engine import data_adapter
 
 from .training import UnivariateModel
 from ..layers import TrendBlock, SeasonalityBlock, GenericBlock, BaseBlock
@@ -794,7 +795,7 @@ class PoolNBEATS(BasePool):
     ...             )
     >>> model.compile(tf.keras.optimizers.Adam(
     ...    learning_rate=0.015, beta_1=0.9, beta_2=0.999, epsilon=1e-07, amsgrad=True,
-    ...    name='Adam'), loss=['mse', 'mae', 'mape'], metrics=['mae'])
+    ...    name='Adam'), loss=[['mse', 'mse'], ['mae', 'mae'], ['mape', 'mape']], metrics=['mae'])
     >>> history = model.fit(w.train, validation_data=w.valid, epochs=1, verbose=0)
     >>> model.predict(w.test.take(1))[1].shape
     (32, 10)
@@ -844,6 +845,46 @@ class PoolNBEATS(BasePool):
             **kwargs,
         )
 
+    def compile(
+        self,
+        optimizer="rmsprop",
+        loss=None,
+        metrics=None,
+        loss_weights=[0.0, 1.0],
+        weighted_metrics=None,
+        run_eagerly=None,
+        steps_per_execution=None,
+        **kwargs,
+    ) -> None:
+
+        self.check_valid_structure(loss, name='loss')
+        self.check_valid_structure(loss_weights, name='loss_weights')
+
+        super().compile(
+            optimizer=optimizer,
+            loss=loss,
+            metrics=metrics,
+            loss_weights=loss_weights,
+            weighted_metrics=weighted_metrics,
+            run_eagerly=run_eagerly,
+            steps_per_execution=steps_per_execution,
+            **kwargs,
+        )
+
+    # TODO: test
+    def check_valid_structure(self, structure, name):
+        """Check if loss and loss_weights are list of lists or a list of two elements."""
+
+        if not isinstance(structure, (list, tuple)):
+            raise ValueError(f'{name} has to be a list or a tuple, got {structure}')
+
+        elif all(isinstance(l, (list, tuple)) for l in structure):
+            if any(len(l)!=2 for l in structure):
+                raise ValueError(f'In case of list of list, {name} elements has to be length 2, got {structure}')
+
+        elif len(structure) != 2 :
+            raise ValueError(f'if {name} is not a list of list, {name} has to be length 2, got {structure}')
+
     def checks(self, nbeats_models: List[NBEATS]) -> None:
         """Check if `label_width` are equals through models instances."""
 
@@ -876,7 +917,7 @@ class PoolNBEATS(BasePool):
         self, inputs: Union[tuple, dict, list, tf.Tensor], **kwargs: dict
     ) -> tf.Tensor:
         """Call method from tensorflow Model.
-        
+
         Make prediction with every models generated during the constructor method.
         """
 
