@@ -7,9 +7,8 @@
 [![Documentation Status](https://readthedocs.org/projects/autopycoin/badge/?version=latest)](https://autopycoin.readthedocs.io/en/latest/?badge=latest)
 
 
-This is a deep learning package based on tensorflow and 
-maintained by a group of french students and used in a their final master project.
-All the models are the Unofficial implementations.
+This is a deep learning package based on tensorflow.
+The models are unofficial implementations.
 
 # Available Models
 ---
