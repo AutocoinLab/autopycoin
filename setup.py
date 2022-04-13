@@ -26,6 +26,7 @@ INSTALL_REQUIRES = [
     "pandas",
     "tensorflow >= 2.7.0",
     "tensorflow-probability",
+    "matplotlib"
 ]
 CLASSIFIERS = [
     "Intended Audience :: Science/Research",
