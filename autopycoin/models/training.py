@@ -32,7 +32,7 @@ class BaseModel(keras.Model, BaseLayer):
     def __init__(self, *args: list, **kwargs: dict) -> None:
         super().__init__(*args, **kwargs)
 
-    def _handle_dim_in_losses_and_metrics(self, outputs: TENSOR_TYPE) -> None:
+    def handle_dim_in_losses_and_metrics(self, outputs: TENSOR_TYPE) -> None:
         """Build and wrap losses and metrics."""
 
         if self.compiled_loss:
@@ -75,7 +75,7 @@ class BaseModel(keras.Model, BaseLayer):
          - one tensor vs one loss function
         """
 
-        self._handle_dim_in_losses_and_metrics(outputs)
+        self.handle_dim_in_losses_and_metrics(outputs)
 
         losses = getattr(self.compiled_loss, "_losses", None)
         losses_is_nested = tf.nest.is_nested(losses)
@@ -96,6 +96,7 @@ class BaseModel(keras.Model, BaseLayer):
             outputs = tf.nest.map_structure(
                 lambda output: self.post_processing(output, losses=losses), outputs
             )
+
         return outputs[0] if len(outputs) == 1 else outputs
 
 
@@ -180,6 +181,10 @@ class QuantileModel(BaseModel, QuantileLayer):  # pylint: disable=abstract-metho
             **kwargs,
         )
 
+    def handle_dim_in_losses_and_metrics(self, outputs: TENSOR_TYPE):
+        if self.has_quantiles:
+            return super().handle_dim_in_losses_and_metrics(outputs)
+
     def _check_quantiles_in_loss(
         self,
         loss: Union[
@@ -223,10 +228,6 @@ class QuantileModel(BaseModel, QuantileLayer):  # pylint: disable=abstract-metho
                 self.layers[idx]._set_quantiles(
                     value, self._additional_shapes, self.n_quantiles
                 )  # pylint: disable=protected-access
-
-    def _handle_dim_in_losses_and_metrics(self, outputs: TENSOR_TYPE) -> None:
-        if self.apply_quantiles_transpose and self.has_quantiles:
-            return super()._handle_dim_in_losses_and_metrics(outputs)
 
     def losses_wrapper(
         self, loss: LossFunctionWrapper
@@ -282,11 +283,17 @@ class QuantileModel(BaseModel, QuantileLayer):  # pylint: disable=abstract-metho
             If the output `quantiles` are not broadcastable with the losses `quantiles`
         """
 
-        if self.has_quantiles and losses:
+        if losses and self.has_quantiles:
             # TODO: optimization, this calculation is made twice (One in _handle_quantiles_dim_in_losses_and_metrics)
+
             quantiles_in_losses = [
-                loss.quantiles[0] if hasattr(loss, "quantiles") else loss.fn.quantiles[0] if hasattr(loss.fn, "quantiles") else None for loss in convert_to_list(losses)
+                loss.quantiles[0]
+                if hasattr(loss, "quantiles")
+                else loss.fn.quantiles[0]
+                if hasattr(loss.fn, "quantiles")
+                else None for loss in convert_to_list(losses)
             ]
+
             quantiles_in_losses = [q for q in quantiles_in_losses if q is not None]
 
             check_uniform_quantiles = self._check_uniform_quantiles_through_losses(
@@ -409,10 +416,10 @@ class UnivariateModel(QuantileModel, UnivariateLayer):
 
         self.apply_multivariate_transpose = apply_multivariate_transpose
 
-    def _handle_dim_in_losses_and_metrics(self, outputs: TENSOR_TYPE) -> None:
-        if self.apply_multivariate_transpose and self.is_multivariate:
-            return BaseModel._handle_dim_in_losses_and_metrics(self, outputs)
-        return super()._handle_dim_in_losses_and_metrics(outputs)
+    def handle_dim_in_losses_and_metrics(self, outputs: TENSOR_TYPE):
+        if self.is_multivariate:
+            return BaseModel.handle_dim_in_losses_and_metrics(self, outputs)
+        return super().handle_dim_in_losses_and_metrics(outputs)
 
     def init_params(
         self,

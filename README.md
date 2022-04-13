@@ -492,7 +492,7 @@ model = PoolNBEATS(n_models=3, label_width=40, nbeats_models=model,
 
 model.compile(tf.keras.optimizers.Adam(
     learning_rate=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-07, amsgrad=True,
-    name='Adam'), loss=['mse'], metrics=['mae'])
+    name='Adam'), loss=['mse', 'mse'], metrics=['mae'])
 
 # The fit is printing 6 different maes results: 2 for each model (backcast, forecast).
 # The loss is aggregated then it is printing 4 loss results: 1 for the entire model, 

@@ -64,6 +64,13 @@ class BaseLayer(tf.keras.layers.Layer, AutopycoinBaseLayer):
 
         raise NotImplementedError("`init_params` has to be overriden.")
 
+    def checks(
+        self, inputs_shape: Union[tf.TensorShape, List[tf.TensorShape]], **kwargs: dict
+    ) -> None:
+        """Public API to initialize parameters before `build` method."""
+
+        raise NotImplementedError("`checks` has to be overriden.")
+
 
 class QuantileLayer(BaseLayer):
     """Integrates a `quantiles` attribute to the layer.
@@ -132,6 +139,9 @@ class QuantileLayer(BaseLayer):
         ]
         self._n_quantiles = n_quantiles or self._additional_shapes.copy()
 
+    def checks(self):
+        return self.apply_quantiles_transpose
+
     def preprocessing(self, inputs: TENSOR_TYPE) -> TENSOR_TYPE:
         """No preprocessing for `QuantileModel`"""
         return inputs
@@ -147,14 +157,12 @@ class QuantileLayer(BaseLayer):
         The only check used is to ensure that quantile dimension is present in the outputs tensors.
         """
 
-        if self.apply_quantiles_transpose:
-            if self._check_quantiles_requirements(outputs, **kwargs):
-                outputs = transpose_first_to_last(outputs)
-                if outputs.shape[-1] == 1:
-                    outputs = tf.squeeze(outputs, axis=-1)
-                return QuantileTensor(outputs, quantiles=True)
-            return QuantileTensor(outputs, quantiles=False)
-        return outputs
+        if self._check_quantiles_requirements(outputs, **kwargs):
+            outputs = transpose_first_to_last(outputs)
+            if outputs.shape[-1] == 1:
+                outputs = tf.squeeze(outputs, axis=-1)
+            return QuantileTensor(outputs, quantiles=True)
+        return QuantileTensor(outputs, quantiles=False)
 
     def _check_quantiles_requirements(
         self, outputs: TENSOR_TYPE
@@ -162,9 +170,7 @@ class QuantileLayer(BaseLayer):
         """Check if the requirements are valids.
         """
 
-        if self.has_quantiles:
-            return self._check_quantiles_in_outputs(outputs)
-        return False
+        return self._check_quantiles_in_outputs(outputs) and self.has_quantiles
 
     def _check_quantiles_in_outputs(self, outputs: TENSOR_TYPE) -> bool:
         """Return True if the outputs contains a `quantiles` dimension."""
@@ -172,7 +178,7 @@ class QuantileLayer(BaseLayer):
         # TODO: find an other way to find if an outputs contains quantiles dimension
 
         return any(
-            s == outputs.shape[: len(s)] for s in self._additional_shapes
+            s == outputs.shape[: len(s)] and len(s) > 0 for s in self._additional_shapes
         )  # or self._additional_shapes
 
     def init_params(
@@ -258,32 +264,31 @@ class UnivariateLayer(QuantileLayer):
         self._n_variates = []
         self._is_multivariate = False
 
+    def checks(self):
+        return self.apply_multivariate_transpose or super().checks()
+
     def preprocessing(
         self, inputs: TENSOR_TYPE
     ) -> Union[tf.Tensor, tf.Variable, UnivariateTensor]:
         """Init the multivariates attributes and transpose the `nvariates` dimension in first position."""
 
-        if self.apply_multivariate_transpose and self.is_multivariate:
+        if self.is_multivariate:
             return tf.nest.map_structure(transpose_last_to_first, inputs)
         return inputs
 
     def post_processing(self, outputs: TENSOR_TYPE, **kwargs: dict) -> TENSOR_TYPE:
         outputs = super().post_processing(outputs, **kwargs)
-        if self.apply_multivariate_transpose:
-            if self.is_multivariate:
-                outputs = tf.nest.map_structure(
-                    lambda outputs: transpose_first_to_second_last(outputs)
-                    if outputs.quantiles
-                    else transpose_first_to_last(outputs),
-                    outputs,
-                )
-                return tf.nest.map_structure(
-                    convert_to_univariate_tensor(multivariates=True), outputs
-                )
-            return tf.nest.map_structure(
-                convert_to_univariate_tensor(multivariates=False), outputs
+        if self.is_multivariate:
+            outputs = tf.nest.map_structure(
+                lambda outputs: transpose_first_to_second_last(outputs) if outputs.quantiles else transpose_first_to_last(outputs),
+                outputs,
             )
-        return outputs
+            return tf.nest.map_structure(
+                convert_to_univariate_tensor(multivariates=True), outputs
+            )
+        return tf.nest.map_structure(
+            convert_to_univariate_tensor(multivariates=False), outputs
+        )
 
     def init_params(
         self,

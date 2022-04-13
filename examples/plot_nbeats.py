@@ -23,7 +23,7 @@ data = random_ts(n_steps=400, # Number of steps (second dimension)
                  trend_mean=0,
                  trend_std=1,
                  seasonality_mean=0,
-                 seasonality_std=1, 
+                 seasonality_std=1,
                  batch_size=1, # Generate a batch of data (first dimension)
                  n_variables=1, # Number of variables (last dimension)
                  noise=True, # add normal centered noise
