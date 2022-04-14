@@ -52,20 +52,13 @@ from autopycoin.dataset import WindowGenerator
 pip install autopycoin
 ```
 
-# How to use Autopycoin
-
-This notebook is a quick start for autopycoin. We will demonstrate its efficiency through a toy example.
-
 ## Import
-
-As our package is based on tensorflow we need to import it.
-
 
 ```python
 import tensorflow as tf
 ```
 
-Let's create our data thanks to `random_ts` which generate a fake time serie based on a trend and seasonality components.
+Let's create our fake data with the function `random_ts`.
 
 
 ```python
@@ -124,21 +117,19 @@ plt.legend()
 
 # Tensorflow library
 
-Tensorflow use `dataset` to feed its models. Hence, we create an object `WindowGenerator` to facilitate the creation of training, validation and training set.
+It is a good practice to use a tensorflow model with a `Dataset` inputs. Hence, we created a class `WindowGenerator` to facilitate the creation of a training, a validation and a testing set.
 
 
 ```python
 from autopycoin.dataset import WindowGenerator
 ```
 
-We first create an instance of `Windowgenerator` by defining important parameters value.
-By defining an `input_width` of 70, we set our input length.
+We first create an instance of `Windowgenerator` by defining the most parameters value.
+ - `input_width` set our input length.
  - `label_width` set our label length.
- - `shift` represents the shift between label and input data. Hence if you don't want label and input overlapping `shift` has to be equal to   `label_width`. It can help for more complex model like lstm models which can be trained to reconstruct their inputs.
- - `test_size` and `valid_size` are the numbers of examples to predict. If they are integer, they are the true number of examples, if they are float then it's a proportion of the entire data.
-
-Note: We create lot of examples by shifting by one the window of prediction.
-
+ - `shift` represents the shift between label and input data. Hence, if you don't want an overlapping of your labels and inputs `shift` has to be equal to   `label_width`. Overlapping inputs and labels is mostly used in unsupervised models to reconstruct there inputs (see autoencoder models).
+ - `test_size` and `valid_size` are the size of the testing and validation set. Use an integer here represents the number of examples to use and a float represents a proportion of the all dataset.
+ - `sequence_stride` is used to shift the instances between themselves.
 
 ```python
 w = WindowGenerator(
@@ -154,7 +145,7 @@ w = WindowGenerator(
 
 ```
 
-We can't use it now as it needs to be initialized by an array, tensor or a dataframe
+We can't use it now as it needs to be initialized by an array, a tensor or a dataframe.
 
 
 ```python
@@ -215,10 +206,12 @@ w.test
 
 # It's time for inference
 
-We import the nbeats module where the nbdeats model is defined.
+We import the nbeats module where the `NBEATS` model is defined.
 
-There are currently multiple version of nbeats implemented as `create_interpretable_nbeats` or `create_generic_nbeats`.
-But it is possible to customize it's own nbeats model by subclassing the nbeats Model and Layer.
+There are currently multiple versions of the `NBEATS` implemented in this package.
+There are the interpretable `NBEATS` with the function `create_interpretable_nbeats` and 
+the generic model with the function `create_generic_nbeats`.
+But it is possible to customize it's own nbeats model by subclassing the `NBEATS` Model.
 
 
 ```python
