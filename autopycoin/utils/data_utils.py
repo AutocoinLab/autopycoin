@@ -93,7 +93,7 @@ def quantiles_handler(
     if all(isinstance(q, (tuple, list)) for q in quantiles):
         return [process_quantiles(quantile) for quantile in quantiles]
 
-    return [process_quantiles(quantiles)]
+    return process_quantiles(quantiles)
 
 
 def example_handler(

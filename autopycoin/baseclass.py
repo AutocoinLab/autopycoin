@@ -109,7 +109,7 @@ class AutopycoinMetaClass(abc.ABCMeta):
         super().__init__(name, bases, namespace)
 
 
-class AutopycoinMetaLayer(AutopycoinMetaClass):
+class AutopycoinMetaModel(AutopycoinMetaClass):
     """Metaclass for autopycoin layers."""
 
     def __init__(cls, name, bases, namespace):
@@ -124,8 +124,7 @@ def _wrap_build(fn):
     """Wrap the build method with a init_params function"""
 
     def build_wrapper(self, inputs_shape):
-        if self.checks():
-            self.init_params(inputs_shape)
+        self._init_params(inputs_shape)
         return fn(self, inputs_shape)
 
     return build_wrapper
@@ -135,12 +134,9 @@ def _wrap_call(fn):
     """Wrap the call method with a _preprocessing and post_processing methods"""
 
     def call_wrapper(self, inputs, *args, **kwargs):
-        if self.checks():
-            inputs = tf.function(self._preprocessing_wrapper)(inputs)
-            outputs = fn(self, inputs, *args, **kwargs)
-            return tf.function(self._post_processing_wrapper)(outputs)
-        else:
-            return fn(self, inputs, *args, **kwargs)
+        inputs = tf.function(self._preprocessing_wrapper)(inputs)
+        outputs = fn(self, inputs, *args, **kwargs)
+        return tf.function(self._post_processing_wrapper)(outputs)
 
     return call_wrapper
 
@@ -232,5 +228,5 @@ class AutopycoinBaseClass(AutopycoinBase, metaclass=AutopycoinMetaClass):
     _ap_do_not_transform_this_class = True
 
 
-class AutopycoinBaseLayer(AutopycoinBase, metaclass=AutopycoinMetaLayer):
+class AutopycoinBaseModel(AutopycoinBase, metaclass=AutopycoinMetaModel):
     _ap_do_not_transform_this_class = True

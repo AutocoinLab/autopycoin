@@ -106,7 +106,7 @@ def validate_field_value_type(
         np.array,
         tf.Tensor,
         typing.Callable,
-    ):
+    ) or issubclass(type(value_type), typing._CallableGenericAlias):
         return
     elif (
         is_generic_tuple(value_type)
@@ -160,7 +160,11 @@ def _convert_value(
         return _check_union(value, expected_type, path, context)
     elif is_generic_list(expected_type):
         return _check_list(value, expected_type, path, context)
-    elif isinstance(value, expected_type):
+    
+    try:
+        if isinstance(value, expected_type):
+            return value
+    except TypeError:
         return value
 
     raise TypeError(

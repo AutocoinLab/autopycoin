@@ -5,12 +5,13 @@ Functions to assess loss.
 import numpy as np
 from typing import Callable, Union, List, Optional
 import pandas as pd
+import math
 
 import tensorflow as tf
+from tensorflow.python.util import dispatch
 from keras.backend import epsilon
 from keras.losses import LossFunctionWrapper
 from keras.utils import losses_utils
-from tensorflow.python.util import dispatch
 
 from ..utils import quantiles_handler
 from .. import AutopycoinBaseClass
@@ -99,7 +100,7 @@ def quantile_loss(
         (1 - quantiles) * tf.clip_by_value(tf.math.negative(diff), 0.0, np.inf),
     )
 
-    error = tf.reduce_mean(q_loss, axis=-2)
+    error = tf.reduce_mean(q_loss, axis=1)
     return tf.reduce_sum(error, axis=-1)
 
 
@@ -160,7 +161,7 @@ class SymetricMeanAbsolutePercentageError(LossFunctionWrapper, AutopycoinBaseCla
 
 
 # TODO: ragged tensor
-class QuantileLossError(LossFunctionWrapper, AutopycoinBaseClass):
+class QuantileLossError(LossFunctionWrapper):
     """
     Calculate the quantile loss error between `y_true` and `y_pred`
     across all examples.
@@ -243,24 +244,44 @@ class QuantileLossError(LossFunctionWrapper, AutopycoinBaseClass):
         )
 
 
-# TODO: write doc, test and use LossFunctionWrapper, autpycoinBaseClass.
-class LagError(tf.keras.losses.Loss):
-    """1 lag error MSE. Often used in time series analysis.
+class LossQuantileDimWrapper(LossFunctionWrapper, AutopycoinBaseClass):
+    def __init__(
+        self,
+        fn: Union[tf.keras.losses.Loss, LossFunctionWrapper, Callable],
+        quantiles: Union[None, List[float]]=None,
+        reduction: Optional[str] = losses_utils.ReductionV2.SUM,
+        name: Optional[str] = "dim_wrapper",
+        **kwargs: dict
+    ):
 
-    Parameters
-    ----------
-    lag : int
-    """
+        self.fn = fn
+        self.quantiles = quantiles
+        self._fn_dict = {'expand': expand_dims, 'remove': remove_dims}
+        self.preprocess_fn = 'remove'
 
-    def __init__(self, fn_loss: Callable, lag: int, **kwargs):
-        super().__init__(**kwargs)
-        self.lag = lag
-        self.fn_loss = fn_loss
+        if 'quantiles' in self.fn.__code__.co_varnames:
+            self.preprocess_fn = 'expand'
+            kwargs['quantiles'] = self.quantiles
+            if not self.quantiles:
+                raise ValueError("The model doesn't define a `quantiles` attribute.")
 
-    def call(self, y_true, y_pred):
-        y_pred = tf.convert_to_tensor(y_pred)
-        y_true = tf.cast(y_true, y_pred.dtype)
+        super().__init__(
+            self._fn_dict[self.preprocess_fn],
+            loss_fn=self.fn,
+            name=name,
+            reduction=reduction,
+            **kwargs
+        )
 
-        y_pred = y_pred[:, self.lag :] - y_pred[:, : -self.lag]
-        y_true = y_true[:, self.lag :] - y_true[:, : -self.lag]
-        return self.fn_loss(y_true, y_pred)
+
+def expand_dims(y_true, y_pred, loss_fn, *args, **kwargs):
+    if y_pred.shape.rank > y_true.shape.rank:
+        y_true = tf.expand_dims(y_true, -1)
+    return loss_fn(y_true, y_pred, *args, **kwargs)
+
+
+def remove_dims(y_true, y_pred, loss_fn, *args, **kwargs):
+    if y_pred.quantiles and y_pred.shape.rank > y_true.shape.rank:
+        q = math.ceil(y_pred.shape[-1] / 2)
+        y_pred = y_pred[..., q]
+    return loss_fn(y_true, y_pred, *args, **kwargs)

@@ -1,16 +1,25 @@
 """Defines the pool model."""
 
-
 from typing import Union, List, Callable, Optional, Tuple
+import keras
 import tensorflow as tf
+from keras.losses import LossFunctionWrapper, Loss
 from keras.engine import data_adapter
+from keras.metrics import MeanMetricWrapper, SumOverBatchSizeMetricWrapper
 
-from ..utils.data_utils import convert_to_list
+from .training import QuantileModel
+from ..losses import LossQuantileDimWrapper
+from ..metrics import MetricQuantileDimWrapper
+from ..constant import TENSOR_TYPE
+from .. import AutopycoinBaseModel
+from ..utils import (
+    convert_to_list
+)
 
 # TODO: AutopycoinBaseClass
 
 # TODO: finish doc and unit testing.
-class BasePool(tf.keras.Model):
+class BasePool(QuantileModel, AutopycoinBaseModel):
     """Tensorflow model defining a pool of models.
 
     For now, it implements the bagging method.
@@ -48,18 +57,22 @@ class BasePool(tf.keras.Model):
     label_width : int
     """
 
+    # TODO: why postprocessing ?
+    NOT_INSPECT = ['call', 'build', 'compile', 'postprocessing_y', 'preprocessing_x', 'preprocessing_y']
+
     def __init__(
         self,
-        label_width: int,
+        label_width: Union[None, int],
         n_models: Union[None, int],
         models: List[Union[tf.keras.Model, Callable[..., tf.keras.Model]]],
         fn_agg: Callable[..., tf.Tensor],
         model_distribution: List[int] = None,
         seed: Optional[int] = None,
+        *args: list,
         **kwargs: dict,
     ):
 
-        super().__init__(**kwargs)
+        super().__init__(*args, **kwargs)
 
         # Reproducible instance
         tf.random.set_seed(seed)
@@ -77,7 +90,7 @@ class BasePool(tf.keras.Model):
     def _init_models(
         self,
         models: List[Union[tf.keras.Model, Callable]],
-        model_distribution: List[int],
+        model_distribution: Union[None, List[int]],
         **kwargs: dict,
     ) -> None:
         """Initialize models by picking randomly models or by using instances."""
@@ -90,7 +103,7 @@ class BasePool(tf.keras.Model):
 
             # Check only if instances are provided
             self.checks(
-                (model for model in models if isinstance(model, tf.keras.Model))
+                [model for model in models if isinstance(model, tf.keras.Model)]
             )
             self._models = self._init_callable_models(
                 models, distribution=list(range(self.n_models)), **kwargs
@@ -117,7 +130,7 @@ class BasePool(tf.keras.Model):
             )
 
     def _init_callable_models(
-        self, models: List[Callable], distribution: List[int], **kwargs
+        self, models: List[Callable], distribution: List[int], **kwargs: dict
     ) -> List[tf.keras.Model]:
         """Initialize models from callable."""
 
@@ -139,7 +152,7 @@ class BasePool(tf.keras.Model):
 
     def checks(self, models: List[Callable]):
         """
-        Checksperformed during init if callabels are provided.
+        Checks performed during init if callables are provided.
         """
 
         raise NotImplementedError("You need to override this function.")
@@ -195,7 +208,7 @@ class BasePool(tf.keras.Model):
             **kwargs,
         )
 
-    def _shuffle(self, structure) -> None:
+    def _shuffle(self, structure: list) -> None:
         """Shuffle losses and pick them randomly.
         """
 
@@ -209,6 +222,26 @@ class BasePool(tf.keras.Model):
 
         # Ensure that all losses are represented
         return structure + [structure[idx] for idx in element_idx[n_elements:]]
+
+    def _preprocessing_wrapper(self, inputs: TENSOR_TYPE) -> TENSOR_TYPE:
+        return inputs
+
+    def _post_processing_wrapper(self, outputs: Union[List[List[TENSOR_TYPE]], TENSOR_TYPE]) -> TENSOR_TYPE:
+        """Post-processing wrapper."""
+
+        self.handle_dim_in_losses_and_metrics(outputs)
+
+        return outputs
+
+    def _propagate_quantiles(self):
+
+        # Propagates to sublayers
+        for idx, _ in enumerate(self.layers):
+            if hasattr(self.layers[idx], "_set_quantiles"):
+                self.layers[idx]._set_quantiles(
+                    self.quantiles
+                )  # pylint: disable=protected-access
+
 
     def train_step(self, data: tuple) -> dict:
         """The logic for one training step.
@@ -232,7 +265,7 @@ class BasePool(tf.keras.Model):
         # TODO: replace this step for rapidity
         return self.test_step((x, y, sample_weight))
 
-    def test_step(self, data):
+    def test_step(self, data: tuple):
         """The logic for one test step.
 
         Apply processing function to y and test models together.
@@ -245,7 +278,7 @@ class BasePool(tf.keras.Model):
 
         return super().test_step((x, y, sample_weight))
 
-    def predict_step(self, data):
+    def predict_step(self, data: tuple):
         """The logic for one predict step.
 
         Apply post-processing function to y.
@@ -275,7 +308,7 @@ class BasePool(tf.keras.Model):
 
     def postprocessing_y(
         self,
-        y: Union[None, Union[Union[tf.Tensor, tf.data.Dataset], Tuple[tf.Tensor, ...]]],
+        y: Union[None, Union[Union[tf.Tensor, tf.data.Dataset], Tuple[tf.Tensor, ...]]]
     ) -> Union[Tuple[None, None], Tuple[Callable, tuple]]:
         "Apply mask inside `predict_step`"
 

@@ -9,171 +9,9 @@ import tensorflow as tf
 from keras.engine import data_adapter
 
 from .training import UnivariateModel
-from ..layers import TrendBlock, SeasonalityBlock, GenericBlock, BaseBlock
+from ..layers import TrendBlock, SeasonalityBlock, GenericBlock, BaseBlock, Stack
 from ..layers.nbeats_layers import SEASONALITY_TYPE
 from .pool import BasePool
-
-
-class Stack(UnivariateModel):
-    """
-    A stack is a series of blocks where each block produces two outputs,
-    the forecast and the backcast.
-
-    Inside a stack all forecasts are sum up and compose the stack output.
-    In the meantime, the backcast is given to the following block.
-
-    Parameters
-    ----------
-    blocks : tuple[:class:`autopycoin.models.BaseBlock`]
-        Blocks layers. they can be generic, seasonal or trend ones.
-        You can also define your own block by subclassing `BaseBlock`.
-
-    Attributes
-    ----------
-    blocks : tuple[:class:`autopycoin.models.BaseBlock`]
-    label_width : int
-    input_width : int
-    is_interpretable : bool
-    stack_type : str
-
-    Examples
-    --------
-    >>> from autopycoin.layers import TrendBlock, SeasonalityBlock
-    >>> from autopycoin.models import Stack, NBEATS
-    >>> from autopycoin.losses import QuantileLossError
-    ...
-    >>> trend_block = TrendBlock(label_width=20,
-    ...                          p_degree=2,
-    ...                          n_neurons=16,
-    ...                          drop_rate=0.1,
-    ...                          name="trend_block")
-    ...
-    >>> seasonality_block = SeasonalityBlock(label_width=20,
-    ...                                      forecast_periods=[10],
-    ...                                      backcast_periods=[20],
-    ...                                      forecast_fourier_order=[10],
-    ...                                      backcast_fourier_order=[20],
-    ...                                      n_neurons=15,
-    ...                                      drop_rate=0.1,
-    ...                                      name="seasonality_block")
-    ...
-    ... # blocks creation
-    >>> trend_blocks = [trend_block for _ in range(3)]
-    >>> seasonality_blocks = [seasonality_block for _ in range(3)]
-    ...
-    ... # Stacks creation
-    >>> trend_stacks = Stack(trend_blocks, name="trend_stack")
-    >>> seasonality_stacks = Stack(seasonality_blocks, name="seasonality_stack")
-    ...
-    ... # model definition and compiling
-    >>> model = NBEATS([trend_stacks, seasonality_stacks], name="interpretable_NBEATS")
-    >>> model.compile(loss=QuantileLossError(quantiles=[0.5]))
-
-    Notes
-    -----
-    input shape:
-    N-D tensor with shape: (..., batch_size, time step).
-    The most common situation would be a 2D input with shape (batch_size, time step).
-
-    output shape:
-    N-D tensor with shape: (..., batch_size, units).
-    For instance, for a 2D input with shape (batch_size, units),
-    the output would have shape (batch_size, units).
-    With a QuantileLossError with 2 quantiles or higher the output would have shape (quantiles, batch_size, units).
-    If you add 2 variables, the output would have shape (variables, quantiles, batch_size, units).
-    """
-
-    def __init__(
-        self,
-        blocks: Tuple[BaseBlock, ...],
-        apply_quantiles_transpose: bool = False,
-        apply_multivariate_transpose: bool = False,
-        *args: list,
-        **kwargs: dict,
-    ):
-
-        super().__init__(
-            apply_quantiles_transpose=apply_quantiles_transpose,
-            apply_multivariate_transpose=apply_multivariate_transpose,
-            *args,
-            **kwargs,
-        )
-        self._blocks = blocks
-        self._stack_type = self._set_type()
-        self._is_interpretable = self._set_interpretability()
-
-    def call(
-        self, inputs: Union[tuple, dict, list, tf.Tensor], **kwargs: dict
-    ) -> Tuple[tf.Tensor, ...]:
-        """Call method from tensorflow."""
-
-        if isinstance(inputs, (tuple, list)):
-            inputs = inputs[0]
-
-        outputs = tf.constant(0.0)  # init output
-        for block in self.blocks:
-            reconstructed_inputs, residual_outputs = block(inputs)
-            inputs = tf.subtract(inputs, reconstructed_inputs)
-            outputs = tf.add(outputs, residual_outputs)
-        return inputs, outputs
-
-    def get_config(self) -> dict:
-        """See tensorflow documentation."""
-
-        config = super().get_config()
-        config.update({"blocks": self.blocks})
-        return config
-
-    def _set_type(self) -> str:
-        """Return the type of the stack."""
-
-        block_type = self.blocks[0].block_type
-        for block in self.blocks:
-            if block.block_type != block_type:
-                return "CustomStack"
-        return block_type.replace("Block", "") + "Stack"
-
-    def _set_interpretability(self) -> bool:
-        """True if the stack is interpretable else False."""
-
-        interpretable = all([block.is_interpretable for block in self.blocks])
-        if interpretable:
-            return True
-        return False
-
-    @property
-    def label_width(self) -> int:
-        """Return the label width."""
-
-        return self.blocks[0].label_width
-
-    @property
-    def input_width(self) -> int:
-        """Return the input width."""
-
-        return self.blocks[0].input_width
-
-    @property
-    def blocks(self) -> List[BaseBlock]:
-        """Return the list of blocks."""
-
-        return self._blocks
-
-    @property
-    def stack_type(self) -> str:
-        """Return the type of the stack.
-        `CustomStack` if the blocks are all differents."""
-
-        return self._stack_type
-
-    @property
-    def is_interpretable(self) -> bool:
-        """Return True if the stack is interpretable."""
-
-        return self._is_interpretable
-
-    def __repr__(self):
-        return self.stack_type
 
 
 class NBEATS(UnivariateModel):
@@ -483,9 +321,6 @@ class NBEATS(UnivariateModel):
 
         return self._nbeats_type
 
-    def __repr__(self):
-        return self._nbeats_type
-
 
 NbeatsModelsOptions = Union[
     Union[List[NBEATS], NBEATS], Union[List[Callable], Callable],
@@ -494,6 +329,7 @@ NbeatsModelsOptions = Union[
 
 def create_interpretable_nbeats(
     label_width: int,
+    quantiles: Union[None, List[float]]=None,
     forecast_periods: SEASONALITY_TYPE = None,
     backcast_periods: SEASONALITY_TYPE = None,
     forecast_fourier_order: SEASONALITY_TYPE = None,
@@ -611,13 +447,14 @@ def create_interpretable_nbeats(
 
     trend_stacks = Stack(trend_blocks, name="trend_stack")
     seasonality_stacks = Stack(seasonality_blocks, name="seasonality_stack")
-    model = NBEATS([trend_stacks, seasonality_stacks], name=name, **kwargs)
+    model = NBEATS([trend_stacks, seasonality_stacks], quantiles=quantiles, name=name, **kwargs)
 
     return model
 
 
 def create_generic_nbeats(
     label_width: int,
+    quantiles: Union[None, List[float]]=None,
     g_forecast_neurons: int = 524,
     g_backcast_neurons: int = 524,
     n_neurons: int = 524,
@@ -701,7 +538,7 @@ def create_generic_nbeats(
 
             generic_stacks.append(Stack(generic_blocks, name="generic_stack"))
 
-    model = NBEATS(generic_stacks, name=name, **kwargs)
+    model = NBEATS(generic_stacks, quantiles=quantiles, name=name, **kwargs)
     return model
 
 
@@ -831,6 +668,7 @@ class PoolNBEATS(BasePool):
             create_interpretable_nbeats,
             create_generic_nbeats,
         ],
+        mask: List[int]=None,
         fn_agg: Callable = tf.reduce_mean,
         seed: Optional[int] = None,
         **kwargs: dict,
@@ -844,6 +682,8 @@ class PoolNBEATS(BasePool):
             seed=seed,
             **kwargs,
         )
+
+        self._mask = mask
 
     def compile(
         self,
@@ -872,7 +712,7 @@ class PoolNBEATS(BasePool):
         )
 
     # TODO: test
-    def check_valid_structure(self, structure, name):
+    def check_valid_structure(self, structure: list, name: str):
         """Check if loss and loss_weights are list of lists or a list of two elements."""
 
         if not isinstance(structure, (list, tuple)):
@@ -909,7 +749,7 @@ class PoolNBEATS(BasePool):
             dtype=tf.int32,
             seed=self.seed,
         )
-        self._mask = input_shape[1] - (mask * self.label_width)
+        self._mask = self._mask or input_shape[1] - (mask * self.label_width)
 
         super().build(input_shape)
 
@@ -959,7 +799,7 @@ class PoolNBEATS(BasePool):
         return masked_y
 
     @tf.function
-    def postprocessing_y(self, y):
+    def postprocessing_y(self, y: Union[list, tuple]):
         "Apply mask inside `predict_step`"
 
         inputs_reconstucted = [outputs[0] for outputs in y]

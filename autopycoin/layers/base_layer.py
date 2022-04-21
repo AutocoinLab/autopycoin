@@ -5,74 +5,16 @@ Overloading Layers tensorflow object
 from typing import List, Union
 import tensorflow as tf
 
-from ..extension_type import QuantileTensor, UnivariateTensor
+from autopycoin.constant import TENSOR_TYPE
+
+from ..baseclass import AutopycoinBaseClass
 from ..utils.data_utils import (
     convert_to_list,
-    transpose_first_to_last,
-    transpose_first_to_second_last,
-    transpose_last_to_first,
+    quantiles_handler
 )
-from .. import AutopycoinBaseLayer
-from ..constant import TENSOR_TYPE
 
 
-# TODO: Unit test
-class BaseLayer(tf.keras.layers.Layer, AutopycoinBaseLayer):
-    """Base layer which defines pre/post-processing methods to override.
-
-    This layer aims to be inherited and brings four functionality.
-    - preprocessing : Preprocess the inputs data
-    - post_processing : Preprocess the outputs data
-    - init_params : initialize parameters before `build` method
-    This three wrappers have to be overriden
-    - Typing check.
-    """
-
-    NOT_INSPECT = ["build", "call"]
-
-    def __init__(self, *args: list, **kwargs: dict) -> None:
-        super().__init__(*args, **kwargs)
-
-    def _preprocessing_wrapper(self, inputs: TENSOR_TYPE) -> TENSOR_TYPE:
-        return self.preprocessing(inputs)
-
-    def preprocessing(self, inputs: TENSOR_TYPE) -> None:
-        """Public API to apply preprocessing logics to your inputs data."""
-
-        raise NotImplementedError("`preprocessing` has to be overriden.")
-
-    def _post_processing_wrapper(self, outputs: TENSOR_TYPE) -> TENSOR_TYPE:
-        """Post-processing wrapper."""
-
-        outputs_is_nested = tf.nest.is_nested(outputs)
-        outputs = tuple(outputs) if outputs_is_nested else (outputs,)
-        outputs = tf.nest.map_structure(
-            lambda output: self.post_processing(output), outputs
-        )
-
-        return outputs[0] if len(outputs) == 1 else outputs
-
-    def post_processing(self, output: TENSOR_TYPE) -> None:
-        """Public API to apply post-processing logics to your outputs data."""
-
-        raise NotImplementedError("`post_processing` has to be overriden.")
-
-    def init_params(
-        self, inputs_shape: Union[tf.TensorShape, List[tf.TensorShape]], **kwargs: dict
-    ) -> None:
-        """Public API to initialize parameters before `build` method."""
-
-        raise NotImplementedError("`init_params` has to be overriden.")
-
-    def checks(
-        self, inputs_shape: Union[tf.TensorShape, List[tf.TensorShape]], **kwargs: dict
-    ) -> None:
-        """Public API to initialize parameters before `build` method."""
-
-        raise NotImplementedError("`checks` has to be overriden.")
-
-
-class QuantileLayer(BaseLayer):
+class QuantileLayer(tf.keras.layers.Layer, AutopycoinBaseClass):
     """Integrates a `quantiles` attribute to the layer.
 
     This layer aims to be inherited.
@@ -108,99 +50,43 @@ class QuantileLayer(BaseLayer):
 
         def build(self, inputs_shape):
             self.get_additional_shapes(0) + output_shape # get the quantile shape and add it where you need it
-
     """
 
     def __init__(
-        self, apply_quantiles_transpose: bool = False, *args: list, **kwargs: dict
+        self, quantiles: Union[None, List[float]]=None, *args: list, **kwargs: dict
     ) -> None:
 
         super().__init__(*args, **kwargs)
 
-        self.apply_quantiles_transpose = apply_quantiles_transpose
-        self._has_quantiles = False
-        self._quantiles = None
-        self._n_quantiles = 0
-        self._additional_shapes = [[]]
+        self._set_quantiles(quantiles)
 
     def _set_quantiles(
-        self,
-        value: List[List[float]],
-        additional_shapes: Union[None, List[List[int]]] = None,
-        n_quantiles: Union[None, List[List[int]]] = None,
+        self, quantiles: Union[None, list[float]]
     ) -> None:
         """Reset the `built` attribute to False and change the value of `quantiles`"""
 
-        self._built = False
-        self._has_quantiles = True
-        self._quantiles = value
-        self._additional_shapes = additional_shapes or [
-            [len(q)] for q in self.quantiles
-        ]
-        self._n_quantiles = n_quantiles or self._additional_shapes.copy()
+        self._has_quantiles = bool(quantiles)
+        self._quantiles = quantiles_handler(quantiles) if quantiles is not None else quantiles
+        self._n_quantiles = [len(self.quantiles)] if self.quantiles is not None else []
 
-    def checks(self):
-        return self.apply_quantiles_transpose
+    def _propagate_quantiles(self):
 
-    def preprocessing(self, inputs: TENSOR_TYPE) -> TENSOR_TYPE:
-        """No preprocessing for `QuantileModel`"""
-        return inputs
+        # Propagates to sublayers
+        for idx, _ in enumerate(self.layers):
+            if hasattr(self.layers[idx], "_set_quantiles"):
+                self.layers[idx]._set_quantiles(
+                    self.quantiles
+                )  # pylint: disable=protected-access
+                self.layers[idx]._propagate_quantiles()
 
-    def post_processing(self, outputs: TENSOR_TYPE, **kwargs: dict) -> TENSOR_TYPE:
-        """Convert the outputs to `QuantileTensor` and apply transpose operation.
-
-        The quantiles dimension is put to the last dimension to fit with keras norms.
-        There is a difference with its equivalent Model implementation, we can't check with losses
-        if they have a quantile attribute hence `apply_quantiles_transpose` is set to False by default
-        and if you need to implement a layer with transpose operation you have to set it to True.
-
-        The only check used is to ensure that quantile dimension is present in the outputs tensors.
-        """
-
-        if self._check_quantiles_requirements(outputs, **kwargs):
-            outputs = transpose_first_to_last(outputs)
-            if outputs.shape[-1] == 1:
-                outputs = tf.squeeze(outputs, axis=-1)
-            return QuantileTensor(outputs, quantiles=True)
-        return QuantileTensor(outputs, quantiles=False)
-
-    def _check_quantiles_requirements(
-        self, outputs: TENSOR_TYPE
-    ) -> bool:
-        """Check if the requirements are valids.
-        """
-
-        return self._check_quantiles_in_outputs(outputs) and self.has_quantiles
-
-    def _check_quantiles_in_outputs(self, outputs: TENSOR_TYPE) -> bool:
-        """Return True if the outputs contains a `quantiles` dimension."""
-
-        # TODO: find an other way to find if an outputs contains quantiles dimension
-
-        return any(
-            s == outputs.shape[: len(s)] and len(s) > 0 for s in self._additional_shapes
-        )  # or self._additional_shapes
-
-    def init_params(
-        self, inputs_shape: Union[tf.TensorShape, List[tf.TensorShape]], **kwargs: dict
+    def _init_params(
+        self,
+        inputs_shape: Union[tf.TensorShape, List[tf.TensorShape]],
+        n_variates: Union[None, int, List[int]] = 0,
+        is_multivariate: Union[None, bool] = None,
     ) -> None:
-        pass
 
-    def get_additional_shapes(self, index: int) -> Union[List[int], List[None]]:
-        """Return the shape to add to your layers.
-
-        How works this method:
-        If you defined two :class:`autopycoin.losses.QuantileLossError`
-        in your model with two differents `quantiles` attribute
-        for your two outputs tensors then index=0 will access the shape associated
-        to the first `quantiles` attribute.
-        Else it gives an empty list.
-        """
-
-        try:
-            return self._additional_shapes[index]
-        except IndexError:
-            return []
+        self._propagate_quantiles()
 
     @property
     def quantiles(self) -> List[List[float]]:
@@ -219,6 +105,14 @@ class QuantileLayer(BaseLayer):
         """Return True if quantiles exists else False."""
 
         return self._has_quantiles
+
+    @property
+    def additional_shape(self):
+        return self.n_quantiles
+
+    @property
+    def layers(self):
+        return list(self._flatten_layers(include_self=False, recursive=False))
 
 
 class UnivariateLayer(QuantileLayer):
@@ -250,52 +144,21 @@ class UnivariateLayer(QuantileLayer):
 
         def build(self, inputs_shape):
             self.get_additional_shapes(0) + output_shape # get the quantile shape and add it where you need it
-
     """
 
     def __init__(
-        self, apply_multivariate_transpose: bool = False, *args: list, **kwargs: dict
+        self, *args: list, **kwargs: dict
     ) -> None:
         super().__init__(*args, **kwargs)
 
-        self.apply_multivariate_transpose = apply_multivariate_transpose
-        self._init_multivariates_params = False
-
-        self._n_variates = []
         self._is_multivariate = False
+        self._n_variates = []
 
-    def checks(self):
-        return self.apply_multivariate_transpose or super().checks()
-
-    def preprocessing(
-        self, inputs: TENSOR_TYPE
-    ) -> Union[tf.Tensor, tf.Variable, UnivariateTensor]:
-        """Init the multivariates attributes and transpose the `nvariates` dimension in first position."""
-
-        if self.is_multivariate:
-            return tf.nest.map_structure(transpose_last_to_first, inputs)
-        return inputs
-
-    def post_processing(self, outputs: TENSOR_TYPE, **kwargs: dict) -> TENSOR_TYPE:
-        outputs = super().post_processing(outputs, **kwargs)
-        if self.is_multivariate:
-            outputs = tf.nest.map_structure(
-                lambda outputs: transpose_first_to_second_last(outputs) if outputs.quantiles else transpose_first_to_last(outputs),
-                outputs,
-            )
-            return tf.nest.map_structure(
-                convert_to_univariate_tensor(multivariates=True), outputs
-            )
-        return tf.nest.map_structure(
-            convert_to_univariate_tensor(multivariates=False), outputs
-        )
-
-    def init_params(
+    def _init_params(
         self,
         inputs_shape: Union[tf.TensorShape, List[tf.TensorShape]],
-        n_variates: Union[None, List[Union[None, int]]] = None,
+        n_variates: Union[None, int, List[int]] = None,
         is_multivariate: Union[None, bool] = None,
-        additional_shapes: Union[None, List[List[int]]] = None,
     ) -> None:
         """Initialize attributes related to univariate model.
 
@@ -306,38 +169,35 @@ class UnivariateLayer(QuantileLayer):
         - Add the n_variates dimension to `additional_shape`.
         """
 
-        if not self._init_multivariates_params:
-            if isinstance(inputs_shape, (tuple, list)):
-                inputs_shape = inputs_shape[0]
+        super()._init_params(
+            inputs_shape=inputs_shape, n_variates=n_variates, is_multivariate=is_multivariate
+        )
 
-            self._init_multivariates_params = True
-            self._set_is_multivariate(inputs_shape, is_multivariate)
-            self._set_n_variates(inputs_shape, n_variates)
-            self._extend_additional_shape(additional_shapes)
+        self._set_multivariates(inputs_shape=inputs_shape, n_variates=n_variates, is_multivariate=is_multivariate)
+        self._propagate_multivariates(inputs_shape)
 
-    def _set_is_multivariate(
-        self, inputs_shape: tf.TensorShape, is_multivariate: Union[None, bool] = None
-    ) -> None:
-        """Initiate `is_multivariate` attribute"""
+    def _set_multivariates(self,
+        inputs_shape: Union[tf.TensorShape, List[tf.TensorShape]],
+        n_variates: Union[None, int, List[int]] = None,
+        is_multivariate: Union[None, bool] = None,
+        ):
 
         self._is_multivariate = is_multivariate or bool(inputs_shape.rank > 2)
-
-    def _set_n_variates(
-        self,
-        inputs_shape: tf.TensorShape,
-        n_variates: Union[None, List[Union[None, int]]] = None,
-    ) -> None:
-        """Initiate `n_variates` attribute"""
-
         if self.is_multivariate:
             self._n_variates = convert_to_list(n_variates or inputs_shape[-1])
 
-    def _extend_additional_shape(
-        self, additional_shapes: Union[None, List[List[int]]] = None
-    ) -> None:
-        self._additional_shapes = additional_shapes or [
-            s + self.n_variates for s in self._additional_shapes
-        ]
+    def _propagate_multivariates(self, inputs_shape: Union[tf.TensorShape, List[tf.TensorShape]]):
+        # Propagates to sublayers
+        for idx, _ in enumerate(self.layers):
+            if hasattr(self.layers[idx], "_init_params"):
+                self.layers[idx]._set_multivariates(
+                    inputs_shape,
+                    self.n_variates,
+                    self.is_multivariate
+                )
+                self.layers[idx]._propagate_multivariates(
+                    inputs_shape
+                )  # pylint: disable=protected-access
 
     @property
     def is_multivariate(self) -> bool:
@@ -347,9 +207,6 @@ class UnivariateLayer(QuantileLayer):
     def n_variates(self) -> List[Union[None, int]]:
         return self._n_variates
 
-
-def convert_to_univariate_tensor(multivariates):
-    def fn(tensor):
-        return UnivariateTensor(values=tensor, multivariates=multivariates)
-
-    return fn
+    @property
+    def additional_shape(self):
+        return self.n_quantiles + self.n_variates
