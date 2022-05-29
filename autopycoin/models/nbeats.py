@@ -45,8 +45,8 @@ class NBEATS(UnivariateModel):
 
     Examples
     --------
-    >>> from autopycoin.layers import TrendBlock, SeasonalityBlock
-    >>> from autopycoin.models import Stack, NBEATS
+    >>> from autopycoin.layers import TrendBlock, SeasonalityBlock, Stack
+    >>> from autopycoin.models import NBEATS
     >>> from autopycoin.losses import QuantileLossError
     >>> from autopycoin.data import random_ts
     >>> from autopycoin.dataset import WindowGenerator
@@ -628,7 +628,7 @@ class PoolNBEATS(BasePool):
     >>> model = PoolNBEATS(
     ...             label_width=10,
     ...             n_models=2,
-    ...             nbeats_models=create_interpretable_nbeats,
+    ...             nbeats_models=[create_interpretable_nbeats],
     ...             )
     >>> model.compile(tf.keras.optimizers.Adam(
     ...    learning_rate=0.015, beta_1=0.9, beta_2=0.999, epsilon=1e-07, amsgrad=True,
@@ -720,7 +720,7 @@ class PoolNBEATS(BasePool):
 
         elif all(isinstance(l, (list, tuple)) for l in structure):
             if any(len(l)!=2 for l in structure):
-                raise ValueError(f'In case of list of list, {name} elements has to be length 2, got {structure}')
+                raise ValueError(f'In case of list of lists, {name} elements has to be length 2, got {structure}')
 
         elif len(structure) != 2 :
             raise ValueError(f'if {name} is not a list of list, {name} has to be length 2, got {structure}')
@@ -805,7 +805,9 @@ class PoolNBEATS(BasePool):
         inputs_reconstucted = [outputs[0] for outputs in y]
         y = [outputs[1] for outputs in y]
 
-        if any(outputs.quantiles for outputs in y):
+        if any(outputs.quantiles for outputs in y) and not all(outputs.quantiles for outputs in y):
             return inputs_reconstucted, y
+
+        print(y)
 
         return inputs_reconstucted, self.fn_agg(y, axis=0)

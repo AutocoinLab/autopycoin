@@ -30,13 +30,15 @@ class LayerTest(tf.test.TestCase, parameterized.TestCase):
             trend_n_neurons=5,
             seasonality_n_neurons=5,
             drop_rate=0.5,
+            quantiles=[0.5, 0.6],
             share=True,
         )
 
-        model.compile(loss=QuantileLossError([0.5, 0.6]))
+        model.compile(loss=QuantileLossError())
+        model.build(tf.TensorShape((None, 10)))
 
         for block in model.stacks[0].blocks:
-            self.assertEqual(block.quantiles, [[0.5, 0.6]])
-            self.assertEqual(block.n_quantiles, [[2]])
+            self.assertEqual(block.quantiles, [0.5, 0.6])
+            self.assertEqual(block.n_quantiles, [2])
             self.assertEqual(block.is_multivariate, False)
             self.assertEqual(block.n_variates, [])

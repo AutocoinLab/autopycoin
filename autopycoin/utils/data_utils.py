@@ -56,7 +56,7 @@ def quantiles_handler(
     quantiles: Union[None, int, float, List[Union[int, float, List[Union[int, float]]]]]
 ) -> List[Union[int, float]]:
     """
-    Convenient function which ensures that quantiles are sorted and unique.
+    Convenient function which ensures that quantiles are sorted and uniques.
     Negative quantiles are not allowed.
 
     Parameters

@@ -349,7 +349,7 @@ def layer_test(
                 "rmsprop",
                 [
                     "mse",
-                    losses.QuantileLossError([0.5]),
+                    losses.QuantileLossError(),
                     losses.SymetricMeanAbsolutePercentageError(),
                 ],
                 weighted_metrics=["acc"],
@@ -360,7 +360,7 @@ def layer_test(
                 "rmsprop",
                 [
                     "mse",
-                    losses.QuantileLossError([0.5]),
+                    losses.QuantileLossError(),
                     losses.SymetricMeanAbsolutePercentageError(),
                 ],
                 weighted_metrics=["acc"],

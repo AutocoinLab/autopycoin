@@ -2,7 +2,7 @@
 Overloading Layers tensorflow object
 """
 
-from typing import List, Union
+from typing import List, Union, Tuple
 import tensorflow as tf
 
 from autopycoin.constant import TENSOR_TYPE
@@ -61,7 +61,7 @@ class QuantileLayer(tf.keras.layers.Layer, AutopycoinBaseClass):
         self._set_quantiles(quantiles)
 
     def _set_quantiles(
-        self, quantiles: Union[None, list[float]]
+        self, quantiles: Union[None, list[Union[float, list[float]]]]
     ) -> None:
         """Reset the `built` attribute to False and change the value of `quantiles`"""
 
@@ -73,7 +73,7 @@ class QuantileLayer(tf.keras.layers.Layer, AutopycoinBaseClass):
 
         # Propagates to sublayers
         for idx, _ in enumerate(self.layers):
-            if hasattr(self.layers[idx], "_set_quantiles"):
+            if hasattr(self.layers[idx], "_init_params"):
                 self.layers[idx]._set_quantiles(
                     self.quantiles
                 )  # pylint: disable=protected-access
@@ -168,6 +168,9 @@ class UnivariateLayer(QuantileLayer):
         - Initialize attributes: `is_multivariate`, `n_variates`.
         - Add the n_variates dimension to `additional_shape`.
         """
+
+        if isinstance(inputs_shape, list):
+            inputs_shape = inputs_shape[0]
 
         super()._init_params(
             inputs_shape=inputs_shape, n_variates=n_variates, is_multivariate=is_multivariate

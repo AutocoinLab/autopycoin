@@ -17,12 +17,11 @@ from ..models import PoolNBEATS
 
 from ..test_utils import layer_test, check_attributes
 from ..losses import QuantileLossError
-from ..layers.nbeats_layers import GenericBlock, TrendBlock, SeasonalityBlock
+from ..layers.nbeats_layers import GenericBlock, TrendBlock, SeasonalityBlock, Stack
 from . import (
     create_interpretable_nbeats,
     create_generic_nbeats,
     NBEATS,
-    Stack,
 )
 from ..data import random_ts
 
@@ -525,17 +524,17 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
         model = create_model()
 
         # Compare output shape with expected when quantiles = 3
-        model.compile(loss=["mse", QuantileLossError([0.1, 0.5, 0.9])])
-        check_shape(model, np.array([[1.0, 2.0, 3.0]]), (1, 3), (1, 2, 3))
+        model.compile(loss=["mse", QuantileLossError()])
+        check_shape(model, np.array([[1.0, 2.0, 3.0]]), (1, 3), (1, 2))
 
         model = create_model()
 
-        model.compile(loss=["mse", QuantileLossError([0.1, 0.5, 0.9])])
+        model.compile(loss=["mse", QuantileLossError()])
         check_shape(
             model,
             np.array([[[1.0, 1.0], [2.0, 2.0], [3.0, 3.0]]]),
             (1, 3, 2),
-            (1, 2, 2, 3),
+            (1, 2, 2),
         )
 
     @parameterized.parameters([(2, 5, 5, 5, 3, 2, 0.0, True)])
@@ -604,32 +603,22 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
         model = create_model()
 
         # Compare output shape with expected when quantiles = 3
-        model.compile(loss=["mse", QuantileLossError([0.1, 0.5, 0.9])])
-        check_shape(model, np.array([[1.0, 2.0, 3.0]]), (1, 3), (1, 2, 3))
-
-        model = create_model()
-
-        model.compile(loss=["mse", QuantileLossError([0.1, 0.5, 0.9])])
-        check_shape(
-            model,
-            np.array([[[1.0, 1.0], [2.0, 2.0], [3.0, 3.0]]]),
-            (1, 3, 2),
-            (1, 2, 2, 3),
-        )
+        model.compile(loss=["mse", QuantileLossError()])
+        check_shape(model, np.array([[1.0, 2.0, 3.0]]), (1, 3), (1, 2))
 
     @parameterized.parameters(
         [
             (
                 2,
                 tf.reduce_mean,
-                [(1, 2, 2), (1, 2, 2), (1, 2, 2), (1, 2, 2, 2), (1, 2, 2)],
-                (1, 2),
+                [1, 2, 2, 2],
+                (1, 2, 2),
             ),
             (
                 2,
                 lambda x, axis: tf.identity(x),
-                [(1, 2, 2), (1, 2, 2), (1, 2, 2), (1, 2, 2, 2), (1, 2, 2)],
-                (10, 1, 2),
+                (1, 2, 2, 2),
+                (10, 1, 2, 2),
             ),
         ]
     )
@@ -663,9 +652,12 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
         ]
 
         # Check quantiles model
-        qloss = QuantileLossError([0.2, 0.5])
+        qloss = QuantileLossError()
 
-        model = PoolNBEATS(n_models=5, nbeats_models=model, fn_agg=fn_agg, seed=5)
+        model = PoolNBEATS(
+            n_models=5, 
+            quantiles=[0.2, 0.5],
+            nbeats_models=model, fn_agg=fn_agg, seed=5)
 
         model.compile(
             tf.keras.optimizers.Adam(
@@ -682,8 +674,10 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
 
         # Issue 13
         model.fit(w.train, epochs=1)
+
         # Check validation_data
         model.fit(w.train, validation_data=w.valid, epochs=1)
+
         # Check tensor inputs
         for x, y, x_val, y_val in zip(w.train.take(1), w.valid.take(1)):
             model.fit(x=x, y=y, validation_data=(x_val, y_val), epochs=1)

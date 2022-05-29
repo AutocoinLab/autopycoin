@@ -22,22 +22,22 @@ class CheckQuantileTest(test.TestCase):
         self.assertEqual([[0.1], [0.03, 0.7]], quantiles_handler(quantiles))
 
         quantiles = [0.1, 0.1]
-        self.assertEqual([[0.1]], quantiles_handler(quantiles))
+        self.assertEqual([0.1], quantiles_handler(quantiles))
 
     def test_float_quantile(self):
         quantiles = 0.1
-        self.assertEqual([[0.1]], quantiles_handler(quantiles))
+        self.assertEqual([0.1], quantiles_handler(quantiles))
 
     def test_int_quantile(self):
         quantiles = 1
-        self.assertEqual([[0.01]], quantiles_handler(quantiles))
+        self.assertEqual([0.01], quantiles_handler(quantiles))
 
     def test_none_quantile(self):
         quantiles = [1, None]
         with self.assertRaisesRegexp(
             ValueError, "None value or empty list are not supported"
         ):
-            self.assertEqual([[0.1]], quantiles_handler(quantiles))
+            self.assertEqual([0.1], quantiles_handler(quantiles))
 
 
 @pytest.fixture(scope="class")

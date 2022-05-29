@@ -225,11 +225,10 @@ class QuantileLossError(LossFunctionWrapper):
 
     def __init__(
         self,
-        quantiles: Union[
-            int, float, List[Union[int, float, List[Union[int, float]]]]
-        ] = 0.5,
+        quantiles: Union[List[Union[int, float]], List[List[Union[int, float]]]] = [[0.5]],
         reduction: Optional[str] = losses_utils.ReductionV2.SUM,
         name: Optional[str] = "q_loss",
+        *args: list,
         **kwargs: dict
     ):
 
@@ -237,9 +236,10 @@ class QuantileLossError(LossFunctionWrapper):
 
         super().__init__(
             quantile_loss,
-            quantiles=self.quantiles,
             name=name,
             reduction=reduction,
+            quantiles=self.quantiles,
+            *args,
             **kwargs
         )
 
@@ -248,14 +248,15 @@ class LossQuantileDimWrapper(LossFunctionWrapper, AutopycoinBaseClass):
     def __init__(
         self,
         fn: Union[tf.keras.losses.Loss, LossFunctionWrapper, Callable],
-        quantiles: Union[None, List[float]]=None,
+        quantiles: Optional[Union[None, List[Union[int, float]], List[List[Union[int, float]]]]] = [[0.5]],
         reduction: Optional[str] = losses_utils.ReductionV2.SUM,
         name: Optional[str] = "dim_wrapper",
+        *args: list,
         **kwargs: dict
     ):
 
         self.fn = fn
-        self.quantiles = quantiles
+        self.quantiles = quantiles_handler(quantiles)
         self._fn_dict = {'expand': expand_dims, 'remove': remove_dims}
         self.preprocess_fn = 'remove'
 
@@ -270,6 +271,7 @@ class LossQuantileDimWrapper(LossFunctionWrapper, AutopycoinBaseClass):
             loss_fn=self.fn,
             name=name,
             reduction=reduction,
+            *args,
             **kwargs
         )
 

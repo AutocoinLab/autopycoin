@@ -21,7 +21,6 @@ class QuantileLossTest(test.TestCase):
 
         self.assertEqual(ql_obj.name, "ql_1")
         self.assertEqual(ql_obj.reduction, losses_utils.ReductionV2.SUM)
-        self.assertEqual(ql_obj.quantiles, [[0.9]])
 
     def test_all_correct_unweighted(self):
         ql_obj = losses.QuantileLossError(quantiles=[0.1, 0.5, 0.9])
@@ -75,9 +74,9 @@ class QuantileLossTest(test.TestCase):
             dtype=tf.float32,
         )
 
-        sample_weight = tf.constant([3, 6, 5, 0, 4, 2], shape=(2, 3, 1))
+        sample_weight = tf.constant([3, 6, 5, 0, 4, 2], shape=(2, 3, 1, 1))
         loss = ql_obj(y_true, y_pred, sample_weight=sample_weight)
-        self.assertAlmostEqual(self.evaluate(loss), 124.5, 3)
+        self.assertAlmostEqual(self.evaluate(loss), 330.0, 3)
 
     def test_zero_weighted(self):
         ql_obj = losses.QuantileLossError(quantiles=[0.1, 0.5, 0.9])

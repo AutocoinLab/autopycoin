@@ -5,7 +5,6 @@ Unit test for training.
 """
 
 from absl.testing import parameterized
-from numpy import quantile
 import pandas as pd
 import pytest
 
@@ -21,13 +20,13 @@ from .training import UnivariateModel
 
 class DenseModel(UnivariateModel):
     def __init__(
-        self, apply_multivariate_transpose: bool = True, *args: list, **kwargs: dict
+        self, *args: list, **kwargs: dict
     ):
-        super().__init__(apply_multivariate_transpose, *args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def build(self, input_shape):
 
-        shape = self.get_additional_shapes(0) + [20, 50]
+        shape = self.additional_shape + [20, 50]
 
         self.dense = self.add_weight(shape=shape, name=f"fc",)
 
@@ -48,7 +47,7 @@ class DoubleDenseModel(DenseModel):
 
     def build(self, input_shape):
 
-        shape = self.get_additional_shapes(1) + [20, 50]
+        shape = self.additional_shape + [20, 50]
 
         self.dense2 = self.add_weight(shape=shape, name=f"fc",)
 
@@ -82,7 +81,7 @@ class DenseUnivariateModel(UnivariateModel):
 
     def build(self, input_shape):
 
-        shape = self.get_additional_shapes(0) + [20, 50]
+        shape = self.additional_shape + [20, 50]
 
         self.dense = self.add_weight(shape=shape, name=f"fc",)
 
@@ -150,31 +149,31 @@ class ModelTest(tf.test.TestCase, parameterized.TestCase):
     """
 
     def test_attributes(self):
-        model = DenseModel()
+        model = DenseModel(quantiles=[0.5])
 
         self.assertEqual(model.quantiles, None)
-        model.compile(loss=QuantileLossError([0.5, 0.6]))
-        self.assertEqual(model.quantiles, [[0.5, 0.6]])
+        model.compile(loss=QuantileLossError())
+        self.assertEqual(model.quantiles, [0.5])
 
         for layer in model.layers[1:]:  # don't take Input layer
-            self.assertEqual(layer.quantiles, [[0.5, 0.6]])
+            self.assertEqual(layer.quantiles, [0.5, 0.6])
 
     @parameterized.parameters(
         [
-            (QuantileLossError([0.1, 0.3, 0.5]), (213, 50, 3), None, None),
-            ([QuantileLossError([0.1, 0.3, 0.5])], (213, 50, 3), None, None),
-            ([QuantileLossError([0.1, 0.3, 0.5]), "mse"], (213, 50, 3), None, None),
+            (QuantileLossError(), (213, 50, 3), None, None),
+            ([QuantileLossError()], (213, 50, 3), None, None),
+            ([QuantileLossError(), "mse"], (213, 50, 3), None, None),
             (
                 [
-                    QuantileLossError([0.1, 0.3, 0.5]),
-                    QuantileLossError([0.1, 0.3, 0.5]),
+                    QuantileLossError(),
+                    QuantileLossError(),
                 ],
                 (213, 50, 3),
                 None,
                 None,
             ),
             (
-                [QuantileLossError([0.1, 0.3, 0.5]), QuantileLossError([0.1, 0.5])],
+                [QuantileLossError(), QuantileLossError()],
                 (213, 50, 3),
                 ValueError,
                 "`quantiles` has to be identical through losses",
@@ -192,6 +191,7 @@ class ModelTest(tf.test.TestCase, parameterized.TestCase):
                 self.w_uni.train,
                 self.w_uni.valid,
                 expected_output_shape=(None, 50),
+                kwargs={'quantiles':[0.5]}
             )
         else:
             with self.assertRaisesRegexp(error, msg):
@@ -202,39 +202,41 @@ class ModelTest(tf.test.TestCase, parameterized.TestCase):
                     self.w_uni.train,
                     self.w_uni.valid,
                     expected_output_shape=(None, 50),
+                    kwargs={'quantiles':[0.5]}
+
                 )
 
     @parameterized.parameters(
         [
             (
-                QuantileLossError([0.1, 0.3, 0.5]),
+                QuantileLossError(quantiles=[0.5]),
                 ((213, 50, 3), (213, 50, 3)),
                 ValueError,
                 "Quantiles in losses and outputs are not the same",
             ),
             (
-                [QuantileLossError([0.1, 0.3, 0.5])],
+                [QuantileLossError(quantiles=[0.2, 0.5, 0.8])],
                 ((213, 50, 3), (213, 50, 3)),
                 ValueError,
                 "Quantiles in losses and outputs are not the same",
             ),
             (
-                [QuantileLossError([0.1, 0.3, 0.5]), "mse"],
+                [QuantileLossError(quantiles=[0.5]), "mse"],
                 ((213, 50, 3), (213, 50)),
                 None,
                 None,
             ),
             (
                 [
-                    QuantileLossError([0.1, 0.3, 0.5]),
-                    QuantileLossError([0.1, 0.3, 0.5]),
+                    QuantileLossError(),
+                    QuantileLossError(),
                 ],
                 ((213, 50, 3), (213, 50, 3)),
                 None,
                 None,
             ),
             (
-                [QuantileLossError([0.1, 0.3, 0.5]), QuantileLossError([0.1, 0.5])],
+                [QuantileLossError(), QuantileLossError()],
                 ((213, 50, 3), (213, 50, 2)),
                 None,
                 None,
@@ -242,9 +244,9 @@ class ModelTest(tf.test.TestCase, parameterized.TestCase):
             ("mse", ((213, 50), (213, 50)), None, None),
             (
                 [
-                    QuantileLossError([0.1, 0.3, 0.5]),
+                    QuantileLossError(),
                     "mse",
-                    QuantileLossError([0.1, 0.3, 0.5]),
+                    QuantileLossError(),
                     "mse",
                 ],
                 ((213, 50, 3), (213, 50, 3)),
@@ -278,13 +280,13 @@ class ModelTest(tf.test.TestCase, parameterized.TestCase):
     @parameterized.parameters(
         [
             (
-                QuantileLossError([0.1, 0.3, 0.5]),
+                QuantileLossError(),
                 ((213, 50, 3), (213, 50, 3)),
                 ValueError,
                 "Quantiles in losses and outputs are not the same.",
             ),
             (
-                [QuantileLossError([0.1, 0.3, 0.5]), "mse"],
+                [QuantileLossError(), "mse"],
                 ((213, 50, 3), (213, 50)),
                 None,
                 None,
@@ -316,20 +318,20 @@ class ModelTest(tf.test.TestCase, parameterized.TestCase):
 
     @parameterized.parameters(
         [
-            (QuantileLossError([0.1, 0.3, 0.5]), (213, 50, 2, 3), None, None),
-            ([QuantileLossError([0.1, 0.3, 0.5])], (213, 50, 2, 3), None, None),
-            ([QuantileLossError([0.1, 0.3, 0.5]), "mse"], (213, 50, 2, 3), None, None),
+            (QuantileLossError(), (213, 50, 2, 3), None, None),
+            ([QuantileLossError()], (213, 50, 2, 3), None, None),
+            ([QuantileLossError(), "mse"], (213, 50, 2, 3), None, None),
             (
                 [
-                    QuantileLossError([0.1, 0.3, 0.5]),
-                    QuantileLossError([0.1, 0.3, 0.5]),
+                    QuantileLossError(),
+                    QuantileLossError(),
                 ],
                 (213, 50, 2, 3),
                 None,
                 None,
             ),
             (
-                [QuantileLossError([0.1, 0.3, 0.5]), QuantileLossError([0.1, 0.5])],
+                [QuantileLossError(), QuantileLossError()],
                 (213, 50, 2, 3),
                 ValueError,
                 "`quantiles` has to be identical through losses",
@@ -337,9 +339,9 @@ class ModelTest(tf.test.TestCase, parameterized.TestCase):
             ("mse", (213, 50, 2), None, None),
             (
                 [
-                    QuantileLossError([0.1, 0.3, 0.5]),
+                    QuantileLossError(),
                     "mse",
-                    QuantileLossError([0.1, 0.3, 0.5]),
+                    QuantileLossError(),
                     "mse",
                 ],
                 (213, 50, 2, 3),

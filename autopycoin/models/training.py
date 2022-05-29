@@ -29,7 +29,7 @@ from ..utils import (
 class BaseModel(keras.Model, AutopycoinBaseModel):
     """Base model which defines pre/post-processing methods to override.
 
-    This model aims to be inherited and brings six functionality.
+    This model aims to be inherited and brings six methods.
     - preprocessing : Preprocess the inputs data
     - post_processing : Preprocess the outputs data
     - init_params : initialize parameters before `build` method
@@ -88,17 +88,19 @@ class BaseModel(keras.Model, AutopycoinBaseModel):
     def handle_dim_in_losses_and_metrics(self, outputs: Union[List[List[TENSOR_TYPE]], TENSOR_TYPE]) -> None:
         """Build and wrap losses and metrics."""
 
-        if not self.compiled_loss.built:
-            self.compiled_loss.build(outputs)
-        self.compiled_loss._losses = tf.nest.map_structure(
-            self.losses_wrapper, self.compiled_loss._losses
-        )
+        if self.compiled_loss:
+            if not self.compiled_loss.built:
+                self.compiled_loss.build(outputs)
+            self.compiled_loss._losses = tf.nest.map_structure(
+                self.losses_wrapper, self.compiled_loss._losses
+            )
 
-        if not self.compiled_metrics.built:
-            self.compiled_metrics.build(outputs, outputs)
-        self.compiled_metrics._metrics = tf.nest.map_structure(
-            self.metrics_wrapper, self.compiled_metrics._metrics
-        )
+        if self.compiled_metrics:
+            if not self.compiled_metrics.built:
+                self.compiled_metrics.build(outputs, outputs)
+            self.compiled_metrics._metrics = tf.nest.map_structure(
+                self.metrics_wrapper, self.compiled_metrics._metrics
+            )
 
     def losses_wrapper(
         self, loss: Union[LossFunctionWrapper, Loss]
@@ -199,7 +201,7 @@ class QuantileModel(BaseModel, QuantileLayer):  # pylint: disable=abstract-metho
             If the output `quantiles` are not broadcastable with the losses `quantiles`
         """
 
-        quantiles_in_outputs = self._check_quantiles_in_outputs(outputs)
+        quantiles_in_outputs = self._check_quantiles_in_outputs(outputs) and self.has_quantiles
         if quantiles_in_outputs and self.compiled_loss:
 
             quantiles_in_losses = [
@@ -218,16 +220,12 @@ class QuantileModel(BaseModel, QuantileLayer):  # pylint: disable=abstract-metho
 
         return self.additional_shape == outputs.shape[:len(self.additional_shape)]
 
-    def handle_dim_in_losses_and_metrics(self, outputs: Union[List[List[TENSOR_TYPE]], TENSOR_TYPE]):
-        if self.has_quantiles:
-            return super().handle_dim_in_losses_and_metrics(outputs)
-
     def losses_wrapper(
         self, loss: Union[LossFunctionWrapper, Loss]
     ) -> Union[None, LossQuantileDimWrapper]:
         """Add or remove the quantile dimension to y_pred and y_true respectively."""
         if (
-            not isinstance(loss, (LossQuantileDimWrapper, type(None)))
+            not isinstance(loss, (LossQuantileDimWrapper, type(None))) and self.has_quantiles
         ):
 
             kwargs = loss.get_config()
@@ -236,9 +234,10 @@ class QuantileModel(BaseModel, QuantileLayer):  # pylint: disable=abstract-metho
                 kwargs['fn'] = loss.fn
             else:
                 kwargs['fn'] = loss
+            
+            kwargs['quantiles'] = self.quantiles
 
             loss = LossQuantileDimWrapper(
-                quantiles=self.quantiles,
                 **kwargs
                 )
         return loss
@@ -252,7 +251,7 @@ class QuantileModel(BaseModel, QuantileLayer):  # pylint: disable=abstract-metho
         """Add or remove the quantile dimension to y_pred and y_true respectively."""
 
         if (
-            not isinstance(metric, (MetricQuantileDimWrapper, type(None)))
+            not isinstance(metric, (MetricQuantileDimWrapper, type(None))) and self.has_quantiles
         ):
 
             metric = MetricQuantileDimWrapper(
@@ -287,11 +286,6 @@ class UnivariateModel(UnivariateLayer, QuantileModel):
 
         self._is_multivariate = False
         self._n_variates = []
-
-    def handle_dim_in_losses_and_metrics(self, outputs: TENSOR_TYPE):
-        if self.is_multivariate:
-            return BaseModel.handle_dim_in_losses_and_metrics(self, outputs)
-        return super().handle_dim_in_losses_and_metrics(outputs)
 
     def preprocessing(
         self, inputs: TENSOR_TYPE

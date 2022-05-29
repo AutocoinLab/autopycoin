@@ -64,7 +64,9 @@ class BasePool(QuantileModel, AutopycoinBaseModel):
         self,
         label_width: Union[None, int],
         n_models: Union[None, int],
-        models: List[Union[tf.keras.Model, Callable[..., tf.keras.Model]]],
+        models: Union[
+            Union[List[keras.Model], keras.Model], Union[List[Callable], Callable],
+        ],
         fn_agg: Callable[..., tf.Tensor],
         model_distribution: List[int] = None,
         seed: Optional[int] = None,
@@ -89,7 +91,9 @@ class BasePool(QuantileModel, AutopycoinBaseModel):
 
     def _init_models(
         self,
-        models: List[Union[tf.keras.Model, Callable]],
+        models: Union[
+            Union[List[keras.Model], keras.Model], Union[List[Callable], Callable],
+        ],
         model_distribution: Union[None, List[int]],
         **kwargs: dict,
     ) -> None:
@@ -278,7 +282,7 @@ class BasePool(QuantileModel, AutopycoinBaseModel):
 
         return super().test_step((x, y, sample_weight))
 
-    def predict_step(self, data: tuple):
+    def predict_step(self, data: Union[tuple, tf.Tensor]):
         """The logic for one predict step.
 
         Apply post-processing function to y.

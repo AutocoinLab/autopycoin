@@ -322,8 +322,8 @@ class TrendBlock(BaseBlock):
 
     Examples
     --------
-    >>> from autopycoin.layers import TrendBlock, SeasonalityBlock
-    >>> from autopycoin.models import Stack, NBEATS
+    >>> from autopycoin.layers import TrendBlock, SeasonalityBlock, Stack
+    >>> from autopycoin.models import NBEATS
     >>> from autopycoin.losses import QuantileLossError
     >>> trend_block = TrendBlock(label_width=10,
     ...                          p_degree=2,
@@ -516,8 +516,8 @@ class SeasonalityBlock(BaseBlock):
 
     Examples
     --------
-    >>> from autopycoin.layers import TrendBlock, SeasonalityBlock
-    >>> from autopycoin.models import Stack, NBEATS
+    >>> from autopycoin.layers import TrendBlock, SeasonalityBlock, Stack
+    >>> from autopycoin.models import NBEATS
     >>> from autopycoin.losses import QuantileLossError
     >>> trend_block = TrendBlock(label_width=10,
     ...                          p_degree=2,
@@ -747,8 +747,8 @@ class GenericBlock(BaseBlock):
 
     Examples
     --------
-    >>> from autopycoin.layers import GenericBlock
-    >>> from autopycoin.models import Stack, NBEATS
+    >>> from autopycoin.layers import GenericBlock, Stack
+    >>> from autopycoin.models import NBEATS
     >>> from autopycoin.losses import QuantileLossError
     >>> generic_block = GenericBlock(label_width=10,
     ...                          n_neurons=16,
@@ -902,8 +902,8 @@ class Stack(UnivariateLayer):
 
     Examples
     --------
-    >>> from autopycoin.layers import TrendBlock, SeasonalityBlock
-    >>> from autopycoin.models import Stack, NBEATS
+    >>> from autopycoin.layers import TrendBlock, SeasonalityBlock, Stack
+    >>> from autopycoin.models import NBEATS
     >>> from autopycoin.losses import QuantileLossError
     ...
     >>> trend_block = TrendBlock(label_width=20,
