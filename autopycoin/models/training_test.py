@@ -43,7 +43,7 @@ class DoubleDenseModel(DenseModel):
     def __init__(
         self, apply_multivariate_transpose: bool = True, *args: list, **kwargs: dict
     ):
-        super().__init__(apply_multivariate_transpose, *args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def build(self, input_shape):
 
@@ -151,9 +151,8 @@ class ModelTest(tf.test.TestCase, parameterized.TestCase):
     def test_attributes(self):
         model = DenseModel(quantiles=[0.5])
 
-        self.assertEqual(model.quantiles, None)
-        model.compile(loss=QuantileLossError())
         self.assertEqual(model.quantiles, [0.5])
+        model.compile(loss=QuantileLossError())
 
         for layer in model.layers[1:]:  # don't take Input layer
             self.assertEqual(layer.quantiles, [0.5, 0.6])

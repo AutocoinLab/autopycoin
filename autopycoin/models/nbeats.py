@@ -808,6 +808,4 @@ class PoolNBEATS(BasePool):
         if any(outputs.quantiles for outputs in y) and not all(outputs.quantiles for outputs in y):
             return inputs_reconstucted, y
 
-        print(y)
-
         return inputs_reconstucted, self.fn_agg(y, axis=0)

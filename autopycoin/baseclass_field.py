@@ -18,7 +18,7 @@ else:
 class _ConversionContext(enum.Enum):
     """
     Enum to indicate what kind of value is being converted.
-    Used by `_convert_value` and their helper methods.
+    Used by `_check_value` and their helper methods.
     """
 
     VALUE = 1
@@ -67,7 +67,7 @@ class AutopycoinField(
             raise TypeError(f"In field {name!r}: {error}") from error
 
         if not isinstance(default, Sentinel):
-            default = _convert_value(
+            default = _check_value(
                 default,
                 value_type,
                 (f"default value for {name}",),
@@ -112,6 +112,7 @@ def validate_field_value_type(
         is_generic_tuple(value_type)
         or is_generic_union(value_type)
         or is_generic_list(value_type)
+        or is_generic_sequence(value_type)
     ):
         type_args = get_generic_type_args(value_type)
         if (
@@ -135,7 +136,7 @@ def validate_field_value_type(
         raise TypeError(f"Unsupported type annotation {value_type!r}")
 
 
-def _convert_value(
+def _check_value(
     value, expected_type, path, context=_ConversionContext.VALUE, convert=True
 ):
     """Type-checks value.
@@ -158,9 +159,9 @@ def _convert_value(
         return _check_mapping(value, expected_type, path, context)
     elif is_generic_union(expected_type):
         return _check_union(value, expected_type, path, context)
-    elif is_generic_list(expected_type):
+    elif is_generic_list(expected_type) or is_generic_sequence(expected_type):
         return _check_list(value, expected_type, path, context)
-    
+
     try:
         if isinstance(value, expected_type):
             return value
@@ -180,7 +181,7 @@ def _check_tuple(value, expected_type, path, context):
     if len(element_types) == 2 and element_types[1] is Ellipsis:
         return tuple(
             [
-                _convert_value(
+                _check_value(
                     v, element_types[0], path + (f"[{i}]",), context, convert=False
                 )
                 for (i, v) in enumerate(value)
@@ -194,7 +195,7 @@ def _check_tuple(value, expected_type, path, context):
             )
         return tuple(
             [
-                _convert_value(v, t, path + (f"[{i}]",), context, convert=False)
+                _check_value(v, t, path + (f"[{i}]",), context, convert=False)
                 for (i, (v, t)) in enumerate(zip(value, element_types))
             ]
         )
@@ -208,8 +209,8 @@ def _check_mapping(value, expected_type, path, context):
     return dict(
         [
             (
-                _convert_value(k, key_type, path + ("[<key>]",), context, convert=True),
-                _convert_value(
+                _check_value(k, key_type, path + ("[<key>]",), context, convert=True),
+                _check_value(
                     v, value_type, path + (f"[{k!r}]",), context, convert=True
                 ),
             )
@@ -222,10 +223,10 @@ def _check_union(value, expected_type, path, context):
     """Checks `value` to a value with any of the types in `expected_type`."""
     for type_option in get_generic_type_args(expected_type):
         try:
-            return _convert_value(value, type_option, path, context, convert=False)
+            return _check_value(value, type_option, path, context, convert=False)
         except TypeError:
             pass
-    return _convert_value(
+    return _check_value(
         value, get_generic_type_args(expected_type)[-1], path, context, convert=True
     )
 
@@ -236,7 +237,7 @@ def _check_list(value, expected_type, path, context):
         raise TypeError(f'{"".join(path)}: expected list, got {value!r}')
     element_type = get_generic_type_args(expected_type)[0]
     return [
-        _convert_value(v, element_type, path + (f"[{i}]",), context, convert=True)
+        _check_value(v, element_type, path + (f"[{i}]",), context, convert=True)
         for (i, v) in enumerate(value)
     ]
 
@@ -244,6 +245,11 @@ def _check_list(value, expected_type, path, context):
 def is_generic_union(tp):
     """Returns true if `tp` is a parameterized typing.Union value."""
     return tp is not typing.Union and getattr(tp, "__origin__", None) is typing.Union
+
+
+def is_generic_sequence(tp):
+    """Returns true if `tp` is a parameterized typing.Union value."""
+    return tp is not collections.abc.Sequence and getattr(tp, "__origin__", None) is collections.abc.Sequence
 
 
 def is_generic_tuple(tp):

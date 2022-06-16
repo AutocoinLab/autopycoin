@@ -10,7 +10,7 @@ from inspect import signature, _empty
 from tensorflow.python.util import tf_decorator
 import tensorflow as tf
 
-from .baseclass_field import AutopycoinField, _convert_value
+from .baseclass_field import AutopycoinField, _check_value
 
 
 NOT_SUPPORTED_FIELDS = ["return", "kwargs", "args"]
@@ -54,13 +54,13 @@ def convert_value(list_fields, attribute_name, *args, **kwargs):
     args = list(args)
     for idx, field in enumerate(list_fields):
         if not field.name in kwargs and idx <= len(args) - 1:
-            args[idx] = _convert_value(
+            args[idx] = _check_value(
                 args[idx],
                 field.value_type,
                 (f"value for {field.name} in {attribute_name}",),
             )
         elif field.name in kwargs:
-            kwargs[field.name] = _convert_value(
+            kwargs[field.name] = _check_value(
                 kwargs[field.name],
                 field.value_type,
                 (f"value for {field.name} in {attribute_name}",),

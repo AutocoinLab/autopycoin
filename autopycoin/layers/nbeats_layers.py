@@ -1,4 +1,4 @@
-from typing import Tuple, List, Union
+from typing import Tuple, List, Union, Sequence
 import numpy as np
 import abc
 
@@ -949,7 +949,7 @@ class Stack(UnivariateLayer):
 
     def __init__(
         self,
-        blocks: Tuple[BaseBlock, ...],
+        blocks: Sequence[BaseBlock],
         *args: list,
         **kwargs: dict,
     ):

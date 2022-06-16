@@ -611,14 +611,14 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
             (
                 2,
                 tf.reduce_mean,
-                [1, 2, 2, 2],
-                (1, 2, 2),
+                (1, 2, 2, 2),
+                (1, 2),
             ),
             (
                 2,
                 lambda x, axis: tf.identity(x),
-                (1, 2, 2, 2),
-                (10, 1, 2, 2),
+                (5, 1, 2, 2, 2),
+                (10, 1, 2),
             ),
         ]
     )
@@ -697,8 +697,7 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
             )
         )
 
-        for o, s in zip(output[1], shape):
-            self.assertEqual(o.shape, s)
+        self.assertEqual(output[1].shape, shape)
 
         for loss in ["mse", "mae", "mape", qloss]:
             self.assertIn(loss, model.loss)
@@ -747,11 +746,11 @@ class NBEATSLayersTest(tf.test.TestCase, parameterized.TestCase):
 
             if i == 0:
                 mask_random_v1 = model2._mask
-                pool_losses_random_v1 = model2.compiled_loss._losses
+                pool_losses_random_v1 = [l.name for l in model2.compiled_loss._losses]
                 types_random_v1 = [m.nbeats_type for m in model2.models]
 
         self.assertAllEqual(model2._mask, mask_random_v1)
-        self.assertAllEqual(model2.compiled_loss._losses, pool_losses_random_v1)
+        self.assertAllEqual([l.name for l in model2.compiled_loss._losses], pool_losses_random_v1)
         self.assertAllEqual([m.nbeats_type for m in model2.models], types_random_v1)
 
         output = model2.predict(np.array([[1.0, 2.0, 3.0, 5.0, 6.0, 7.0]]))
