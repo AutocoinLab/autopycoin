@@ -41,7 +41,7 @@ class DenseModel(UnivariateModel):
 
 class DoubleDenseModel(DenseModel):
     def __init__(
-        self, apply_multivariate_transpose: bool = True, *args: list, **kwargs: dict
+        self, *args: list, **kwargs: dict
     ):
         super().__init__(*args, **kwargs)
 
@@ -59,9 +59,9 @@ class DoubleDenseModel(DenseModel):
 
 class DoubleDenseModel2(DoubleDenseModel):
     def __init__(
-        self, apply_multivariate_transpose: bool = True, *args: list, **kwargs: dict
+        self, *args: list, **kwargs: dict
     ):
-        super().__init__(apply_multivariate_transpose, *args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def build(self, input_shape):
 
@@ -75,9 +75,9 @@ class DoubleDenseModel2(DoubleDenseModel):
 
 class DenseUnivariateModel(UnivariateModel):
     def __init__(
-        self, apply_multivariate_transpose: bool = True, *args: list, **kwargs: dict
+        self, *args: list, **kwargs: dict
     ):
-        super().__init__(apply_multivariate_transpose, *args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def build(self, input_shape):
 
@@ -159,183 +159,75 @@ class ModelTest(tf.test.TestCase, parameterized.TestCase):
 
     @parameterized.parameters(
         [
-            (QuantileLossError(), (213, 50, 3), None, None),
-            ([QuantileLossError()], (213, 50, 3), None, None),
-            ([QuantileLossError(), "mse"], (213, 50, 3), None, None),
             (
-                [
-                    QuantileLossError(),
-                    QuantileLossError(),
-                ],
-                (213, 50, 3),
-                None,
-                None,
-            ),
-            (
-                [QuantileLossError(), QuantileLossError()],
-                (213, 50, 3),
-                ValueError,
-                "`quantiles` has to be identical through losses",
-            ),
-            ("mse", (213, 50), None, None),
-        ]
-    )
-    def test_predict_one_output_shape(self, loss, shape, error, msg):
-
-        if not error:
-            model_test(
                 DenseModel,
-                (shape,),
-                loss,
-                self.w_uni.train,
-                self.w_uni.valid,
-                expected_output_shape=(None, 50),
-                kwargs={'quantiles':[0.5]}
-            )
-        else:
-            with self.assertRaisesRegexp(error, msg):
-                model_test(
-                    DenseModel,
-                    (shape,),
-                    loss,
-                    self.w_uni.train,
-                    self.w_uni.valid,
-                    expected_output_shape=(None, 50),
-                    kwargs={'quantiles':[0.5]}
-
-                )
-
-    @parameterized.parameters(
-        [
-            (
-                QuantileLossError(quantiles=[0.5]),
-                ((213, 50, 3), (213, 50, 3)),
-                ValueError,
-                "Quantiles in losses and outputs are not the same",
-            ),
-            (
-                [QuantileLossError(quantiles=[0.2, 0.5, 0.8])],
-                ((213, 50, 3), (213, 50, 3)),
-                ValueError,
-                "Quantiles in losses and outputs are not the same",
-            ),
-            (
-                [QuantileLossError(quantiles=[0.5]), "mse"],
-                ((213, 50, 3), (213, 50)),
-                None,
-                None,
-            ),
-            (
-                [
-                    QuantileLossError(),
-                    QuantileLossError(),
-                ],
-                ((213, 50, 3), (213, 50, 3)),
-                None,
-                None,
-            ),
-            (
-                [QuantileLossError(), QuantileLossError()],
-                ((213, 50, 3), (213, 50, 2)),
-                None,
-                None,
-            ),
-            ("mse", ((213, 50), (213, 50)), None, None),
-            (
-                [
-                    QuantileLossError(),
-                    "mse",
-                    QuantileLossError(),
-                    "mse",
-                ],
-                ((213, 50, 3), (213, 50, 3)),
-                None,
-                None,
-            ),
-        ]
-    )
-    def test_predict_multi_output_shape(self, loss, shape, error, msg):
-
-        if not error:
-            model_test(
-                DoubleDenseModel,
-                shape,
-                loss,
-                self.w_uni.train,
-                self.w_uni.valid,
-                expected_output_shape=(None, 50),
-            )
-        else:
-            with self.assertRaisesRegexp(error, msg):
-                model_test(
-                    DoubleDenseModel,
-                    shape,
-                    loss,
-                    self.w_uni.train,
-                    self.w_uni.valid,
-                    expected_output_shape=(None, 50),
-                )
-
-    @parameterized.parameters(
-        [
-            (
-                QuantileLossError(),
-                ((213, 50, 3), (213, 50, 3)),
-                ValueError,
-                "Quantiles in losses and outputs are not the same.",
-            ),
-            (
                 [QuantileLossError(), "mse"],
-                ((213, 50, 3), (213, 50)),
+                [0.2, 0.5, 0.8],
+                ((213, 50, 3), (213, 50, 3)),
                 None,
                 None,
             ),
-            ("mse", ((213, 50), (213, 50)), None, None),
+            (DenseModel, "mse", None, ((213, 50), (213, 50)), None, None),
+            (
+                DoubleDenseModel,
+                [QuantileLossError(), "mse"],
+                [0.2, 0.5, 0.8],
+                ((213, 50, 3), (213, 50, 3)),
+                None,
+                None,
+            ),
+            (DoubleDenseModel, "mse", None, ((213, 50), (213, 50)), None, None),
+            (
+                DoubleDenseModel2,
+                [QuantileLossError(), "mse"],
+                [0.2, 0.5, 0.8],
+                ((213, 50, 3), (213, 50, 3)),
+                None,
+                None,
+            ),
+            (DoubleDenseModel2, "mse", None, ((213, 50), (213, 50)), None, None),
         ]
     )
-    def test_predict_multi_output2_shape(self, loss, shape, error, msg):
+    def test_predict_output_shape(self, model, loss, quantiles, shape, error, msg):
 
         if not error:
             model_test(
-                DoubleDenseModel2,
+                model,
                 shape,
                 loss,
                 self.w_uni.train,
                 self.w_uni.valid,
                 expected_output_shape=(None, 50),
+                kwargs={'quantiles': quantiles}
             )
         else:
             with self.assertRaisesRegexp(error, msg):
                 model_test(
-                    DoubleDenseModel2,
+                    model,
                     shape,
                     loss,
                     self.w_uni.train,
                     self.w_uni.valid,
                     expected_output_shape=(None, 50),
+                    kwargs={'quantiles': quantiles}
                 )
 
     @parameterized.parameters(
         [
-            (QuantileLossError(), (213, 50, 2, 3), None, None),
-            ([QuantileLossError()], (213, 50, 2, 3), None, None),
-            ([QuantileLossError(), "mse"], (213, 50, 2, 3), None, None),
+            (QuantileLossError(), [0.2, 0.5, 0.8], (213, 50, 2, 3), None, None),
+            ([QuantileLossError()], [0.2, 0.5, 0.8], (213, 50, 2, 3), None, None),
+            ([QuantileLossError(), "mse"], [0.2, 0.5, 0.8], (213, 50, 2, 3), None, None),
             (
                 [
                     QuantileLossError(),
                     QuantileLossError(),
                 ],
+                [0.2, 0.5, 0.8],
                 (213, 50, 2, 3),
                 None,
                 None,
             ),
-            (
-                [QuantileLossError(), QuantileLossError()],
-                (213, 50, 2, 3),
-                ValueError,
-                "`quantiles` has to be identical through losses",
-            ),
-            ("mse", (213, 50, 2), None, None),
+            ("mse", None, (213, 50, 2), None, None),
             (
                 [
                     QuantileLossError(),
@@ -343,13 +235,14 @@ class ModelTest(tf.test.TestCase, parameterized.TestCase):
                     QuantileLossError(),
                     "mse",
                 ],
+                [0.2, 0.5, 0.8],
                 (213, 50, 2, 3),
                 None,
                 None,
             ),
         ]
     )
-    def test_predict_one_output_multivariate_shape(self, loss, shape, error, msg):
+    def test_predict_one_output_multivariate_shape(self, loss, quantiles, shape, error, msg):
         if not error:
             model_test(
                 DenseUnivariateModel,
@@ -358,6 +251,7 @@ class ModelTest(tf.test.TestCase, parameterized.TestCase):
                 self.w_multi.train,
                 self.w_multi.valid,
                 expected_output_shape=(None, 50, 2),
+                kwargs={'quantiles': quantiles}
             )
         else:
             with self.assertRaisesRegexp(error, msg):
@@ -368,4 +262,5 @@ class ModelTest(tf.test.TestCase, parameterized.TestCase):
                     self.w_multi.train,
                     self.w_multi.valid,
                     expected_output_shape=(None, 50, 2),
+                    kwargs={'quantiles': quantiles}
                 )

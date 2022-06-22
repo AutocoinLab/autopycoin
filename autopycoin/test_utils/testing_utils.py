@@ -76,11 +76,11 @@ def model_test(
     if isinstance(expected_output_shape_model, (list, tuple)):
         output = (output,) if not isinstance(output, (list, tuple)) else output
         for o, eo in zip(output, expected_output_shape_model):
-            assert o.shape == eo, f"shapes not equals, got {o.shape} and {eo}"
+            assert o.shape == eo, f"shapes are not equals, got {o.shape} and {eo}"
     else:
         assert (
             output.shape == expected_output_shape_model
-        ), f"shapes not equals, got {output.shape} and {expected_output_shape_model}"
+        ), f"shapes are not equals, got {output.shape} and {expected_output_shape_model}"
 
     # functional test
     layer_test(cls, input_shape=input_dataset.element_spec[0].shape, **kwargs)

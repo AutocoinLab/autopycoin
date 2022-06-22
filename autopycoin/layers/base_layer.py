@@ -82,8 +82,7 @@ class QuantileLayer(tf.keras.layers.Layer, AutopycoinBaseClass):
     def _init_params(
         self,
         inputs_shape: Union[tf.TensorShape, List[tf.TensorShape]],
-        n_variates: Union[None, int, List[int]] = 0,
-        is_multivariate: Union[None, bool] = None,
+        **kwargs: dict
     ) -> None:
 
         self._propagate_quantiles()
@@ -173,7 +172,7 @@ class UnivariateLayer(QuantileLayer):
             inputs_shape = inputs_shape[0]
 
         super()._init_params(
-            inputs_shape=inputs_shape, n_variates=n_variates, is_multivariate=is_multivariate
+            inputs_shape=inputs_shape
         )
 
         self._set_multivariates(inputs_shape=inputs_shape, n_variates=n_variates, is_multivariate=is_multivariate)

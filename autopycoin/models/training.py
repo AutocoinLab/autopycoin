@@ -110,7 +110,7 @@ class BaseModel(keras.Model, AutopycoinBaseModel):
         See `tf.keras.losses.LossFunctionWrapper` docstring for more informations about `fn`.
         """
 
-        raise NotImplementedError("`losses_wrapper` has to be overriden")
+        raise NotImplementedError("`losses_wrapper` has to be overriden.")
 
     def metrics_wrapper(self, metrics: Any):
         """Wrap the update_state function.
@@ -118,7 +118,7 @@ class BaseModel(keras.Model, AutopycoinBaseModel):
         See `tf.keras.metrics.Metric` docstring for more informations about `update_state`.
         """
 
-        raise NotImplementedError("`losses_wrapper` has to be overriden")
+        raise NotImplementedError("`losses_wrapper` has to be overriden.")
 
 
 class QuantileModel(BaseModel, QuantileLayer):  # pylint: disable=abstract-method
