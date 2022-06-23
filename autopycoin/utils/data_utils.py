@@ -51,6 +51,24 @@ def range_dims(tensor: tf.Tensor, shape: Tuple, dtype: str = floatx()) -> tf.Ten
     return tensor
 
 
+def np_range_dims(array: np.ndarray, shape: Tuple, dtype: str = floatx()) -> np.ndarray:
+    """
+    Convenient function which performs a range and a reshape operation.
+
+    Parameters
+    ----------
+    tensor : tensor, array or list
+    shape : tuple
+
+    Returns
+    -------
+    array : ndarray
+    """
+    array = np.arange(array, dtype=dtype)
+    array = np.reshape(array, newshape=shape)
+    return array
+
+
 # corriger
 def quantiles_handler(
     quantiles: Union[None, int, float, List[Union[int, float, List[Union[int, float]]]]]

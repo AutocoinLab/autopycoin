@@ -4,6 +4,7 @@ This subpackage defines helper functions needed to train a deep learning.
 
 from .data_utils import (
     range_dims,
+    np_range_dims,
     quantiles_handler,
     example_handler,
     fill_none,
